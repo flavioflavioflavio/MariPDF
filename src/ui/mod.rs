@@ -10,3 +10,10 @@ pub mod recent_files;
 pub mod icons;
 pub mod side_panel;
 pub mod settings_panel;
+
+// Módulos extraídos (refactoring Fase 2)
+pub(crate) mod settings_widgets;
+pub(crate) mod settings_tabs;
+pub(crate) mod viewer_helpers;
+pub(crate) mod viewer_continuous;
+pub(crate) mod side_panel_thumbs;

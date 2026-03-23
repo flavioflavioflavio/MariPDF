@@ -2,9 +2,9 @@
 //
 // Responsabilidades:
 //   • Single-Page: 1 página por vez; scroll do mouse muda de página
-//   • Continuous: scroll vertical por todas as páginas (lazy rendering via PageCache)
+//   • Continuous: scroll vertical por todas as páginas (lazy rendering)
 //   • Zoom via Ctrl+Scroll em ambos os modos
-//   • Expõe sinais para o app.rs (zoom_delta, page_delta)
+//   • Sinais para o app.rs: zoom_delta, page_delta
 
 use eframe::egui;
 use std::collections::HashMap;
@@ -12,12 +12,11 @@ use crate::pdf::engine::{PdfEngine, RenderedPage};
 use crate::pdf::page_cache::{LruPageCache, DEFAULT_CAPACITY};
 use std::path::PathBuf;
 
-/// Quantas páginas adjacentes pré-renderizar agressivamente no modo Contínuo
-const PREFETCH_AHEAD:  usize = 3;
-const PREFETCH_BEHIND: usize = 1;
+use crate::ui::viewer_helpers::{upload_texture, fit_page, draw_page_tex, show_spinner};
+pub use crate::ui::viewer_helpers::invert_rgba;
 
-// ── Constantes ───────────────────────────────────────────────────────────────
 const PAGE_GAP: f32 = 20.0;
+
 
 // ── Modo de visualização ─────────────────────────────────────────────────────
 
@@ -215,146 +214,10 @@ impl PdfViewer {
         }
     }
 
-    // ── Modo Contínuo ────────────────────────────────────────────────────────
-
-    fn show_continuous(
-        &mut self,
-        ui:         &mut egui::Ui,
-        engine:     &PdfEngine,
-        page_count: usize,
-        page_tint:  egui::Color32,
-        page_border: egui::Color32,
-    ) {
-        // Ctrl+Scroll → zoom
-        let ctrl = ui.input(|i| i.modifiers.ctrl);
-        let scroll_y = ui.input(|i| i.smooth_scroll_delta.y);
-        if ctrl && scroll_y != 0.0 {
-            self.zoom_delta = scroll_y.signum() * 0.15;
-        }
-
-        let scale       = self.zoom * 1.5;
-        let available_w = ui.available_width();
-        let ctx         = ui.ctx().clone();
-
-        // ── Drena bitmaps prontos da thread de background ────────────────────
-        if self.page_cache.drain_ready() {
-            ctx.request_repaint();
-        }
-
-        // Converte RenderedPage disponibilizados pelo cache em TextureHandle
-        for idx in 0..page_count {
-            if !self.tex_cache.contains_key(&idx) {
-                // Checa se o bitmap já chegou (sem bloquear)
-                if let Some(bitmap) = self.page_cache.get(idx) {
-                    if self.invert_colors {
-                        let mut inverted: RenderedPage = (*bitmap).clone();
-                        invert_rgba(&mut inverted.rgba);
-                        let tex = upload_texture(&ctx, &inverted, idx);
-                        self.tex_cache.insert(idx, tex);
-                    } else {
-                        let tex = upload_texture(&ctx, bitmap, idx);
-                        self.tex_cache.insert(idx, tex);
-                    }
-                }
-            }
-        }
-
-        egui::ScrollArea::vertical()
-            .id_salt("continuous_scroll")
-            .auto_shrink(false)
-            .show(ui, |ui| {
-                ui.add_space(PAGE_GAP);
-
-                let est_page_h  = self.estimate_page_height(available_w);
-                let scroll_top  = ui.min_rect().top();
-                let vp_h        = ctx.screen_rect().height();
-
-                let first_visible = ((scroll_top.abs() / (est_page_h + PAGE_GAP)) as usize)
-                    .saturating_sub(PREFETCH_BEHIND + 1);
-                let last_visible  = (first_visible
-                    + (vp_h / (est_page_h + PAGE_GAP)).ceil() as usize
-                    + PREFETCH_AHEAD + PREFETCH_BEHIND + 2)
-                    .min(page_count.saturating_sub(1));
-
-                // Expulsa texturas fora da janela do viewport estendida
-                let cache_first = first_visible.saturating_sub(PREFETCH_BEHIND);
-                let cache_last  = last_visible;
-                self.tex_cache.retain(|&idx, _| idx >= cache_first && idx <= cache_last);
-                self.page_cache.evict_range(cache_first, cache_last);
-
-                // Solicita pré-render das páginas vizinhas ao viewport
-                for idx in first_visible..=last_visible {
-                    if idx < page_count {
-                        self.page_cache.prefetch(idx, scale);
-                    }
-                }
-
-                for idx in 0..page_count {
-                    // Fallback síncrono se a página está visível mas ainda não chegou
-                    let is_visible = idx >= first_visible && idx <= last_visible;
-                    if is_visible && !self.tex_cache.contains_key(&idx) && self.pdf_path.is_none() {
-                        if let Ok(mut rendered) = engine.render_page(idx, scale) {
-                            if self.invert_colors { invert_rgba(&mut rendered.rgba); }
-                            let tex = upload_texture(ui.ctx(), &rendered, idx);
-                            self.tex_cache.insert(idx, tex);
-                        }
-                    }
-
-                    ui.vertical_centered(|ui| {
-                        if let Some(tex) = self.tex_cache.get(&idx) {
-                            let (w, h) = fit_page(tex.size_vec2(), available_w - 48.0);
-                            let mut page_rect = egui::Rect::NOTHING;
-                            draw_page_tex(&mut page_rect, ui, tex, egui::vec2(w, h), page_tint, page_border);
-                            // guarda o rect da última página visível (visível mais próxima do centro)
-                            if self.last_page_rect == egui::Rect::NOTHING { self.last_page_rect = page_rect; }
-                        } else {
-                            // Skeleton animado — pulsa suavemente enquanto a página renderiza
-                            let ph = est_page_h;
-                            let pw = (available_w - 48.0).min(800.0);
-                            let (_, rect) = ui.allocate_space(egui::vec2(pw, ph));
-
-                            let t = ui.ctx().input(|i| i.time);
-                            // Pulso com fase diferente por página para não piscarem juntas
-                            let phase = (idx as f64) * 0.4;
-                            let alpha = ((t + phase).sin() * 0.15 + 0.70) as f32; // 0.55..0.85
-                            let base = egui::Color32::from_rgba_premultiplied(
-                                (38.0 * alpha) as u8,
-                                (38.0 * alpha) as u8,
-                                (50.0 * alpha) as u8,
-                                255,
-                            );
-                            ui.painter().rect_filled(rect, egui::CornerRadius::same(6), base);
-
-                            // Stripes 3 linhas fictícias de texto (shimmer)
-                            let stripe_color = egui::Color32::from_rgba_premultiplied(
-                                (60.0 * alpha) as u8, (60.0 * alpha) as u8,
-                                (80.0 * alpha) as u8, 255,
-                            );
-                            let stripe_h = 10.0;
-                            let stripe_gap = 18.0;
-                            for i in 0..3 {
-                                let y = rect.top() + 32.0 + (i as f32) * stripe_gap;
-                                let width = pw * if i == 2 { 0.5 } else { 0.72 };
-                                let sr = egui::Rect::from_min_size(
-                                    egui::pos2(rect.left() + 20.0, y),
-                                    egui::vec2(width, stripe_h),
-                                );
-                                ui.painter().rect_filled(sr, egui::CornerRadius::same(4), stripe_color);
-                            }
-
-                            if is_visible { ui.ctx().request_repaint(); }
-                        }
-                    });
-
-                    if idx + 1 < page_count { ui.add_space(PAGE_GAP); }
-                }
-                ui.add_space(PAGE_GAP);
-            });
-    }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    fn estimate_page_height(&self, available_w: f32) -> f32 {
+    pub(crate) fn estimate_page_height(&self, available_w: f32) -> f32 {
         // Usa a primeira textura disponível no tex_cache para estimar
         if let Some(tex) = self.tex_cache.values().next() {
             let size = tex.size_vec2();
@@ -371,87 +234,3 @@ impl PdfViewer {
 
 }
 
-// ── Helpers livres ────────────────────────────────────────────────────────────
-
-fn upload_texture(ctx: &egui::Context, page: &RenderedPage, idx: usize) -> egui::TextureHandle {
-    let image = egui::ColorImage::from_rgba_unmultiplied(
-        [page.width as usize, page.height as usize],
-        &page.rgba,
-    );
-    ctx.load_texture(
-        format!("pdf_{idx}"),
-        image,
-        egui::TextureOptions::LINEAR,
-    )
-}
-
-/// Calcula (display_w, display_h) respeitando max_w
-fn fit_page(tex_size: egui::Vec2, max_w: f32) -> (f32, f32) {
-    let w = tex_size.x.min(max_w.max(100.0));
-    let h = tex_size.y * (w / tex_size.x);
-    (w, h)
-}
-
-fn draw_page_tex(
-    viewer: &mut egui::Rect,  // out: rect da página para o caller
-    ui: &mut egui::Ui,
-    tex: &egui::TextureHandle,
-    size: egui::Vec2,
-    tint: egui::Color32,
-    border: egui::Color32,
-) {
-    let (_, rect) = ui.allocate_space(size);
-    *viewer = rect;  // grava para hit-test de links
-    // Cursor I-beam sobre a área da página
-    if let Some(pos) = ui.ctx().input(|i| i.pointer.hover_pos()) {
-        if rect.contains(pos) {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Text);
-        }
-    }
-    // Sombra suave e difusa (3 camadas de baixa opacidade, offsets crescentes)
-    for (offset, alpha) in [(3.0_f32, 18_u8), (6.0, 12), (10.0, 6)] {
-        ui.painter().rect_filled(
-            rect.translate(egui::vec2(offset * 0.4, offset)),
-            egui::CornerRadius::same(2),
-            egui::Color32::from_rgba_premultiplied(0, 0, 0, alpha),
-        );
-    }
-    // Página com tint multiplicado (WHITE = sem alteração)
-    ui.painter().image(
-        tex.id(),
-        rect,
-        egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-        tint,
-    );
-    // Borda fina adaptada ao tema
-    ui.painter().rect_stroke(
-        rect,
-        egui::CornerRadius::ZERO,
-        egui::Stroke::new(0.5, border),
-        egui::StrokeKind::Outside,
-    );
-}
-
-fn show_spinner(ui: &mut egui::Ui, available_h: f32) {
-    ui.vertical_centered(|ui| {
-        ui.add_space(available_h / 2.0 - 24.0);
-        ui.spinner();
-        ui.add_space(8.0);
-        ui.label(egui::RichText::new("Renderizando...")
-            .size(13.0).color(egui::Color32::from_rgb(90, 90, 110)));
-    });
-}
-
-/// Inversão suave (dark mode PDF): mapeia branco → grafite escuro e preto → off-white.
-/// Fórmula: `38 + ((255 - x) * 205 / 255)`, mantendo Alpha intacto.
-/// - Branco (255) → 38 (grafite escuro, não preto absoluto)
-/// - Preto  (0)   → 243 (off-white, não branco cru)
-/// - Meios-tons preservam contraste de leitura.
-pub fn invert_rgba(rgba: &mut Vec<u8>) {
-    for pixel in rgba.chunks_exact_mut(4) {
-        pixel[0] = 38 + ((255u16 - pixel[0] as u16) * 205 / 255) as u8; // R
-        pixel[1] = 38 + ((255u16 - pixel[1] as u16) * 205 / 255) as u8; // G
-        pixel[2] = 38 + ((255u16 - pixel[2] as u16) * 205 / 255) as u8; // B
-        // pixel[3] = Alpha — não altera
-    }
-}

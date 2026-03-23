@@ -19,7 +19,7 @@ pub struct Tokens {
     pub dw:      f32,
 }
 
-use crate::color_mode::ColorMode;
+use crate::app::ColorMode;
 
 impl Tokens {
     pub fn from(cm: ColorMode) -> Self {
