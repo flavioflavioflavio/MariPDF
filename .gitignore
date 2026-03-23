@@ -1,0 +1,20 @@
+# MariPDF .gitignore
+
+# Rust / Cargo
+/target/
+Cargo.lock
+
+# Logs de erro em desenvolvimento
+*.log
+
+# Assets gerados
+/assets/icon.ico    # gerado a partir do .svg na release
+
+# IDEs
+.vscode/settings.json
+.idea/
+*.iml
+
+# Windows
+Thumbs.db
+Desktop.ini

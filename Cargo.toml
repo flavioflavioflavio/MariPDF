@@ -1,0 +1,73 @@
+[package]
+name        = "maripdf"
+version     = "0.1.0"
+edition     = "2021"
+authors     = ["MariPDF Contributors"]
+description = "Leitor de PDF ultra-leve para Windows"
+license     = "GPL-3.0-or-later"
+homepage    = "https://github.com/your-username/MariPDF"
+repository  = "https://github.com/your-username/MariPDF"
+readme      = "README.md"
+keywords    = ["pdf", "reader", "windows"]
+categories  = ["multimedia"]
+
+# Fase 0+1 — dependências core
+[dependencies]
+# --- UI & Renderização ---
+egui          = "0.31"
+eframe        = { version = "0.31", features = ["wgpu"] }
+wgpu          = "24"
+
+# --- Engine PDF (pdfium — binários prebuilt do Chromium, renderização premium) ---
+# ADR-002: usamos pdfium na Fase 1 por velocidade de integração;
+# migração para MuPDF nativo planejada quando mupdf-sys suportar MSVC 2022.
+pdfium-render = { version = "0.8", features = ["sync"] }
+
+# --- Async runtime ---
+tokio         = { version = "1.45", features = ["rt-multi-thread", "macros"] }
+
+# --- Serialização / Storage ---
+serde         = { version = "1.0", features = ["derive"] }
+toml          = "0.8"
+
+# --- Diretórios do sistema ---
+dirs          = "6"
+
+# --- Erros & Logging ---
+thiserror     = "2.0"
+tracing       = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# --- Imagens (decodifica PNG do ícone embutido) ---
+image         = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+# --- Diálogo de arquivo nativo (Windows, macOS, Linux) ---
+rfd           = "0.15"
+
+# --- Utilitários ---
+anyhow        = "1.0"
+
+# --- Abertura de links externos no browser do sistema ---
+open          = "5"
+
+# --- Leitura do registro do Windows (detecção de tema dark/light) ---
+winreg        = "0.52"
+
+[build-dependencies]
+# Embute ícone .ico e metadados no executável Windows
+winres        = "0.1"
+
+[profile.release]
+opt-level     = 3
+lto           = true          # Link-Time Optimization — binário menor e mais rápido
+codegen-units = 1             # Melhor otimização, build mais lento
+strip         = true          # Remove símbolos de debug do binário
+panic         = "abort"       # Menor binário, sem stack unwinding
+
+[profile.dev]
+opt-level     = 1             # Equilibrio entre velocidade de build e performance em dev
+
+# Binário final
+[[bin]]
+name = "maripdf"
+path = "src/main.rs"
