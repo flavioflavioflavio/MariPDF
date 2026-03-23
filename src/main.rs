@@ -6,10 +6,12 @@ use crate::settings::FontChoice;
 use std::path::PathBuf;
 
 mod app;
-mod color_mode;
+mod app_color_mode;
+mod app_home;
+mod app_reader;
+mod app_overlays;
 mod pdf;
 mod platform;
-mod toast;
 mod ui;
 mod settings;
 mod settings_types;
