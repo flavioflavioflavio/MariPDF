@@ -157,4 +157,36 @@ pub(super) fn tab_privacy(
             if resp.clicked() { /* limpar histórico */ }
         });
     });
+
+    // ── Integração Windows ─────────────────────────────────────────────────
+    ui.add_space(20.0);
+    divider(ui, tok.bord, tok.dw);
+    ui.add_space(16.0);
+    sec(ui, "Integração com Windows", tok.subtle);
+    ui.add_space(8.0);
+
+    let is_assoc = crate::platform::file_assoc::is_pdf_associated();
+    ui.horizontal(|ui| {
+        ui.vertical(|ui| {
+            ui.label(egui::RichText::new("Abrir .pdf com MariPDF").size(13.0).color(tok.text));
+            if is_assoc {
+                ui.label(egui::RichText::new("✓ MariPDF é o leitor padrão de PDF").size(11.0).color(tok.accent));
+            } else {
+                ui.label(egui::RichText::new("Definir como leitor padrão para arquivos .pdf").size(11.0).color(tok.muted));
+            }
+        });
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if is_assoc {
+                let resp = action_btn(ui, "  Remover  ", tok.danger, tok.on_acc, tok);
+                if resp.clicked() {
+                    let _ = crate::platform::file_assoc::unregister_pdf_association();
+                }
+            } else {
+                let resp = action_btn(ui, "  Definir  ", tok.accent, tok.on_acc, tok);
+                if resp.clicked() {
+                    let _ = crate::platform::file_assoc::register_pdf_association();
+                }
+            }
+        });
+    });
 }

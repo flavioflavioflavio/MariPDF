@@ -1,7 +1,6 @@
 // main.rs — Entry point do MariPDF
 // Responsabilidade: inicializar logging, parsear args CLI, lançar UI
 
-use tracing_subscriber::{fmt, EnvFilter};
 use crate::settings::FontChoice;
 use std::path::PathBuf;
 
@@ -23,13 +22,12 @@ mod platform;
 mod ui;
 mod settings;
 mod settings_types;
+mod logger;
 
 fn main() -> anyhow::Result<()> {
-    // Logging (RUST_LOG=debug para verbose)
-    fmt()
-        .with_env_filter(EnvFilter::from_default_env()
-            .add_directive("maripdf=info".parse()?))
-        .init();
+    // Logging: stdout + arquivo em %APPDATA%\maripdf\maripdf.log
+    // Manter _log_guard vivo até o fim do processo para flush do buffer
+    let _log_guard = logger::init();
 
     tracing::info!("MariPDF v{} iniciando", env!("CARGO_PKG_VERSION"));
 

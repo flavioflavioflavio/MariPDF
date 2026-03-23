@@ -37,6 +37,7 @@ dirs          = "6"
 thiserror     = "2.0"
 tracing       = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender   = "0.2"
 
 # --- Imagens (decodifica PNG do ícone embutido) ---
 image         = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
