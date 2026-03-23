@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 const APP_DIR: &str = "maripdf";
 const SESSION_FILE: &str = "session.toml";
+const WINDOW_FILE: &str = "window.toml";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FileSession {
@@ -25,6 +26,17 @@ pub struct FileSession {
 struct SessionStore {
     /// Chave: caminho absoluto do arquivo PDF
     files: HashMap<String, FileSession>,
+}
+
+/// Tamanho e posição da janela persistidos entre sessões.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowSession {
+    pub width:  f32,
+    pub height: f32,
+}
+
+impl Default for WindowSession {
+    fn default() -> Self { Self { width: 1024.0, height: 768.0 } }
 }
 
 pub struct PersistenceManager {
@@ -78,6 +90,25 @@ impl PersistenceManager {
             tracing::warn!("Falha ao salvar sessão após remoção: {e}");
         }
     }
+
+    // ── Janela ────────────────────────────────────────────────────────────────
+
+    /// Carrega as dimensões da janela da sessão anterior.
+    pub fn load_window() -> WindowSession {
+        let path = window_path();
+        std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| toml::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+
+    /// Persiste as dimensões atuais da janela.
+    pub fn save_window(w: f32, h: f32) {
+        let path = window_path();
+        let session = WindowSession { width: w.max(640.0), height: h.max(480.0) };
+        if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
+        if let Ok(text) = toml::to_string_pretty(&session) { let _ = std::fs::write(&path, text); }
+    }
 }
 
 fn session_path() -> PathBuf {
@@ -85,6 +116,13 @@ fn session_path() -> PathBuf {
         .or_else(dirs::home_dir)
         .unwrap_or_else(|| PathBuf::from("."));
     base.join(APP_DIR).join(SESSION_FILE)
+}
+
+fn window_path() -> PathBuf {
+    let base = dirs::data_local_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| PathBuf::from("."));
+    base.join(APP_DIR).join(WINDOW_FILE)
 }
 
 fn try_load(path: &Path) -> Option<SessionStore> {

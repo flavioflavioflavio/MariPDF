@@ -54,6 +54,7 @@ pub const GEAR:             &str = "\u{e270}"; // Gear (Settings v1.0)
 pub const PAINT_BRUSH:      &str = "\u{e37e}"; // PaintBrush (Appearance)
 pub const BOOK:             &str = "\u{e0e4}"; // Book (Reading)
 pub const SHIELD:           &str = "\u{e446}"; // Shield (Privacy)
+pub const INFO:             &str = "\u{e2b8}"; // Info (About)
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 

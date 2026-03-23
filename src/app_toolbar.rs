@@ -84,6 +84,13 @@ impl MariApp {
                             .corner_radius(egui::CornerRadius::same(5))).on_hover_text("Configurações");
                         if rs.hovered() { ctx.set_cursor_icon(egui::CursorIcon::PointingHand); }
                         if rs.clicked() { self.settings_open = !self.settings_open; }
+
+                        // About (?)
+                        let ra = ui.add(egui::Button::new(icons::ph(icons::INFO, 15.0, color_mode.text_muted()))
+                            .fill(color_mode.statusbar_for(palette_idx)).stroke(egui::Stroke::new(1.0, color_mode.border()))
+                            .corner_radius(egui::CornerRadius::same(5))).on_hover_text("Sobre o MariPDF");
+                        if ra.hovered() { ctx.set_cursor_icon(egui::CursorIcon::PointingHand); }
+                        if ra.clicked() { self.about.open = !self.about.open; }
                         ui.add_space(4.0);
 
                         // Toggle modo

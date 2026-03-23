@@ -42,7 +42,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     let (mut go_home, mut go_end, mut toggle_fs, mut fit_w)   = (false, false, false, false);
     let (mut fit_p, mut open_goto, mut toggle_mode)           = (false, false, false);
     let (mut open_search, mut search_next, mut search_prev)   = (false, false, false);
-    let (mut escape, mut select_all, mut copy_text)           = (false, false, false);
+    let (mut escape, mut select_all, mut copy_text, mut open_about) = (false, false, false, false);
 
     ctx.input(|i| {
         let ctrl  = i.modifiers.ctrl;
@@ -64,6 +64,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         escape      = i.key_pressed(egui::Key::Escape);
         select_all  = ctrl && i.key_pressed(egui::Key::A);
         copy_text   = ctrl && i.key_pressed(egui::Key::C);
+        open_about  = ctrl && shift && i.key_pressed(egui::Key::I);
     });
 
     if toggle_fs { app.fullscreen = !app.fullscreen; ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(app.fullscreen)); }
@@ -143,6 +144,8 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     if app.goto_open && app.engine.is_some() { app.ui_goto_overlay(ctx); }
     app.ui_toast(ctx);
     if app.search_open && app.engine.is_some() { app.ui_search_bar(ctx); }
+    if open_about { app.about.open = !app.about.open; }
+    app.about.show(ctx);
     if app.settings_open {
         let mut needs_font   = false;
         let mut needs_render = false;

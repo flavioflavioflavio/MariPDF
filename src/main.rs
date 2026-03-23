@@ -6,6 +6,7 @@ use crate::settings::FontChoice;
 use std::path::PathBuf;
 
 mod app;
+mod app_about;
 mod app_color_mode;
 mod app_constants;
 mod app_home;
@@ -43,11 +44,14 @@ fn main() -> anyhow::Result<()> {
         tracing::info!("Arquivo via CLI: {}", f.display());
     }
 
+    // ── Restaura tamanho da janela da sessão anterior ─────────────────────
+    let win = crate::pdf::persistence::PersistenceManager::load_window();
+
     // ── Opções da janela ─────────────────────────────────────────────────
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("MariPDF")
-            .with_inner_size([1024.0, 768.0])
+            .with_inner_size([win.width, win.height])
             .with_min_inner_size([640.0, 480.0])
             .with_icon(load_icon()),
         ..Default::default()

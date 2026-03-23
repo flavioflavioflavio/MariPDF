@@ -10,6 +10,7 @@ use crate::pdf::text_search::TextSearch;
 use crate::pdf::thumb_cache::ThumbCache;
 use crate::ui::viewer::{PdfViewer, ViewMode};
 use crate::settings::AppSettings;
+use crate::app_about::AboutState;
 
 pub use crate::app_color_mode::ColorMode;
 pub use crate::app_reader::SidePanelKind;
@@ -83,6 +84,9 @@ pub struct MariApp {
     // Configurações
     pub settings:      AppSettings,
     pub settings_open: bool,
+
+    // About dialog
+    pub about: AboutState,
 }
 
 impl MariApp {
@@ -104,6 +108,7 @@ impl MariApp {
             pending_rerender:  false, toolbar_opacity: 1.0, pending_close: false,
             side_panel:        SidePanelKind::None, bookmarks: Vec::new(), thumb_cache: None,
             settings:          AppSettings::load(), settings_open: false,
+            about:             AboutState::default(),
         }
     }
 
@@ -161,7 +166,12 @@ impl MariApp {
 // ── eframe::App — loop principal ──────────────────────────────────────────────
 
 impl eframe::App for MariApp {
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) { self.save_session(); }
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.save_session();
+        // Salva tamanho atual da janela
+        // (available_width é a largura do painel central; usamos como aproximação)
+        PersistenceManager::save_window(self.available_width + 48.0, 768.0);
+    }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         configure_visuals(ctx);
