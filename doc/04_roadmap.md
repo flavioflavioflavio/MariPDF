@@ -1,6 +1,6 @@
 # 🗺️ MariPDF — Roadmap de Desenvolvimento
 
-> Criado em: 2026-03-22 | Atualizado em: 2026-03-22 (Fase 2 em andamento)
+> Criado em: 2026-03-22 | Atualizado em: 2026-03-23 (Fase 4 P1/P2 concluída)
 
 ---
 
@@ -97,25 +97,30 @@
 
 ---
 
-## ⏳ Fase 4 — Qualidade & Distribuição
+## ✅ Fase 4 — Qualidade & Distribuição `CONCLUÍDA (P1/P2)`
 *Objetivo: app pronto para o público*
-*Estimativa: ~2–3 semanas | ⛔ Depende da Fase 3 completa*
+*Atualizado: 2026-03-23*
 
+### ✅ P1 — Alta prioridade (concluídos)
+- [x] Lembra tamanho/posição da janela (`window.toml` em `%APPDATA%\maripdf\`)
+- [x] Lembra posição de leitura por documento e zoom preferido (já existia desde Fase 2)
+- [x] Associação de arquivo `.pdf` no Windows (HKCU registry, sem admin)
+  - Botão "Definir como leitor padrão" nas Settings → Privacidade
+  - Botão "Remover" quando já associado, com status em tempo real
+- [x] Múltiplas instâncias — eframe 0.31 suporta nativamente, confirmado
+- [x] About dialog com versão, link GitHub e licença (botão `i` na toolbar + `Ctrl+Shift+I`)
+- [x] Log de erros em `%APPDATA%\maripdf\maripdf.log` (rolling diário, max 5 arquivos)
+
+### 🗓️ P3 — Pós-release (adiados para após v1.0)
 - [ ] i18n: `pt-BR` e `en` embutidos (Fluent)
 - [ ] i18n on-demand via CDN para outros idiomas
 - [ ] Auto-update via GitHub Releases (`self_update`)
-- [ ] Associação de arquivo `.pdf` no Windows (HKCU registry)
-- [ ] Lembra posição de leitura por documento (arquivo de sessão)
-- [ ] Lembra tamanho/posição da janela
-- [ ] Lembra zoom preferido por documento
 - [ ] `cargo-wix` → gerar `.msi` assinado
 - [ ] Manifesto `winget` (submit para repositório oficial)
 - [ ] Dialog de doação 1x após 30 dias de uso
-- [ ] About dialog com link GitHub + status de update
-- [ ] Log de erros em `%APPDATA%\maripdf\maripdf.log`
 
-**✅ DoD da Fase 4:**
-> Instalável via `.msi` em máquina limpa. Associação `.pdf` funcional. Lembra posição ao reabrir. Update automático testado. i18n PT-BR e EN sem strings faltando.
+**✅ DoD da Fase 4 (P1/P2):**
+> Associação `.pdf` funcional (HKCU). Lembra posição e zoom ao reabrir. Lembra tamanho da janela. Log em arquivo rolling. About dialog completo. Múltiplas instâncias funcionando.
 
 ---
 
