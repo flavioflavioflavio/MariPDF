@@ -7,9 +7,16 @@ use std::path::PathBuf;
 
 mod app;
 mod app_color_mode;
+mod app_constants;
 mod app_home;
-mod app_reader;
+mod app_home_btns;
+mod app_nav;
 mod app_overlays;
+mod app_reader;
+mod app_text_sel;
+mod app_toast;
+mod app_toolbar;
+mod app_update;
 mod pdf;
 mod platform;
 mod ui;
