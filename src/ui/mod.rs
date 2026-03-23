@@ -17,3 +17,4 @@ pub(crate) mod settings_tabs;
 pub(crate) mod viewer_helpers;
 pub(crate) mod viewer_continuous;
 pub(crate) mod side_panel_thumbs;
+pub(crate) mod side_panel_toc;

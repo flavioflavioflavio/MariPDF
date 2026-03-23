@@ -12,6 +12,7 @@ mod platform;
 mod toast;
 mod ui;
 mod settings;
+mod settings_types;
 
 fn main() -> anyhow::Result<()> {
     // Logging (RUST_LOG=debug para verbose)
