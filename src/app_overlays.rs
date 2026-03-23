@@ -4,6 +4,7 @@
 use eframe::egui;
 use crate::app::{MariApp, BG_SURFACE, ACCENT_PRIMARY, TEXT_PRIMARY, TEXT_MUTED, TEXT_SUBTLE};
 use crate::pdf::text_search::search_all_pages;
+use crate::t;
 
 impl MariApp {
     // ── Overlay Ir para Página (Ctrl+G) ──────────────────────────────────────
@@ -27,7 +28,7 @@ impl MariApp {
                     .show(ui, |ui| {
                         ui.set_width(260.0);
                         ui.horizontal(|ui| {
-                            ui.label(egui::RichText::new("Ir para página:")
+                            ui.label(egui::RichText::new(t!("overlay-goto-label"))
                                 .size(13.0).color(TEXT_PRIMARY));
                             ui.add_space(8.0);
                             let resp = ui.add(
@@ -51,7 +52,7 @@ impl MariApp {
                             if esc { self.goto_open = false; }
                         });
                         ui.add_space(4.0);
-                        ui.label(egui::RichText::new("Enter → confirmar  •  Esc → fechar")
+                        ui.label(egui::RichText::new(t!("overlay-goto-hint"))
                             .size(10.0).color(TEXT_SUBTLE));
                     });
             });
@@ -115,7 +116,7 @@ impl MariApp {
                                 ui.label(egui::RichText::new("…").size(11.0).color(TEXT_MUTED));
                             } else if !query_snap.is_empty() {
                                 ui.add_space(6.0);
-                                ui.label(egui::RichText::new("Sem resultados")
+                                ui.label(egui::RichText::new(t!("overlay-search-no-results"))
                                     .size(11.0).color(egui::Color32::from_rgb(200, 80, 80)));
                             }
 
@@ -126,7 +127,7 @@ impl MariApp {
                             if ui.small_button("✕").clicked() { do_close = true; }
                         });
                         ui.add_space(2.0);
-                        ui.label(egui::RichText::new("Enter → próx  •  Shift+Enter → ant  •  Esc → fechar")
+                        ui.label(egui::RichText::new(t!("overlay-search-hint"))
                             .size(9.0).color(TEXT_SUBTLE));
                     });
             });

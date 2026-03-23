@@ -39,6 +39,10 @@ tracing       = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender   = "0.2"
 
+# --- i18n (Fluent localization) ---
+fluent-bundle = "0.15"
+unic-langid   = { version = "0.9", features = ["macros"] }
+
 # --- Imagens (decodifica PNG do ícone embutido) ---
 image         = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 

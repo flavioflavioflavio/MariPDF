@@ -10,8 +10,7 @@ use crate::app::ColorMode;
 use crate::ui::icons;
 use crate::ui::settings_widgets::{Tokens, sec, divider, chip, action_btn, toggle_row};
 use crate::ui::settings_tabs::{tab_appearance, tab_reading, tab_privacy};
-
-
+use crate::t;
 
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -69,7 +68,7 @@ pub fn show_settings_panel(
                                 .family(egui::FontFamily::Name("Icons".into())),
                         );
                         ui.add_space(10.0);
-                        ui.label(egui::RichText::new("Configurações").size(15.0).strong().color(tok.text));
+                        ui.label(egui::RichText::new(t!("settings-title")).size(15.0).strong().color(tok.text));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let resp = ui.add(
                                 egui::Button::new(
@@ -93,9 +92,9 @@ pub fn show_settings_panel(
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 2.0;
                         for (label, icon, tab) in [
-                            ("Aparência",   icons::PAINT_BRUSH, Tab::Appearance),
-                            ("Leitura",     icons::BOOK,        Tab::Reading),
-                            ("Privacidade", icons::SHIELD,      Tab::Privacy),
+                            (t!("settings-tab-appearance"), icons::PAINT_BRUSH, Tab::Appearance),
+                            (t!("settings-tab-reading"),    icons::BOOK,        Tab::Reading),
+                            (t!("settings-tab-privacy"),    icons::SHIELD,      Tab::Privacy),
                         ] {
                             let is_active = active_tab == tab;
                             let tab_bg   = if is_active { tok.surf } else { egui::Color32::TRANSPARENT };

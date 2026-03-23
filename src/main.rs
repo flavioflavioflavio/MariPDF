@@ -23,11 +23,16 @@ mod ui;
 mod settings;
 mod settings_types;
 mod logger;
+mod i18n;
 
 fn main() -> anyhow::Result<()> {
     // Logging: stdout + arquivo em %APPDATA%\maripdf\maripdf.log
     // Manter _log_guard vivo até o fim do processo para flush do buffer
     let _log_guard = logger::init();
+
+    // i18n: carrega idioma salvo ou pt-BR padrão
+    let lang = crate::settings::AppSettings::load().language;
+    crate::i18n::init(lang);
 
     tracing::info!("MariPDF v{} iniciando", env!("CARGO_PKG_VERSION"));
 

@@ -4,8 +4,9 @@
 
 use eframe::egui;
 use crate::app::ColorMode;
-use crate::settings::{AppSettings, UiScale, FontChoice, RenderQuality, PageMargin, DefaultPanel, ColorPalette};
+use crate::settings::{AppSettings, UiScale, FontChoice, RenderQuality, PageMargin, DefaultPanel, ColorPalette, Language};
 use crate::ui::settings_widgets::{Tokens, sec, divider, chip, action_btn, toggle_row};
+use crate::t;
 
 // ── Tab: Aparência ─────────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ pub(super) fn tab_appearance(
     needs_render_reload: &mut bool,
     tok:   &Tokens,
 ) {
-    sec(ui, "Tamanho da Interface", tok.subtle);
+    sec(ui, t!("settings-ui-scale"), tok.subtle);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for s in UiScale::all() {
@@ -32,7 +33,7 @@ pub(super) fn tab_appearance(
     });
 
     ui.add_space(18.0);
-    sec(ui, "Fonte da Interface", tok.subtle);
+    sec(ui, t!("settings-font"), tok.subtle);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for f in FontChoice::all() {
@@ -46,7 +47,7 @@ pub(super) fn tab_appearance(
     });
 
     ui.add_space(18.0);
-    sec(ui, "Paleta de Cores", tok.subtle);
+    sec(ui, t!("settings-palette"), tok.subtle);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for i in 0u8..4 {
@@ -65,13 +66,27 @@ pub(super) fn tab_appearance(
     });
 
     ui.add_space(18.0);
-    sec(ui, "Modo de Cor", tok.subtle);
+    sec(ui, t!("settings-color-mode"), tok.subtle);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for (label, mode) in [("Dark", ColorMode::Dark), ("Light", ColorMode::Light), ("Sépia", ColorMode::Sepia)] {
             let sel = *color_mode == mode;
             if chip(ui, label, sel, tok).clicked() {
                 *color_mode = mode;
+            }
+        }
+    });
+
+    ui.add_space(18.0);
+    sec(ui, t!("settings-language"), tok.subtle);
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
+        for lang in Language::all() {
+            let sel = settings.language == lang;
+            if chip(ui, lang.label(), sel, tok).clicked() {
+                settings.language = lang;
+                settings.save();
+                crate::i18n::init(lang);
             }
         }
     });
@@ -85,7 +100,7 @@ pub(super) fn tab_reading(
     needs_render_reload: &mut bool,
     tok:      &Tokens,
 ) {
-    sec(ui, "Margem da Página", tok.subtle);
+    sec(ui, t!("settings-page-margin"), tok.subtle);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for m in PageMargin::all() {
@@ -98,7 +113,7 @@ pub(super) fn tab_reading(
     });
 
     ui.add_space(18.0);
-    sec(ui, "Qualidade de Renderização", tok.subtle);
+    sec(ui, t!("settings-render-quality"), tok.subtle);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for q in RenderQuality::all() {
@@ -112,7 +127,7 @@ pub(super) fn tab_reading(
     });
 
     ui.add_space(24.0);
-    if toggle_row(ui, "Scroll Suave", "Animação ao navegar entre páginas",
+    if toggle_row(ui, t!("settings-smooth-scroll"), t!("settings-smooth-scroll-desc"),
                   &mut settings.smooth_scroll, tok) {
         settings.save();
     }
@@ -125,7 +140,7 @@ pub(super) fn tab_privacy(
     settings: &mut AppSettings,
     tok:      &Tokens,
 ) {
-    sec(ui, "Painel Lateral ao Abrir PDF", tok.subtle);
+    sec(ui, t!("settings-default-panel"), tok.subtle);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for p in DefaultPanel::all() {
@@ -138,7 +153,7 @@ pub(super) fn tab_privacy(
     });
 
     ui.add_space(24.0);
-    if toggle_row(ui, "Rastrear Recentes", "Salvar histórico de PDFs abertos",
+    if toggle_row(ui, t!("settings-track-history"), t!("settings-track-history-desc"),
                   &mut settings.track_history, tok) {
         settings.save();
     }
@@ -149,11 +164,11 @@ pub(super) fn tab_privacy(
 
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
-            ui.label(egui::RichText::new("Limpar Histórico").size(13.0).color(tok.text));
-            ui.label(egui::RichText::new("Remove todos os PDFs da lista de recentes").size(11.0).color(tok.muted));
+            ui.label(egui::RichText::new(t!("settings-clear-history")).size(13.0).color(tok.text));
+            ui.label(egui::RichText::new(t!("settings-clear-history-desc")).size(11.0).color(tok.muted));
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let resp = action_btn(ui, "  Limpar  ", tok.danger, tok.on_acc, tok);
+            let resp = action_btn(ui, &format!("  {}  ", t!("settings-clear-btn")), tok.danger, tok.on_acc, tok);
             if resp.clicked() { /* limpar histórico */ }
         });
     });
@@ -162,27 +177,27 @@ pub(super) fn tab_privacy(
     ui.add_space(20.0);
     divider(ui, tok.bord, tok.dw);
     ui.add_space(16.0);
-    sec(ui, "Integração com Windows", tok.subtle);
+    sec(ui, t!("settings-windows"), tok.subtle);
     ui.add_space(8.0);
 
     let is_assoc = crate::platform::file_assoc::is_pdf_associated();
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
-            ui.label(egui::RichText::new("Abrir .pdf com MariPDF").size(13.0).color(tok.text));
+            ui.label(egui::RichText::new(t!("settings-assoc-title")).size(13.0).color(tok.text));
             if is_assoc {
-                ui.label(egui::RichText::new("✓ MariPDF é o leitor padrão de PDF").size(11.0).color(tok.accent));
+                ui.label(egui::RichText::new(t!("settings-assoc-active")).size(11.0).color(tok.accent));
             } else {
-                ui.label(egui::RichText::new("Definir como leitor padrão para arquivos .pdf").size(11.0).color(tok.muted));
+                ui.label(egui::RichText::new(t!("settings-assoc-inactive")).size(11.0).color(tok.muted));
             }
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if is_assoc {
-                let resp = action_btn(ui, "  Remover  ", tok.danger, tok.on_acc, tok);
+                let resp = action_btn(ui, &format!("  {}  ", t!("settings-assoc-remove-btn")), tok.danger, tok.on_acc, tok);
                 if resp.clicked() {
                     let _ = crate::platform::file_assoc::unregister_pdf_association();
                 }
             } else {
-                let resp = action_btn(ui, "  Definir  ", tok.accent, tok.on_acc, tok);
+                let resp = action_btn(ui, &format!("  {}  ", t!("settings-assoc-set-btn")), tok.accent, tok.on_acc, tok);
                 if resp.clicked() {
                     let _ = crate::platform::file_assoc::register_pdf_association();
                 }

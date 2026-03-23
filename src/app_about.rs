@@ -1,12 +1,12 @@
 // app_about.rs — About dialog do MariPDF
 //
-// Exibido via Ctrl+Shift+A ou botão "?" na toolbar.
-// Mostra versão, descrição, link GitHub e licença.
+// Exibido via Ctrl+Shift+I ou botão "?" na toolbar.
+// Strings via t!() para i18n.
 
 use eframe::egui;
 use crate::app_constants::{BG_SURFACE, ACCENT_PRIMARY, TEXT_PRIMARY, TEXT_MUTED};
+use crate::t;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
 const REPO_URL: &str = "https://github.com/flaviomarcilio/MariPDF";
 
 pub struct AboutState {
@@ -29,7 +29,9 @@ impl AboutState {
             (screen.center().y - h / 2.0).max(0.0),
         );
 
-        egui::Window::new("Sobre o MariPDF")
+        let version = env!("CARGO_PKG_VERSION");
+
+        egui::Window::new(t!("about-title"))
             .fixed_pos(pos)
             .fixed_size([w, h])
             .collapsible(false)
@@ -40,27 +42,25 @@ impl AboutState {
             )
             .show(ctx, |ui| {
                 ui.vertical_centered(|ui| {
-                    // Logo / nome
                     ui.add_space(4.0);
                     ui.label(egui::RichText::new("MariPDF")
                         .font(egui::FontId::new(28.0, egui::FontFamily::Name("Title".into())))
                         .color(ACCENT_PRIMARY));
 
                     ui.add_space(2.0);
-                    ui.label(egui::RichText::new(format!("Versão {VERSION}"))
+                    ui.label(egui::RichText::new(t!("about-version", version => version))
                         .size(13.0).color(TEXT_MUTED));
 
                     ui.add_space(12.0);
-                    ui.label(egui::RichText::new("Leitor de PDF ultra-leve para Windows.")
+                    ui.label(egui::RichText::new(t!("about-desc"))
                         .size(13.0).color(TEXT_PRIMARY));
                     ui.add_space(4.0);
-                    ui.label(egui::RichText::new("Rápido, portátil, sem instalar.")
+                    ui.label(egui::RichText::new(t!("app-tagline-sub"))
                         .size(13.0).color(TEXT_MUTED));
 
                     ui.add_space(16.0);
 
-                    // Link GitHub
-                    if ui.link(egui::RichText::new("🔗  GitHub")
+                    if ui.link(egui::RichText::new(t!("btn-github"))
                         .color(ACCENT_PRIMARY).size(13.0))
                         .clicked()
                     {
@@ -68,13 +68,12 @@ impl AboutState {
                     }
 
                     ui.add_space(8.0);
-                    ui.label(egui::RichText::new("Licença GPLv3  •  © 2026 Flávio Marcílio")
+                    ui.label(egui::RichText::new(t!("app-license"))
                         .size(11.0).color(TEXT_MUTED));
 
                     ui.add_space(16.0);
 
-                    // Botão fechar
-                    if ui.button(egui::RichText::new("Fechar").size(13.0))
+                    if ui.button(egui::RichText::new(t!("btn-close")).size(13.0))
                         .clicked()
                     {
                         self.open = false;

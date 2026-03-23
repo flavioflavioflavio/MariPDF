@@ -4,6 +4,7 @@
 pub use crate::settings_types::{
     UiScale, FontChoice, RenderQuality, PageMargin, DefaultPanel, ColorPalette,
 };
+pub use crate::i18n::Language;
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -29,6 +30,7 @@ pub struct AppSettings {
     #[serde(default)] pub recent_files:    Vec<PathBuf>,
     #[serde(default)] pub default_panel:   DefaultPanel,
     #[serde(default)] pub palette:         ColorPalette,
+    #[serde(default)] pub language:        Language,
 }
 
 impl Default for AppSettings {
@@ -43,6 +45,7 @@ impl Default for AppSettings {
             recent_files:   Vec::new(),
             default_panel:  DefaultPanel::default(),
             palette:        ColorPalette::default(),
+            language:       Language::default(),
         }
     }
 }

@@ -41,8 +41,8 @@ impl Tokens {
 
 // ── Helpers visuais ───────────────────────────────────────────────────────────
 
-pub fn sec(ui: &mut egui::Ui, label: &str, subtle: egui::Color32) {
-    ui.label(egui::RichText::new(label).size(11.0).color(subtle).strong());
+pub fn sec(ui: &mut egui::Ui, label: impl Into<String>, subtle: egui::Color32) {
+    ui.label(egui::RichText::new(label.into()).size(11.0).color(subtle).strong());
     ui.add_space(10.0);
 }
 
@@ -143,16 +143,18 @@ pub fn action_btn(
 /// Toggle ON/OFF com cursor hand — retorna true se mudou
 pub fn toggle_row(
     ui:       &mut egui::Ui,
-    title:    &str,
-    subtitle: &str,
+    title:    impl Into<String>,
+    subtitle: impl Into<String>,
     value:    &mut bool,
     tok:      &Tokens,
 ) -> bool {
+    let title_s    = title.into();
+    let subtitle_s = subtitle.into();
     let mut changed = false;
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
-            ui.label(egui::RichText::new(title).size(13.0).color(tok.text));
-            ui.label(egui::RichText::new(subtitle).size(11.0).color(tok.muted));
+            ui.label(egui::RichText::new(&title_s).size(13.0).color(tok.text));
+            ui.label(egui::RichText::new(&subtitle_s).size(11.0).color(tok.muted));
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let col = if *value { tok.accent } else { tok.muted };
