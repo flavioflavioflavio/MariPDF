@@ -1,0 +1,73 @@
+refactor: Fase 1 — extração de 5 módulos, engine.rs -36%, cargo check limpo
+
+CONTEXTO
+========
+O arquivo app.rs havia crescido para um monolito de 2201 linhas contendo lógica
+de UI, sistema de cores, notificações (toast), estado de leitura, navegação e
+interação com o PDF — violando o princípio de responsabilidade única e tornando
+manutenção e testes progressivamente mais difíceis.
+
+Esta sessão inicia a desmontagem sistemática de todos os monolitos identificados,
+aplicando o hardcap de 250 linhas por arquivo conforme a doutrina de engenharia.
+
+MONOLITOS IDENTIFICADOS (estado inicial)
+=========================================
+  app.rs                2201L  [desmontagem em andamento]
+  ui/settings_panel.rs   487L  [pendente]
+  ui/viewer.rs           457L  [pendente]
+  ui/side_panel.rs       432L  [pendente]
+  settings.rs            277L  [pendente]
+  pdf/engine.rs          357L  [REDUZIDO -> 227L CONCLUIDO]
+
+MÓDULOS EXTRAÍDOS (Fase 1)
+===========================
+
+src/toast.rs (70L)
+  - ToastKind { Info, Error }
+  - Toast { message, kind, expires } + impl (info, error, is_alive, alpha)
+  - fn render_toast(ctx, toast) — overlay flutuante no canto da tela
+  Origem: lógica inline em app.rs
+
+src/color_mode.rs (202L)
+  - ColorMode { Dark, Light, Sepia }
+  - Tokens completos do design system: bg, surface, statusbar, border,
+    page_border, text_primary, text_muted, text_subtle, accent_for,
+    accent, on_accent, danger, surface_hover, surface_for, statusbar_for,
+    page_tint, page_tint_for, bg_for, label, next, divider_width
+  Origem: impl ColorMode inline em app.rs (215 linhas removidas do monolito)
+
+src/ui/settings_widgets.rs (175L)
+  - Struct Tokens (design tokens derivados de ColorMode)
+  - fn sec(), divider(), lerp_color()
+  - fn chip()       — hover animado sem layout shift
+  - fn action_btn() — hover escurecido + cursor hand
+  - fn toggle_row() — toggle ON/OFF retorna bool de mudança
+  Origem: helpers L347-488 de ui/settings_panel.rs
+
+src/ui/side_panel_thumbs.rs (178L)
+  - fn show_thumbs()       — virtual scrolling com aspect ratio real
+  - fn render_thumb_item() — bitmap, sombra, borda, label, divisória
+  Origem: show_thumbs + helper em ui/side_panel.rs (L185-431)
+
+src/pdf/extract.rs (165L)
+  - Structs: TextCharInfo, PdfLinkInfo, BookmarkEntry
+  - fn extract_text(), extract_chars_with_bounds()
+  - fn extract_page_links(), extract_bookmarks()
+  - fn collect_bookmarks() (recursão privada)
+  Origem: impl PdfEngine + helpers em pdf/engine.rs (L200-336)
+
+MUDANÇAS EM ARQUIVOS EXISTENTES
+================================
+pdf/engine.rs: 357L -> 227L (-36%)
+  - Structs e fns de extração movidos para extract.rs
+  - Métodos extract_*() delegam via `use crate::pdf::extract as engine_extract`
+  - pub use crate::pdf::extract::{TextCharInfo, PdfLinkInfo, BookmarkEntry}
+    (compatibilidade mantida: zero breaking changes)
+
+pdf/mod.rs: pub mod extract adicionado
+src/main.rs: mod color_mode e mod toast registrados
+
+RESULTADO
+=========
+  cargo check: 0 erros
+  App testado: PDF de 289 páginas carregado com sucesso após refactoring
