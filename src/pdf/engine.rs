@@ -2,6 +2,7 @@
 //
 // Engine de renderização de PDFs usando o pdfium do Chromium.
 // Responsabilidade: abrir documentos, contar páginas, renderizar RGBA.
+// Extração de conteúdo (texto, links, bookmarks) delegada a engine_extract.
 //
 // ADR-002: pdfium na Fase 1 (binários prebuilt, zero build time);
 //          migração para MuPDF nativo quando mupdf-sys suportar MSVC 2022.
@@ -20,25 +21,10 @@ use std::{
 };
 use pdfium_render::prelude::*;
 
-/// Um caractere com seu bounding box em pontos PDF (origem = canto inferior esquerdo).
-#[derive(Clone, Debug)]
-pub struct TextCharInfo {
-    pub ch:     char,
-    pub left:   f32,
-    pub bottom: f32,
-    pub right:  f32,
-    pub top:    f32,
-}
+use crate::pdf::extract as engine_extract;
 
-/// Informação sobre um link URI encontrado numa página PDF.
-/// Coordenadas em pontos PDF (sistema pdfium: origem = canto inferior esquerdo).
-#[derive(Debug, Clone)]
-pub struct PdfLinkInfo {
-    pub uri:  String,
-    #[allow(dead_code)]
-    /// Rect em pontos PDF: [left, bottom, right, top] (origem canto inf-esq)
-    pub rect: [f32; 4],
-}
+/// Re-exporta tipos de extract.rs para manter compatibilidade com todos os sites de uso.
+pub use crate::pdf::extract::{TextCharInfo, PdfLinkInfo, BookmarkEntry};
 
 /// DLL do pdfium embutida no executável em compile-time.
 /// Em runtime, é extraída para %TEMP%\maripdf\ e carregada de lá.
@@ -198,142 +184,27 @@ impl PdfEngine {
     }
 
     /// Extrai o texto de uma página como String.
-    /// Usado pela busca full-text (text_search.rs).
     pub fn extract_text(&self, page_index: usize) -> anyhow::Result<String> {
-        let page = self.doc
-            .pages()
-            .get(page_index as u16)
-            .map_err(|e| anyhow::anyhow!("Falha ao carregar página {page_index}: {e}"))?;
-
-        let text = page
-            .text()
-            .map_err(|e| anyhow::anyhow!("Falha ao extrair texto da página {page_index}: {e}"))?
-            .all();
-
-        Ok(text)
+        engine_extract::extract_text(&self.doc, page_index)
     }
 
     /// Extrai todos os chars de uma página com seus bounding boxes em pontos PDF.
-    /// Coordenadas: origem = canto inferior esquerdo da página (sistema pdfium).
-    /// Retorno: Vec de (char, [left, bottom, right, top]) em pontos.
     pub fn extract_chars_with_bounds(&self, page_index: usize) -> anyhow::Result<Vec<TextCharInfo>> {
-        let page = self.doc
-            .pages()
-            .get(page_index as u16)
-            .map_err(|e| anyhow::anyhow!("Falha ao carregar página {page_index}: {e}"))?;
-
-        let text_page = page
-            .text()
-            .map_err(|e| anyhow::anyhow!("Falha ao obter texto da página {page_index}: {e}"))?;
-
-        let chars = text_page.chars();
-        let mut result = Vec::with_capacity(chars.len());
-
-        for ch in chars.iter() {
-            let c = match ch.unicode_char() {
-                Some(c) => c,
-                None    => continue,
-            };
-            // Ignora control chars (exceto espaços normais)
-            if c.is_control() && c != '\n' && c != '\r' { continue; }
-
-            let bounds = match ch.tight_bounds() {
-                Ok(r) => r,
-                Err(_) => continue,
-            };
-
-            result.push(TextCharInfo {
-                ch: c,
-                left:   bounds.left().value,
-                bottom: bounds.bottom().value,
-                right:  bounds.right().value,
-                top:    bounds.top().value,
-            });
-        }
-
-        Ok(result)
+        engine_extract::extract_chars_with_bounds(&self.doc, page_index)
     }
 
     /// Extrai todos os links URI de uma página.
-    /// Retorna rect em pontos PDF (origem = canto inferior esquerdo da página).
     pub fn extract_page_links(&self, page_index: usize) -> Vec<PdfLinkInfo> {
-        let page = match self.doc.pages().get(page_index as u16) {
-            Ok(p)  => p,
-            Err(_) => return Vec::new(),
-        };
-
-        let mut links = Vec::new();
-
-        for link in page.links().iter() {
-            // Só links com URI válida
-            let uri = match link.action() {
-                Some(action) => match action.as_uri_action() {
-                    Some(ua) => match ua.uri() {
-                        Ok(u)  => u,
-                        Err(_) => continue,
-                    },
-                    None => continue,
-                },
-                None => continue,
-            };
-
-            // rect() em pontos PDF: left, bottom, right, top (origem inf-esq)
-            let rect = match link.rect() {
-                Ok(r)  => [r.left().value, r.bottom().value, r.right().value, r.top().value],
-                Err(_) => continue,
-            };
-
-            links.push(PdfLinkInfo { uri, rect });
-        }
-
-        links
+        engine_extract::extract_page_links(&self.doc, page_index)
     }
 
     /// Extrai a árvore de bookmarks (Table-of-Contents) do documento.
-    /// Retorna lista plana ordenada por profundidade, pronta para renderizar.
     pub fn extract_bookmarks(&self) -> Vec<BookmarkEntry> {
-        let mut result = Vec::new();
-        let bookmarks = self.doc.bookmarks();
-        // root() retorna Option<PdfBookmark>
-        if let Some(root) = bookmarks.root() {
-            collect_bookmarks(&root, 0, &mut result);
-        }
-        result
+        engine_extract::extract_bookmarks(&self.doc)
     }
 }
 
-/// Entrada do índice (Table-of-Contents)
-#[derive(Clone, Debug)]
-pub struct BookmarkEntry {
-    pub title: String,
-    /// Página de destino (0-based). `None` se o destino não é uma página.
-    pub page:  Option<usize>,
-    /// Profundidade na hierarquia (0 = root, 1 = sub, …)
-    pub depth: usize,
-}
 
-/// Percorre a árvore de bookmarks recursivamente e preenche `out`.
-fn collect_bookmarks(
-    node:  &pdfium_render::prelude::PdfBookmark<'_>,
-    depth: usize,
-    out:   &mut Vec<BookmarkEntry>,
-) {
-    let title = node.title().unwrap_or_default();
-
-    // destination() já está no PdfBookmark diretamente; page_index() retorna Result<u16>
-    let page = node.destination()
-        .and_then(|d| d.page_index().ok())
-        .map(|idx| idx as usize);
-
-    out.push(BookmarkEntry { title, page, depth });
-
-    // Percorre filhos recursivamente
-    let mut child = node.first_child();
-    while let Some(c) = child {
-        collect_bookmarks(&c, depth + 1, out);
-        child = c.next_sibling();
-    }
-}
 
 /// Página renderizada: bitmap RGBA pronto para egui::ColorImage
 #[derive(Clone)]
