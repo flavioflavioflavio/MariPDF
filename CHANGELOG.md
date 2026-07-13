@@ -18,6 +18,8 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 - Tela de recentes e persistência por documento.
 - Configurações persistidas e i18n PT-BR/EN com Mozilla Fluent.
 - Associação `.pdf` no Windows, About e logs locais.
+- Stress manual parametrizado para abrir, renderizar e fechar um corpus real em
+  concorrência dentro do mesmo processo.
 
 ### Changed
 
@@ -31,6 +33,14 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   métricas de hits, misses, evictions, uso residente e pico.
 - Prefetch contínuo prioriza o viewport e adapta o overscan à direção e à
   velocidade da rolagem.
+- Acesso ao PDFium agora é serializado do `open` ao `drop`, respeitando o contrato
+  single-threaded da engine; a inicialização do singleton também ficou atômica.
+
+### Fixed
+
+- A troca de arquivo só substitui o documento atual após a nova abertura passar;
+  falhas preservam a leitura em andamento e registram o caminho no log.
+- Drag-and-drop aceita extensões `.pdf` sem diferenciar maiúsculas e minúsculas.
 
 ### Known limitations
 

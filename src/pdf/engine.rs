@@ -7,18 +7,17 @@
 // ADR-002: pdfium na Fase 1 (binários prebuilt, zero build time);
 //          migração para MuPDF nativo quando mupdf-sys suportar MSVC 2022.
 //
-// DESIGN NOTE (singleton Pdfium):
-//   A DLL do pdfium é carregada uma única vez via OnceLock<Arc<Pdfium>>.
-//   Isso evita o deadlock que ocorria quando o PdfEngine do main thread
-//   era dropado (descarregando a DLL) enquanto a thread de background
-//   ainda usava sua própria instância da mesma DLL.
-//   A DLL permanece carregada durante toda a vida do processo — igual ao
-//   comportamento do Chrome/Firefox com suas próprias instâncias do pdfium.
+// DESIGN NOTE (singleton Pdfium serializado):
+//   O Pdfium e single-threaded. A feature `sync` de pdfium-render permite mover
+//   seus wrappers entre threads, mas nao torna chamadas simultaneas seguras.
+//   Por isso a DLL e carregada uma unica vez e TODA operacao nativa, inclusive
+//   o fechamento de documentos, passa pelo mesmo Mutex. Os workers continuam
+//   fora da UI, mas nunca entram no Pdfium concorrentemente.
 
 use pdfium_render::prelude::*;
 use std::{
     path::Path,
-    sync::{Arc, OnceLock},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 use crate::pdf::extract as engine_extract;
@@ -33,23 +32,36 @@ static PDFIUM_DLL_BYTES: &[u8] = include_bytes!("../../assets/pdfium.dll");
 
 /// Singleton global do Pdfium — carregado uma vez, nunca descarregado.
 /// Compartilhado entre main thread e threads de background via Arc.
-static PDFIUM_INSTANCE: OnceLock<Arc<Pdfium>> = OnceLock::new();
+static PDFIUM_INSTANCE: OnceLock<Arc<Mutex<Pdfium>>> = OnceLock::new();
+static PDFIUM_INIT_LOCK: Mutex<()> = Mutex::new(());
 
 /// Retorna (ou inicializa) o singleton global do Pdfium.
-/// Thread-safe via OnceLock — apenas um thread inicializa, os demais esperam.
-pub fn get_pdfium() -> anyhow::Result<Arc<Pdfium>> {
+/// `PDFIUM_INIT_LOCK` garante uma unica inicializacao; o `OnceLock` publica o resultado.
+pub fn get_pdfium() -> anyhow::Result<Arc<Mutex<Pdfium>>> {
     if let Some(arc) = PDFIUM_INSTANCE.get() {
         return Ok(Arc::clone(arc));
     }
 
-    // Primeira chamada: extrai e carrega a DLL
-    let pdfium = make_pdfium()?;
-    let arc = Arc::new(pdfium);
-    // Se outra thread já inicializou enquanto carregávamos, usa a dela
-    match PDFIUM_INSTANCE.set(Arc::clone(&arc)) {
-        Ok(_) => Ok(arc),
-        Err(_) => Ok(Arc::clone(PDFIUM_INSTANCE.get().unwrap())),
+    // `Pdfium::new()` segura um lock global interno durante toda a vida da
+    // instancia. Portanto nao podemos deixar dois callers inicializarem em
+    // paralelo e resolver a corrida apenas no `OnceLock::set`: o perdedor
+    // ficaria bloqueado para sempre antes de chegar ao `set`.
+    let _init_guard = PDFIUM_INIT_LOCK
+        .lock()
+        .map_err(|_| anyhow::anyhow!("Lock de inicializacao do Pdfium foi corrompido"))?;
+
+    // Outro thread pode ter concluido enquanto aguardavamos o lock.
+    if let Some(arc) = PDFIUM_INSTANCE.get() {
+        return Ok(Arc::clone(arc));
     }
+
+    // Primeira chamada efetiva: extrai e carrega a DLL.
+    let pdfium = make_pdfium()?;
+    let instance = Arc::new(Mutex::new(pdfium));
+    PDFIUM_INSTANCE
+        .set(Arc::clone(&instance))
+        .map_err(|_| anyhow::anyhow!("Falha inesperada ao registrar singleton do Pdfium"))?;
+    Ok(instance)
 }
 
 /// Cria e retorna uma instância do pdfium (carrega a DLL).
@@ -99,29 +111,36 @@ pub struct PdfEngine {
     /// Referência ao singleton do pdfium (mantida para garantir que a DLL
     /// não seja descarregada enquanto o doc ainda existe).
     #[allow(dead_code)]
-    pdfium: Arc<Pdfium>,
-    doc: PdfDocument<'static>,
+    pdfium: Arc<Mutex<Pdfium>>,
+    doc: Option<PdfDocument<'static>>,
     page_count: usize,
 }
 
 impl PdfEngine {
     /// Abre um arquivo PDF usando pdfium.
-    pub fn open(path: &Path, pdfium: Arc<Pdfium>) -> anyhow::Result<Self> {
+    pub fn open(path: &Path, pdfium: Arc<Mutex<Pdfium>>) -> anyhow::Result<Self> {
         let path_str = path
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("Caminho com caracteres inválidos"))?;
 
-        // SAFETY: lifetime 'static aqui é um contorno — o doc vive junto com pdfium
-        // Ambos são mantidos juntos na struct PdfEngine
-        let doc = unsafe {
-            std::mem::transmute::<PdfDocument<'_>, PdfDocument<'static>>(
-                pdfium
-                    .load_pdf_from_file(path_str, None)
-                    .map_err(|e| anyhow::anyhow!("Falha ao abrir PDF: {e}"))?,
-            )
-        };
+        let (doc, page_count) = {
+            let pdfium_guard = pdfium
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Lock global do Pdfium foi corrompido"))?;
 
-        let page_count = doc.pages().len();
+            // SAFETY: lifetime 'static aqui e um contorno — o doc vive junto com
+            // o Arc<Mutex<Pdfium>> mantido na struct. O Drop abaixo tambem fecha
+            // o documento enquanto segura esse mesmo lock.
+            let doc = unsafe {
+                std::mem::transmute::<PdfDocument<'_>, PdfDocument<'static>>(
+                    pdfium_guard
+                        .load_pdf_from_file(path_str, None)
+                        .map_err(|e| anyhow::anyhow!("Falha ao abrir PDF: {e}"))?,
+                )
+            };
+            let page_count = usize::from(doc.pages().len());
+            (doc, page_count)
+        };
 
         tracing::info!(
             "PDF aberto: {} ({} páginas)",
@@ -131,9 +150,24 @@ impl PdfEngine {
 
         Ok(Self {
             pdfium,
-            doc,
-            page_count: page_count.into(),
+            doc: Some(doc),
+            page_count,
         })
+    }
+
+    fn with_document<T>(
+        &self,
+        operation: impl FnOnce(&PdfDocument<'static>) -> anyhow::Result<T>,
+    ) -> anyhow::Result<T> {
+        let _pdfium_guard = self
+            .pdfium
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Lock global do Pdfium foi corrompido"))?;
+        let doc = self
+            .doc
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Documento PDF ja foi fechado"))?;
+        operation(doc)
     }
 
     /// Número total de páginas do documento.
@@ -144,11 +178,14 @@ impl PdfEngine {
     /// Dimensões da página em pontos PDF (largura, altura).
     /// Necessário para converter coordenadas de tela ↔ coordenadas PDF.
     pub fn page_size_pts(&self, page_index: usize) -> (f32, f32) {
-        self.doc
-            .pages()
-            .get(page_index as u16)
-            .map(|p| (p.width().value, p.height().value))
-            .unwrap_or((595.0, 842.0)) // A4 como fallback
+        self.with_document(|doc| {
+            Ok(doc
+                .pages()
+                .get(page_index as u16)
+                .map(|p| (p.width().value, p.height().value))
+                .unwrap_or((595.0, 842.0)))
+        })
+        .unwrap_or((595.0, 842.0)) // A4 como fallback
     }
 
     /// Renderiza uma página como bitmap RGBA.
@@ -157,40 +194,41 @@ impl PdfEngine {
     /// - `page_index`: índice da página (0-based)
     /// - `scale`: fator de escala (1.0 = 72dpi, 2.0 = 144dpi/HD)
     pub fn render_page(&self, page_index: usize, scale: f32) -> anyhow::Result<RenderedPage> {
-        let page = self
-            .doc
-            .pages()
-            .get(page_index as u16)
-            .map_err(|e| anyhow::anyhow!("Falha ao carregar página {page_index}: {e}"))?;
+        self.with_document(|doc| {
+            let page = doc
+                .pages()
+                .get(page_index as u16)
+                .map_err(|e| anyhow::anyhow!("Falha ao carregar página {page_index}: {e}"))?;
 
-        let width_pts = page.width().value;
-        let height_pts = page.height().value;
+            let width_pts = page.width().value;
+            let height_pts = page.height().value;
 
-        // Converte pontos (72dpi) para pixels com o fator de escala
-        let width_px = (width_pts * scale) as u32;
-        let height_px = (height_pts * scale) as u32;
+            // Converte pontos (72dpi) para pixels com o fator de escala
+            let width_px = (width_pts * scale) as u32;
+            let height_px = (height_pts * scale) as u32;
 
-        let render_cfg = PdfRenderConfig::new()
-            .set_target_width(width_px as i32)
-            .set_target_height(height_px as i32);
+            let render_cfg = PdfRenderConfig::new()
+                .set_target_width(width_px as i32)
+                .set_target_height(height_px as i32);
 
-        let bitmap = page
-            .render_with_config(&render_cfg)
-            .map_err(|e| anyhow::anyhow!("Falha ao renderizar página {page_index}: {e}"))?;
+            let bitmap = page
+                .render_with_config(&render_cfg)
+                .map_err(|e| anyhow::anyhow!("Falha ao renderizar página {page_index}: {e}"))?;
 
-        // pdfium devolve BGRA — converte para RGBA para o egui
-        let rgba = bgra_to_rgba(&bitmap.as_raw_bytes());
+            // pdfium devolve BGRA — converte para RGBA para o egui
+            let rgba = bgra_to_rgba(&bitmap.as_raw_bytes());
 
-        Ok(RenderedPage {
-            width: width_px,
-            height: height_px,
-            rgba,
+            Ok(RenderedPage {
+                width: width_px,
+                height: height_px,
+                rgba,
+            })
         })
     }
 
     /// Extrai o texto de uma página como String.
     pub fn extract_text(&self, page_index: usize) -> anyhow::Result<String> {
-        engine_extract::extract_text(&self.doc, page_index)
+        self.with_document(|doc| engine_extract::extract_text(doc, page_index))
     }
 
     /// Extrai todos os chars de uma página com seus bounding boxes em pontos PDF.
@@ -198,17 +236,32 @@ impl PdfEngine {
         &self,
         page_index: usize,
     ) -> anyhow::Result<Vec<TextCharInfo>> {
-        engine_extract::extract_chars_with_bounds(&self.doc, page_index)
+        self.with_document(|doc| engine_extract::extract_chars_with_bounds(doc, page_index))
     }
 
     /// Extrai todos os links URI de uma página.
     pub fn extract_page_links(&self, page_index: usize) -> Vec<PdfLinkInfo> {
-        engine_extract::extract_page_links(&self.doc, page_index)
+        self.with_document(|doc| Ok(engine_extract::extract_page_links(doc, page_index)))
+            .unwrap_or_default()
     }
 
     /// Extrai a árvore de bookmarks (Table-of-Contents) do documento.
     pub fn extract_bookmarks(&self) -> Vec<BookmarkEntry> {
-        engine_extract::extract_bookmarks(&self.doc)
+        self.with_document(|doc| Ok(engine_extract::extract_bookmarks(doc)))
+            .unwrap_or_default()
+    }
+}
+
+impl Drop for PdfEngine {
+    fn drop(&mut self) {
+        match self.pdfium.lock() {
+            Ok(_guard) => drop(self.doc.take()),
+            Err(poisoned) => {
+                tracing::warn!("Lock global do Pdfium estava corrompido ao fechar documento");
+                let _guard = poisoned.into_inner();
+                drop(self.doc.take());
+            }
+        }
     }
 }
 
@@ -234,7 +287,7 @@ fn bgra_to_rgba(bgra: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use super::bgra_to_rgba;
+    use super::{bgra_to_rgba, get_pdfium, PdfEngine};
 
     #[test]
     fn converts_bgra_pixels_to_rgba() {
@@ -245,5 +298,47 @@ mod tests {
     #[test]
     fn ignores_incomplete_trailing_pixel() {
         assert_eq!(bgra_to_rgba(&[1, 2, 3]), Vec::<u8>::new());
+    }
+
+    /// Stress manual contra um corpus real. Exemplo no Windows:
+    /// `$env:MARIPDF_TEST_PDFS = "a.pdf`nb.pdf"; cargo test pdf_corpus -- --ignored`
+    #[test]
+    #[ignore = "requer MARIPDF_TEST_PDFS com ao menos dois arquivos"]
+    fn pdf_corpus_opens_renders_and_closes_concurrently() {
+        let raw = std::env::var_os("MARIPDF_TEST_PDFS")
+            .expect("defina MARIPDF_TEST_PDFS com um caminho por linha");
+        // Um caminho real pode conter `;`, que tambem e o separador de PATH no
+        // Windows. Uma entrada por linha evita essa ambiguidade.
+        let paths: Vec<std::path::PathBuf> = raw
+            .to_string_lossy()
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(std::path::PathBuf::from)
+            .collect();
+        assert!(paths.len() >= 2, "o stress requer ao menos dois PDFs");
+
+        let workers: Vec<_> = paths
+            .into_iter()
+            .map(|path| {
+                std::thread::spawn(move || {
+                    for _ in 0..3 {
+                        let engine = PdfEngine::open(&path, get_pdfium().unwrap())
+                            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+                        assert!(
+                            engine.page_count() > 0,
+                            "{} nao tem paginas",
+                            path.display()
+                        );
+                        engine
+                            .render_page(0, 0.15)
+                            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+                    }
+                })
+            })
+            .collect();
+
+        for worker in workers {
+            worker.join().expect("worker do corpus entrou em panico");
+        }
     }
 }

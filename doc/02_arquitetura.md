@@ -33,6 +33,8 @@ com lifecycle explícito, desde que a UI nunca bloqueie.
    podem alterar a UI.
 5. Cache deve ser limitado por bytes de CPU/GPU, não por número fixo de páginas.
 6. Claims de performance dependem de benchmark reproduzível.
+7. PDFium é single-threaded: workers podem preparar/agendar trabalho em paralelo,
+   mas toda chamada nativa e todo fechamento de documento passam pelo mesmo lock.
 
 Ver [ADR-002](adr/ADR-002_engine_pdf.md) e
 [Roadmap BF](08_roadmap_blazing_fast_v1.md).
@@ -56,6 +58,11 @@ abrem outra instância do documento quando a respectiva superfície é usada.
 Bookmarks, links e extração de caracteres ainda possuem operações síncronas e
 serão migrados em BF-105.
 
+A DLL e sua instância são únicas por processo. A inicialização usa exclusão
+explícita antes de publicar o singleton, e `PdfEngine` serializa abertura,
+renderização, extração e `Drop` por um mutex global. Isso respeita o contrato
+single-threaded do PDFium sem devolver trabalho pesado para a thread da UI.
+
 Os caches de página usam o mesmo LRU por bytes: bitmaps CPU têm orçamento padrão
 de 64 MiB e texturas do modo contínuo, 128 MiB. Uma página individual maior que o
 orçamento continua utilizável, mas permanece sozinha. Hits, misses, inserções,
@@ -76,7 +83,7 @@ DocumentScheduler
   ├─ backpressure e estados terminalmente observáveis
   └─ orçamento global de memória/trabalho
   ↓
-PDFium workers
+PDFium workers (chamadas nativas serializadas)
   ├─ render de página/região
   ├─ texto, links e bookmarks
   └─ resultados tipados

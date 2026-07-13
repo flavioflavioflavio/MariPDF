@@ -48,7 +48,10 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         app.drop_zone_hovered = !i.raw.hovered_files.is_empty();
         if let Some(f) = i.raw.dropped_files.first() {
             if let Some(p) = f.path.clone() {
-                if p.extension().map(|e| e == "pdf").unwrap_or(false) {
+                if p.extension()
+                    .and_then(|extension| extension.to_str())
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("pdf"))
+                {
                     app.pending_open = Some(p);
                 }
             }

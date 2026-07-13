@@ -33,7 +33,7 @@ v1.0 que possa sustentar, com evidência, a promessa:
   implementação utilizável.
 - `cargo build --release` conclui com sucesso.
 
-### Evidência de baseline
+### Evidência do baseline inicial da auditoria
 
 | Gate | Resultado atual |
 |---|---|
@@ -48,6 +48,18 @@ v1.0 que possa sustentar, com evidência, a promessa:
 
 Os números de memória e inicialização acima são somente baseline local. Antes de
 virarem metas públicas, precisam ser repetidos em um protocolo controlado.
+
+### Estado validado após a execução de 2026-07-13
+
+| Gate | Resultado atual |
+|---|---|
+| `cargo fmt -- --check` | Passa |
+| `cargo check` | Passa sem warnings |
+| `cargo test --all-targets` | 26 passam; 1 stress de corpus é manual/ignorado |
+| `cargo clippy --all-targets --all-features -- -D warnings` | Passa |
+| `cargo build --release` | Passa sem warnings |
+| Stress PDFium no corpus local | 8 PDFs × 3 ciclos concorrentes de abrir/renderizar/fechar |
+| Smoke do processo | `MariPDF` aberto e `Responding=True` após rebuild |
 
 ### Gaps de núcleo e desempenho levantados na auditoria
 
@@ -69,6 +81,10 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
     sem coordenação de carga; busca e thumbnails agora são inicializados sob demanda.
 11. [ ] O pipeline sempre rasteriza a página inteira; zoom alto não usa tiles/LOD.
 12. [ ] A conversão BGRA → RGBA cria um novo buffer e percorre todos os pixels.
+13. [x] A inicialização do singleton podia correr entre workers e bloquear para
+    sempre no lock interno do PDFium.
+14. [x] Workers chamavam simultaneamente uma engine nativamente single-threaded,
+    causando `FormatError` ao abrir e `Unknown` ao carregar/renderizar páginas.
 
 ### Gaps funcionais confirmados
 
@@ -93,7 +109,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 
 ### Gaps de robustez, produto e distribuição
 
-1. Não há testes unitários, integração, corpus de PDFs ou benchmarks.
+1. A cobertura ainda é parcial: há 26 testes automáticos e um stress manual de
+   corpus, mas faltam manifesto versionado, integração de UI e benchmarks.
 2. Não há CI, build reproduzível, artefatos ou checksums automatizados.
 3. Auto-update e doação são stubs.
 4. Não há MSI, assinatura, manifesto Winget ou fluxo de desinstalação validado.
@@ -170,6 +187,8 @@ renderer.
 - [ ] BF-007 Criar smoke test que abre o app, abre um PDF conhecido e confirma
   processo responsivo sem panic no log.
 - [ ] BF-008 Congelar os contratos funcionais atuais em uma matriz de testes.
+- [x] BF-009 Adicionar stress manual parametrizado por corpus real para abrir,
+  renderizar e fechar vários documentos concorrentemente no mesmo processo.
 
 ### DoD
 
@@ -198,6 +217,8 @@ renderer.
   preso; todo job termina em `ready`, `failed` ou `cancelled`.
 - [x] BF-109 Remover render duplicado de Fit Width/Fit Page usando dimensões PDF.
 - [ ] BF-110 Instrumentar duração e fila dos jobs em logs de debug.
+- [x] BF-111 Serializar todas as operações nativas do PDFium e tornar atômica a
+  inicialização do singleton, incluindo fechamento de documentos sob o lock.
 
 ### DoD
 

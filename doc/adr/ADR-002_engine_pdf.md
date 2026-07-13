@@ -22,7 +22,8 @@ explícita deste ADR.
 - já está integrado no produto;
 - cobre os recursos atuais da v1.0;
 - possui licença permissiva compatível com o projeto;
-- é carregado uma vez e pode ser usado por workers com documentos próprios;
+- é carregado uma vez e pode ser usado por workers com documentos próprios,
+  desde que todas as chamadas nativas sejam serializadas;
 - permite concentrar a v1.0 no scheduler, virtualização e correção funcional;
 - exige distribuir/carregar uma DLL e manter sua atualização sob controle.
 
@@ -65,6 +66,8 @@ Sem esses seis itens, a discussão permanece exploratória e não altera a v1.0.
 - `Cargo.toml`, arquitetura, README e CHANGELOG devem declarar PDFium.
 - A licença do MariPDF permanece GPL-3.0-or-later; não há composição com MuPDF.
 - A DLL embarcada deve ter versão, origem e atualização rastreáveis.
+- O singleton deve ter inicialização atômica e um lock global deve cobrir abertura,
+  uso e fechamento dos documentos, pois PDFium não aceita chamadas concorrentes.
 - O principal investimento de performance será o scheduler assíncrono, cache por
   memória, virtualização e, se medido, tiles/LOD.
 

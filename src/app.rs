@@ -149,6 +149,10 @@ impl MariApp {
         tracing::info!("Abrindo: {}", path.display());
         match get_pdfium().and_then(|p| PdfEngine::open(&path, p)) {
             Ok(engine) => {
+                // A troca so altera o documento atual depois que o novo PDF
+                // abriu com sucesso. Assim uma entrada invalida nao desmonta
+                // a sessao que o usuario ainda esta lendo.
+                self.save_session();
                 let page_count = engine.page_count();
                 self.page_count = page_count;
                 self.bookmarks = engine.extract_bookmarks();
@@ -179,11 +183,9 @@ impl MariApp {
             }
             Err(e) => {
                 let msg = error_to_user_message(&e);
-                tracing::error!("{e}");
+                tracing::error!(path = %path.display(), error = %e, "Falha ao abrir PDF");
                 let now = ctx.input(|i| i.time);
                 self.toast = Some(Toast::error(msg, 5.0, now));
-                self.render_error = None;
-                self.current_file = None;
             }
         }
     }
