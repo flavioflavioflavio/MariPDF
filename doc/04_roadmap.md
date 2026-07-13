@@ -1,6 +1,8 @@
 # 🗺️ MariPDF — Roadmap de Desenvolvimento
 
-> Criado em: 2026-03-22 | Atualizado em: 2026-03-23 (Fase 4 P1/P2 concluída)
+> Criado em: 2026-03-22 | Atualizado em: 2026-07-13
+> **Status:** roadmap histórico das fases iniciais. A fonte vigente de execução é
+> [08_roadmap_blazing_fast_v1.md](08_roadmap_blazing_fast_v1.md).
 
 ---
 
@@ -89,7 +91,7 @@
 - [x] Toast **Info** (violet/verde ✓) vs **Error** (vermelho ⚠) com cores distintas
 - [x] Sombra de página estilo livro tridimensional (3 camadas, opacidade progressiva)
 - [x] **Scrollbar violet** temática (7px, handle violet via `ctx.style_mut`)
-- [x] ~~Phosphor Icons~~ — adiado para Fase 5 (depêndencia SVG não trivial em egui)
+- [x] Phosphor Icons via fonte embutida
 - [x] ~~Fade toolbar/hover~~ — egui 0.31 gerencia hover internamente via Visuals
 
 **✅ DoD da Fase 3:**
@@ -111,8 +113,8 @@
 - [x] About dialog com versão, link GitHub e licença (botão `i` na toolbar + `Ctrl+Shift+I`)
 - [x] Log de erros em `%APPDATA%\maripdf\maripdf.log` (rolling diário, max 5 arquivos)
 
-### 🗓️ P3 — Pós-release (adiados para após v1.0)
-- [ ] i18n: `pt-BR` e `en` embutidos (Fluent)
+### P3 — Estado revisado
+- [x] i18n: `pt-BR` e `en` embutidos (Fluent; cobertura total ainda no roadmap BF)
 - [ ] i18n on-demand via CDN para outros idiomas
 - [ ] Auto-update via GitHub Releases (`self_update`)
 - [ ] `cargo-wix` → gerar `.msi` assinado
@@ -124,9 +126,9 @@
 
 ---
 
-## ⏳ Fase 5 — v1.0 Release
+## ⏳ Fase 5 — substituída pelo Roadmap BF da v1.0
 *Objetivo: launch público*
-*Estimativa: ~1 semana | ⛔ Depende da Fase 4 completa*
+*Sem estimativa até o baseline BF-0. Consulte o roadmap vigente.*
 
 - [ ] README completo com screenshots reais
 - [ ] CHANGELOG.md retroativo (v0.1 → v1.0)

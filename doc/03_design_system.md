@@ -271,7 +271,7 @@ Cores:
 
 - A seleção é renderizada **sobre** a textura da página PDF como overlay colorido
 - Cursor muda para `text` quando hover em área de texto selecionável
-- Ctrl+C copia o texto selecionado (via MuPDF text extraction)
+- Ctrl+C copia o texto selecionado (via extração de texto do PDFium)
 
 ---
 
@@ -282,7 +282,7 @@ O modo Sepia afeta **apenas o canvas ao redor do PDF** — não modifica o PDF r
 ```
 Canvas: --bg-canvas = #F4ECD8     (tom sepia)
 Superfície (página PDF): #FAF3E0  (branco levemente amarelado)
-PDF renderizado: sem alteração   (MuPDF renderiza cores originais)
+PDF renderizado: sem alteração   (PDFium renderiza cores originais)
 ```
 
 Isso é intencional: modificar o conteúdo do PDF mudaria a fidelidade visual do documento. O sepia é um aconchego ambiente, não um filtro de conteúdo.

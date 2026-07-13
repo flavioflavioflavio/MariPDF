@@ -5,8 +5,8 @@ edition     = "2021"
 authors     = ["MariPDF Contributors"]
 description = "Leitor de PDF ultra-leve para Windows"
 license     = "GPL-3.0-or-later"
-homepage    = "https://github.com/your-username/MariPDF"
-repository  = "https://github.com/your-username/MariPDF"
+homepage    = "https://github.com/flavioflavioflavio/MariPDF"
+repository  = "https://github.com/flavioflavioflavio/MariPDF"
 readme      = "README.md"
 keywords    = ["pdf", "reader", "windows"]
 categories  = ["multimedia"]
@@ -19,8 +19,8 @@ eframe        = { version = "0.31", features = ["wgpu"] }
 wgpu          = "24"
 
 # --- Engine PDF (pdfium — binários prebuilt do Chromium, renderização premium) ---
-# ADR-002: usamos pdfium na Fase 1 por velocidade de integração;
-# migração para MuPDF nativo planejada quando mupdf-sys suportar MSVC 2022.
+# ADR-002: PDFium é a engine oficial da v1.0. Uma troca de engine exige
+# benchmark A/B, spike técnico e decisão explícita de licença.
 pdfium-render = { version = "0.8", features = ["sync"] }
 
 # --- Async runtime ---

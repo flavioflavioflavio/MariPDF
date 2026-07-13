@@ -1,50 +1,38 @@
 # Changelog
 
-All notable changes to MariPDF will be documented here.
+Mudanças relevantes do MariPDF são registradas neste arquivo.
 
-Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
----
+O formato segue [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) e o
+versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
 ### Added
-- Initial project structure
-- Core documentation (manifesto, architecture, design system, roadmap)
 
----
+- Leitura de PDF com PDFium.
+- Modos Single Page e Continuous.
+- Zoom, Fit Width, Fit Page e navegação por teclado.
+- Busca full-text, seleção/cópia de texto e abertura de links.
+- Painel de miniaturas e sumário/bookmarks.
+- Temas Dark, Light e Sepia.
+- Tela de recentes e persistência por documento.
+- Configurações persistidas e i18n PT-BR/EN com Mozilla Fluent.
+- Associação `.pdf` no Windows, About e logs locais.
 
-## [1.0.0] — TBD
+### Changed
 
-### Added
-- First public release
-- PDF rendering via MuPDF
-- Continuous scroll mode
-- Single page mode
-- Full-text search (Ctrl+F)
-- Zoom: fit width, fit page, custom %
-- Dark / Light / Sepia reading modes
-- Fullscreen mode (F11)
-- Keyboard navigation
-- Drag & drop to open
-- Recent files screen with thumbnails
-- Floating toolbar (pill style)
-- Toast notifications
-- i18n: PT-BR and EN bundled
-- Auto-update via GitHub Releases
-- Donation dialog (appears once after 30 days)
-- `.exe` portable + `.msi` installer
+- PDFium é a engine oficial da v1.0; MuPDF permanece apenas como alternativa
+  futura sujeita a benchmark e decisão de licença.
+- O roadmap vigente passa a ser `doc/08_roadmap_blazing_fast_v1.md`.
 
----
+### Known limitations
 
-<!--
-## [x.y.z] — YYYY-MM-DD
+- O pipeline ainda possui operações síncronas na UI.
+- Algumas configurações ainda não controlam integralmente o comportamento.
+- Não há instalador, auto-update ou release pública suportada.
+- A suíte automatizada e o CI estão sendo construídos na fase BF-0.
 
-### Added       → new features
-### Changed     → changes to existing features
-### Deprecated  → features to be removed soon
-### Removed     → features removed
-### Fixed       → bug fixes
-### Security    → security fixes
--->
+## [1.0.0] — planejada
+
+A release será criada somente quando o Definition of Done do roadmap BF estiver
+integralmente atendido.

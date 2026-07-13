@@ -1,6 +1,6 @@
 # ADR-005 — Auto-Update
 
-> **Status:** Aceita
+> **Status:** Proposta aceita; implementação pendente no roadmap BF-6
 > **Data:** 2026-03-22
 > **Autores:** Flavio
 

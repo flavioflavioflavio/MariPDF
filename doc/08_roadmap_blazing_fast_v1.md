@@ -339,12 +339,12 @@ page rendering assíncrono com LOD simples.
 
 ### Entregas
 
-- [ ] BF-701 Atualizar ADR da engine para refletir PDFium e registrar MuPDF como
+- [x] BF-701 Atualizar ADR da engine para refletir PDFium e registrar MuPDF como
   alternativa futura, incluindo implicações de licença.
-- [ ] BF-702 Reconciliar arquitetura, roadmap histórico, manifesto e CHANGELOG.
-- [ ] BF-703 Remover placeholders do README/Cargo/Funding.
+- [x] BF-702 Reconciliar arquitetura, roadmap histórico, manifesto e CHANGELOG.
+- [x] BF-703 Remover placeholders do README/Cargo/Funding.
 - [ ] BF-704 Publicar benchmarks reais e máquina de referência.
-- [ ] BF-705 Substituir claims comparativos não medidos por resultados reproduzíveis.
+- [x] BF-705 Substituir claims comparativos não medidos por resultados reproduzíveis.
 - [ ] BF-706 Criar screenshots e GIF curto do fluxo real.
 - [ ] BF-707 Executar matriz RC em PDFs e versões Windows suportadas.
 - [ ] BF-708 Fazer soak test prolongado com navegação, zoom, busca e troca de docs.
