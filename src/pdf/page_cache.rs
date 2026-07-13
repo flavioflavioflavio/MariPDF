@@ -2,12 +2,14 @@
 
 use std::{
     collections::VecDeque,
-    path::PathBuf,
-    sync::mpsc::{self, Receiver, SyncSender},
+    sync::{
+        mpsc::{self, Receiver, SyncSender},
+        Arc,
+    },
 };
 
 use crate::byte_cache::{ByteLruCache, CacheMetrics};
-use crate::pdf::engine::{get_pdfium, PdfEngine, RenderedPage};
+use crate::pdf::engine::{PdfEngine, RenderedPage};
 
 /// Bitmaps CPU podem usar até 64 MiB. Uma única página maior continua utilizável
 /// e fica sozinha no cache até ser substituída.
@@ -47,17 +49,15 @@ pub struct LruPageCache {
 
 impl LruPageCache {
     /// Cria um cache com orçamento `budget_bytes`.
-    /// Inicia a thread de background imediatamente, ligada ao arquivo `pdf_path`.
-    pub fn new(budget_bytes: usize, pdf_path: PathBuf, _scale_hint: f32) -> Self {
+    /// O worker reutiliza o documento ja aberto pelo app.
+    pub fn new(budget_bytes: usize, engine: Arc<PdfEngine>) -> Self {
         let (req_tx, req_rx) = mpsc::sync_channel::<RenderRequest>(4);
         let (res_tx, res_rx) = mpsc::sync_channel::<RenderResult>(4);
 
-        // Thread de background: reabre o PDF e renderiza sob demanda
-        let path = pdf_path.clone();
         std::thread::Builder::new()
             .name("maripdf-render".into())
             .spawn(move || {
-                background_render_loop(path, req_rx, res_tx);
+                background_render_loop(engine, req_rx, res_tx);
             })
             .expect("Falha ao criar thread de render");
 
@@ -189,26 +189,10 @@ impl LruPageCache {
 }
 
 fn background_render_loop(
-    path: PathBuf,
+    engine: Arc<PdfEngine>,
     rx: std::sync::mpsc::Receiver<RenderRequest>,
     tx: SyncSender<RenderResult>,
 ) {
-    // Tenta abrir o PDF; se falhar, a thread encerra silenciosamente
-    let pdfium = match get_pdfium() {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::error!("bg_render: falha ao carregar pdfium: {e}");
-            return;
-        }
-    };
-    let engine = match PdfEngine::open(&path, pdfium) {
-        Ok(e) => e,
-        Err(e) => {
-            tracing::error!("bg_render: falha ao abrir PDF: {e}");
-            return;
-        }
-    };
-
     for req in rx {
         match engine.render_page(req.page_index, req.scale) {
             Ok(page) => {

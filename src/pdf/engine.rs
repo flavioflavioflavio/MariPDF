@@ -322,16 +322,40 @@ mod tests {
             .map(|path| {
                 std::thread::spawn(move || {
                     for _ in 0..3 {
-                        let engine = PdfEngine::open(&path, get_pdfium().unwrap())
-                            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+                        let engine = std::sync::Arc::new(
+                            PdfEngine::open(&path, get_pdfium().unwrap())
+                                .unwrap_or_else(|error| panic!("{}: {error}", path.display())),
+                        );
                         assert!(
                             engine.page_count() > 0,
                             "{} nao tem paginas",
                             path.display()
                         );
-                        engine
-                            .render_page(0, 0.15)
-                            .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+
+                        let render_engine = std::sync::Arc::clone(&engine);
+                        let render_path = path.clone();
+                        let renderer = std::thread::spawn(move || {
+                            render_engine.render_page(0, 0.15).unwrap_or_else(|error| {
+                                panic!("{}: {error}", render_path.display())
+                            });
+                        });
+
+                        let text_engine = std::sync::Arc::clone(&engine);
+                        let text_path = path.clone();
+                        let extractor = std::thread::spawn(move || {
+                            text_engine
+                                .extract_text(0)
+                                .unwrap_or_else(|error| panic!("{}: {error}", text_path.display()));
+                        });
+
+                        let (width, height) = engine.page_size_pts(0);
+                        assert!(width > 0.0 && height > 0.0);
+                        renderer
+                            .join()
+                            .expect("render compartilhado entrou em panico");
+                        extractor
+                            .join()
+                            .expect("extracao compartilhada entrou em panico");
                     }
                 })
             })

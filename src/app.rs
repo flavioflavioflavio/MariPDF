@@ -10,7 +10,7 @@ use crate::pdf::thumb_cache::ThumbCache;
 use crate::settings::{AppSettings, DefaultPanel};
 use crate::ui::viewer::{PdfViewer, ViewMode};
 use eframe::egui;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 pub use crate::app_color_mode::ColorMode;
 pub use crate::app_constants::{
@@ -26,7 +26,7 @@ pub struct MariApp {
 
     // Documento
     pub current_file: Option<PathBuf>,
-    pub engine: Option<PdfEngine>,
+    pub engine: Option<Arc<PdfEngine>>,
     pub current_page: usize,
     pub page_count: usize,
     pub render_error: Option<String>,
@@ -153,12 +153,13 @@ impl MariApp {
                 // abriu com sucesso. Assim uma entrada invalida nao desmonta
                 // a sessao que o usuario ainda esta lendo.
                 self.save_session();
+                let engine = Arc::new(engine);
                 let page_count = engine.page_count();
                 self.page_count = page_count;
                 self.bookmarks = engine.extract_bookmarks();
-                self.engine = Some(engine);
+                self.engine = Some(Arc::clone(&engine));
                 self.current_file = Some(path.clone());
-                self.search.attach_document(path.clone());
+                self.search.attach_document(Arc::clone(&engine));
                 self.render_error = None;
                 self.viewer.reset();
                 self.side_panel = match self.settings.default_panel {
@@ -167,7 +168,7 @@ impl MariApp {
                     DefaultPanel::Toc => SidePanelKind::Toc,
                 };
                 self.thumb_cache = (self.side_panel == SidePanelKind::Thumbs)
-                    .then(|| ThumbCache::new(path.clone(), page_count));
+                    .then(|| ThumbCache::new(Arc::clone(&engine)));
                 if let Some(session) = self.persistence.get(&path) {
                     self.viewer.zoom = session.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
                     self.current_page = session.last_page.min(page_count.saturating_sub(1));
@@ -175,8 +176,7 @@ impl MariApp {
                     self.current_page = 0;
                     self.viewer.zoom = 1.0;
                 }
-                let scale = self.viewer.zoom * self.settings.render_quality.scale();
-                self.viewer.init_cache(path, scale, page_count);
+                self.viewer.init_cache(engine, page_count);
                 if self.viewer.mode == ViewMode::SinglePage {
                     self.render_current_page(ctx);
                 }

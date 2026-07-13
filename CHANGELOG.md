@@ -35,6 +35,8 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   velocidade da rolagem.
 - Acesso ao PDFium agora é serializado do `open` ao `drop`, respeitando o contrato
   single-threaded da engine; a inicialização do singleton também ficou atômica.
+- Render principal, miniaturas e busca compartilham o mesmo documento aberto,
+  eliminando I/O e parsing repetidos por pipeline.
 
 ### Fixed
 

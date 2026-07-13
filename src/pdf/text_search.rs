@@ -1,7 +1,6 @@
 // pdf/text_search.rs — Busca full-text incremental em worker dedicado.
 
-use crate::pdf::engine::{get_pdfium, PdfEngine};
-use std::path::PathBuf;
+use crate::pdf::engine::PdfEngine;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     mpsc::{self, Receiver, Sender},
@@ -39,7 +38,7 @@ pub struct TextSearch {
     pub is_running: bool,
     request_tx: Option<Sender<SearchRequest>>,
     progress_rx: Option<Receiver<SearchProgress>>,
-    document_path: Option<PathBuf>,
+    document: Option<Arc<PdfEngine>>,
     generation: Arc<AtomicU64>,
 }
 
@@ -52,16 +51,16 @@ impl TextSearch {
             is_running: false,
             request_tx: None,
             progress_rx: None,
-            document_path: None,
+            document: None,
             generation: Arc::new(AtomicU64::new(0)),
         }
     }
 
     /// Vincula a busca a um documento sem abrir uma segunda instancia do PDF.
     /// O worker so nasce quando a primeira busca for iniciada.
-    pub fn attach_document(&mut self, path: PathBuf) {
+    pub fn attach_document(&mut self, engine: Arc<PdfEngine>) {
         self.detach_document();
-        self.document_path = Some(path);
+        self.document = Some(engine);
     }
 
     fn ensure_worker(&mut self) -> bool {
@@ -69,7 +68,7 @@ impl TextSearch {
             return true;
         }
 
-        let Some(path) = self.document_path.clone() else {
+        let Some(engine) = self.document.clone() else {
             return false;
         };
         let (request_tx, request_rx) = mpsc::channel();
@@ -78,7 +77,7 @@ impl TextSearch {
 
         std::thread::Builder::new()
             .name("maripdf-search".into())
-            .spawn(move || search_worker(path, request_rx, progress_tx, generation))
+            .spawn(move || search_worker(engine, request_rx, progress_tx, generation))
             .expect("Falha ao criar thread maripdf-search");
 
         self.request_tx = Some(request_tx);
@@ -90,7 +89,7 @@ impl TextSearch {
         self.clear();
         self.request_tx = None;
         self.progress_rx = None;
-        self.document_path = None;
+        self.document = None;
     }
 
     /// Inicia uma busca nova e invalida imediatamente resultados anteriores.
@@ -169,19 +168,11 @@ impl TextSearch {
 }
 
 fn search_worker(
-    path: PathBuf,
+    engine: Arc<PdfEngine>,
     request_rx: Receiver<SearchRequest>,
     progress_tx: Sender<SearchProgress>,
     generation: Arc<AtomicU64>,
 ) {
-    let engine = get_pdfium()
-        .and_then(|pdfium| PdfEngine::open(&path, pdfium))
-        .map_err(|error| tracing::error!("text_search: falha ao abrir documento: {error}"));
-
-    let Ok(engine) = engine else {
-        return;
-    };
-
     for request in request_rx {
         if generation.load(Ordering::Acquire) != request.generation {
             continue;
@@ -273,11 +264,10 @@ mod tests {
     }
 
     #[test]
-    fn attaching_document_does_not_start_worker() {
-        let mut search = TextSearch::new();
-        search.attach_document(PathBuf::from("document.pdf"));
+    fn new_search_does_not_start_worker() {
+        let search = TextSearch::new();
 
-        assert!(search.document_path.is_some());
+        assert!(search.document.is_none());
         assert!(search.request_tx.is_none());
         assert!(search.progress_rx.is_none());
     }

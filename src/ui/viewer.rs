@@ -6,12 +6,12 @@
 //   • Zoom via Ctrl+Scroll em ambos os modos
 //   • Sinais para o app.rs: zoom_delta, page_delta
 
-use crate::pdf::engine::RenderedPage;
+use crate::pdf::engine::{PdfEngine, RenderedPage};
 use crate::pdf::page_cache::{LruPageCache, DEFAULT_CPU_CACHE_BYTES};
 use crate::ui::page_layout::{LayoutAnchor, PageLayout};
 use crate::ui::texture_cache::GpuTextureCache;
 use eframe::egui;
-use std::path::PathBuf;
+use std::sync::Arc;
 
 pub use crate::ui::viewer_helpers::invert_rgba;
 use crate::ui::viewer_helpers::{draw_page_tex, fit_page, show_spinner, upload_texture};
@@ -41,8 +41,6 @@ pub struct PdfViewer {
     pub(crate) tex_cache: GpuTextureCache,
     /// Cache LRU de bitmaps vindos da thread de background
     pub(crate) page_cache: LruPageCache,
-    /// Caminho do arquivo atual (para criar novo cache ao trocar de doc)
-    pub(crate) pdf_path: Option<PathBuf>,
     /// Índice de offsets/alturas usado pela virtualização contínua.
     pub(crate) page_layout: PageLayout,
     /// Página com maior área visível no viewport contínuo.
@@ -89,7 +87,6 @@ impl PdfViewer {
             loaded_page: None,
             tex_cache: GpuTextureCache::new(),
             page_cache: LruPageCache::new_sync(DEFAULT_CPU_CACHE_BYTES),
-            pdf_path: None,
             page_layout: PageLayout::new(),
             visible_page: None,
             pending_scroll_page: None,
@@ -111,10 +108,9 @@ impl PdfViewer {
     }
 
     /// Inicializa o cache de background ao abrir um novo documento.
-    /// Deve ser chamado depois de `reset()` com o caminho do arquivo aberto.
-    pub fn init_cache(&mut self, pdf_path: PathBuf, scale: f32, page_count: usize) {
-        self.pdf_path = Some(pdf_path.clone());
-        self.page_cache = LruPageCache::new(DEFAULT_CPU_CACHE_BYTES, pdf_path, scale);
+    /// Deve ser chamado depois de `reset()` com o documento aberto.
+    pub fn init_cache(&mut self, engine: Arc<PdfEngine>, page_count: usize) {
+        self.page_cache = LruPageCache::new(DEFAULT_CPU_CACHE_BYTES, engine);
         self.tex_cache.clear();
         self.page_layout.ensure_page_count(page_count);
     }
@@ -125,7 +121,6 @@ impl PdfViewer {
         self.loaded_page = None;
         self.tex_cache.clear();
         self.page_cache = LruPageCache::new_sync(DEFAULT_CPU_CACHE_BYTES);
-        self.pdf_path = None;
         self.page_layout.clear();
         self.visible_page = None;
         self.pending_scroll_page = None;

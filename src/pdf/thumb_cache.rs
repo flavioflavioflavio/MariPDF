@@ -8,11 +8,13 @@
 
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    path::PathBuf,
-    sync::mpsc::{self, Receiver, SyncSender},
+    sync::{
+        mpsc::{self, Receiver, SyncSender},
+        Arc,
+    },
 };
 
-use crate::pdf::engine::{get_pdfium, PdfEngine, RenderedPage};
+use crate::pdf::engine::{PdfEngine, RenderedPage};
 
 /// Altura alvo dos thumbnails em pixels (largura proporcional à página)
 pub const THUMB_HEIGHT: u32 = 140;
@@ -55,15 +57,15 @@ pub struct ThumbCache {
 
 impl ThumbCache {
     /// Cria o cache e inicia a thread de background.
-    pub fn new(pdf_path: PathBuf, page_count: usize) -> Self {
+    pub fn new(engine: Arc<PdfEngine>) -> Self {
         let (req_tx, req_rx) = mpsc::sync_channel::<ThumbRequest>(8);
         let (res_tx, res_rx) = mpsc::sync_channel::<ThumbResult>(8);
+        let page_count = engine.page_count();
 
-        let path = pdf_path.clone();
         std::thread::Builder::new()
             .name("maripdf-thumbs".into())
             .spawn(move || {
-                thumb_render_loop(path, req_rx, res_tx);
+                thumb_render_loop(engine, req_rx, res_tx);
             })
             .expect("Falha ao criar thread maripdf-thumbs");
 
@@ -167,22 +169,11 @@ impl ThumbCache {
 
 // ── Thread de background ──────────────────────────────────────────────────────
 
-fn thumb_render_loop(path: PathBuf, rx: Receiver<ThumbRequest>, tx: SyncSender<ThumbResult>) {
-    let pdfium = match get_pdfium() {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::error!("thumbs: falha ao carregar pdfium: {e}");
-            return;
-        }
-    };
-    let engine = match PdfEngine::open(&path, pdfium) {
-        Ok(e) => e,
-        Err(e) => {
-            tracing::error!("thumbs: falha ao abrir PDF: {e}");
-            return;
-        }
-    };
-
+fn thumb_render_loop(
+    engine: Arc<PdfEngine>,
+    rx: Receiver<ThumbRequest>,
+    tx: SyncSender<ThumbResult>,
+) {
     for req in rx {
         // Calcula escala para atingir THUMB_HEIGHT
         let (_, height_pts) = engine.page_size_pts(req.page_index);

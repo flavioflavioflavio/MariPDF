@@ -164,8 +164,8 @@ impl MariApp {
                             SidePanelKind::Thumbs
                         };
                         if self.side_panel == SidePanelKind::Thumbs && self.thumb_cache.is_none() {
-                            if let Some(path) = self.current_file.clone() {
-                                self.thumb_cache = Some(ThumbCache::new(path, self.page_count));
+                            if let Some(engine) = self.engine.clone() {
+                                self.thumb_cache = Some(ThumbCache::new(engine));
                             }
                         }
                     }

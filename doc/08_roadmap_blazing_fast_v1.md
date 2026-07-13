@@ -58,7 +58,7 @@ virarem metas públicas, precisam ser repetidos em um protocolo controlado.
 | `cargo test --all-targets` | 26 passam; 1 stress de corpus é manual/ignorado |
 | `cargo clippy --all-targets --all-features -- -D warnings` | Passa |
 | `cargo build --release` | Passa sem warnings |
-| Stress PDFium no corpus local | 8 PDFs × 3 ciclos concorrentes de abrir/renderizar/fechar |
+| Stress PDFium no corpus local | 8 PDFs × 3 ciclos; render/texto/dimensões concorrentes em engine compartilhada |
 | Smoke do processo | `MariPDF` aberto e `Responding=True` após rebuild |
 
 ### Gaps de núcleo e desempenho levantados na auditoria
@@ -77,8 +77,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 8. [x] Cache era limitado por quantidade de páginas, não por bytes de CPU/GPU.
 9. [x] Se o canal de resultado estivesse cheio, um bitmap podia ser descartado sem
    remover a página de `inflight`, deixando-a sem nova tentativa.
-10. [ ] Single Page, Continuous e Thumbnails abrem pipelines/documentos separados,
-    sem coordenação de carga; busca e thumbnails agora são inicializados sob demanda.
+10. [x] Single Page, Continuous, Thumbnails e busca mantinham documentos separados;
+    agora os pipelines lazy compartilham o mesmo `Arc<PdfEngine>` já aberto.
 11. [ ] O pipeline sempre rasteriza a página inteira; zoom alto não usa tiles/LOD.
 12. [ ] A conversão BGRA → RGBA cria um novo buffer e percorre todos os pixels.
 13. [x] A inicialização do singleton podia correr entre workers e bloquear para
@@ -242,7 +242,8 @@ páginas.
 - [x] BF-205 Preservar âncora visual ao trocar zoom, modo ou dimensões conhecidas.
 - [x] BF-206 Implementar cache CPU e GPU por bytes, com métricas hit/miss/eviction.
 - [x] BF-207 Priorizar prefetch conforme direção e velocidade do scroll.
-- [ ] BF-208 Evitar reabrir/reprocessar o documento sem necessidade entre pipelines.
+- [x] BF-208 Compartilhar o mesmo documento aberto entre render principal,
+  thumbnails e busca, sem reabrir/reprocessar o arquivo por pipeline.
 - [ ] BF-209 Avaliar reutilização de buffer/conversão in-place BGRA → RGBA com
   benchmark antes/depois.
 

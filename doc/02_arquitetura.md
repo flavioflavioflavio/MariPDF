@@ -53,10 +53,10 @@ egui update
 O render de páginas e a busca já não bloqueiam a UI. O modo contínuo usa um índice
 de layout com alturas estimadas, corrigidas conforme bitmaps reais chegam. Ele
 aloca widgets e texturas somente para o range visível, mantém overscan no cache e
-preserva a página âncora ao recalcular offsets. Os workers de busca e miniaturas só
-abrem outra instância do documento quando a respectiva superfície é usada.
-Bookmarks, links e extração de caracteres ainda possuem operações síncronas e
-serão migrados em BF-105.
+preserva a página âncora ao recalcular offsets. Render principal, busca e
+miniaturas compartilham por `Arc` o mesmo `PdfEngine` já aberto; os workers são
+lazy, mas não repetem abertura ou parsing do arquivo. Bookmarks, links e extração
+de caracteres ainda possuem operações síncronas e serão migrados em BF-105.
 
 A DLL e sua instância são únicas por processo. A inicialização usa exclusão
 explícita antes de publicar o singleton, e `PdfEngine` serializa abertura,
