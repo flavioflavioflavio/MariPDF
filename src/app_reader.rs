@@ -131,13 +131,11 @@ impl MariApp {
                         && page_rect.is_positive()
                     {
                         if self.text_chars_page != cp {
-                            self.text_chars =
-                                engine.extract_chars_with_bounds(cp).unwrap_or_default();
-                            self.text_chars_page = cp;
-                            self.sel_anchor = None;
-                            self.sel_focus = None;
+                            if let Some(worker) = self.document_worker.as_mut() {
+                                worker.request_chars(cp);
+                            }
                         }
-                        if !self.text_chars.is_empty() {
+                        if self.text_chars_page == cp && !self.text_chars.is_empty() {
                             let (pdf_w, pdf_h) = engine.page_size_pts(cp);
                             self.handle_text_selection(ctx, ui, page_rect, pdf_w, pdf_h);
                         }

@@ -39,6 +39,10 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   eliminando I/O e parsing repetidos por pipeline.
 - O render solicita RGBA diretamente ao PDFium e elimina uma segunda alocação e
   varredura do bitmap; microbenchmark local do handoff mediu redução de 63,5%.
+- Bookmarks, links, caracteres de seleção e extração integral de texto agora usam
+  um `DocumentWorker` priorizado, bounded, deduplicado e cancelável por geração.
+- Jobs documentais expõem estados terminais e métricas de fila, duração, sucesso,
+  falha e cancelamento nos logs de debug.
 
 ### Fixed
 

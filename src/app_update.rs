@@ -2,6 +2,9 @@
 // Extraído para manter app.rs abaixo de 250 linhas.
 
 use crate::app::{MariApp, SidePanelKind, Toast};
+use crate::pdf::document_worker::{
+    DocumentJobOutput, DocumentJobTarget, JobCompletion, JobOutcome,
+};
 use crate::ui::viewer::ViewMode;
 use eframe::egui;
 
@@ -11,6 +14,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     if app.pending_close {
         app.pending_close = false;
         app.current_file = None;
+        app.document_worker = None;
         app.engine = None;
         app.viewer.reset();
         app.render_error = None;
@@ -18,7 +22,13 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         app.search_open = false;
         app.goto_open = false;
         app.page_links = Vec::new();
+        app.links_page = usize::MAX;
         app.bookmarks = Vec::new();
+        app.text_chars = Vec::new();
+        app.text_chars_page = usize::MAX;
+        app.sel_anchor = None;
+        app.sel_focus = None;
+        app.selected_text = None;
         app.thumb_cache = None;
         app.side_panel = SidePanelKind::None;
     }
@@ -34,6 +44,15 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     if let Some(path) = app.pending_open.take() {
         let c = ctx.clone();
         app.open_file(&c, path);
+    }
+
+    let document_results = app
+        .document_worker
+        .as_mut()
+        .map(|worker| worker.drain_results())
+        .unwrap_or_default();
+    for completion in document_results {
+        apply_document_completion(app, ctx, completion);
     }
 
     // Rerender pendente (troca de tema)
@@ -183,24 +202,8 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     }
 
     if select_all && app.engine.is_some() {
-        let now = ctx.input(|i| i.time);
-        if let Some(engine) = &app.engine {
-            match engine.extract_text(app.current_page) {
-                Ok(text) if !text.trim().is_empty() => {
-                    app.selected_text = Some(text);
-                    app.toast = Some(Toast::info(
-                        "Texto selecionado — Ctrl+C para copiar",
-                        3.0,
-                        now,
-                    ));
-                }
-                Ok(_) => {
-                    app.toast = Some(Toast::error("Página sem texto extraível", 2.5, now));
-                }
-                Err(_) => {
-                    app.toast = Some(Toast::error("Falha ao extrair texto", 2.5, now));
-                }
-            }
+        if let Some(worker) = app.document_worker.as_mut() {
+            worker.request_text(app.current_page);
         }
     }
     if copy_text {
@@ -213,12 +216,10 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
 
     // Cache de links
     if app.engine.is_some() && app.links_page != app.current_page {
-        app.page_links = app
-            .engine
-            .as_ref()
-            .map(|e| e.extract_page_links(app.current_page))
-            .unwrap_or_default();
-        app.links_page = app.current_page;
+        app.page_links.clear();
+        if let Some(worker) = app.document_worker.as_mut() {
+            worker.request_links(app.current_page);
+        }
     }
     let current_texture_is_visible =
         app.viewer.mode == ViewMode::SinglePage && app.viewer.loaded_page == Some(app.current_page);
@@ -278,4 +279,55 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             app.settings.save();
         }
     }
+}
+
+fn apply_document_completion(app: &mut MariApp, ctx: &egui::Context, completion: JobCompletion) {
+    match completion.outcome {
+        JobOutcome::Ready(DocumentJobOutput::Bookmarks(bookmarks)) => {
+            app.bookmarks = bookmarks;
+        }
+        JobOutcome::Ready(DocumentJobOutput::Links { page_index, links }) => {
+            if page_index == app.current_page {
+                app.page_links = links;
+                app.links_page = page_index;
+            }
+        }
+        JobOutcome::Ready(DocumentJobOutput::Chars { page_index, chars }) => {
+            if page_index == app.current_page {
+                app.text_chars = chars;
+                app.text_chars_page = page_index;
+                app.sel_anchor = None;
+                app.sel_focus = None;
+            }
+        }
+        JobOutcome::Ready(DocumentJobOutput::Text { page_index, text }) => {
+            if page_index == app.current_page {
+                let now = ctx.input(|input| input.time);
+                if text.trim().is_empty() {
+                    app.toast = Some(Toast::error("Página sem texto extraível", 2.5, now));
+                } else {
+                    app.selected_text = Some(text);
+                    app.toast = Some(Toast::info(
+                        "Texto selecionado — Ctrl+C para copiar",
+                        3.0,
+                        now,
+                    ));
+                }
+            }
+        }
+        JobOutcome::Failed(error) => {
+            tracing::warn!(
+                job_id = completion.id,
+                target = ?completion.target,
+                error,
+                "document_job: falha"
+            );
+            if matches!(completion.target, DocumentJobTarget::Text(_)) {
+                let now = ctx.input(|input| input.time);
+                app.toast = Some(Toast::error("Falha ao extrair texto", 2.5, now));
+            }
+        }
+        JobOutcome::Cancelled => {}
+    }
+    ctx.request_repaint();
 }

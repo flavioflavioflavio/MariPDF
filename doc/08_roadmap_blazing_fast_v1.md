@@ -55,7 +55,7 @@ virarem metas públicas, precisam ser repetidos em um protocolo controlado.
 |---|---|
 | `cargo fmt -- --check` | Passa |
 | `cargo check` | Passa sem warnings |
-| `cargo test --all-targets` | 26 passam; stress de corpus e microbenchmark são manuais/ignorados |
+| `cargo test --all-targets` | 28 passam; 3 testes de corpus/benchmark são manuais/ignorados |
 | `cargo clippy --all-targets --all-features -- -D warnings` | Passa |
 | `cargo build --release` | Passa sem warnings |
 | Stress PDFium no corpus local | 8 PDFs × 3 ciclos; render/texto/dimensões concorrentes em engine compartilhada |
@@ -69,8 +69,9 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 2. [x] Fit Width e Fit Page renderizavam uma página apenas para obter dimensões e,
    depois, renderizavam novamente no zoom final.
 3. [x] Busca full-text percorria e extraía todas as páginas na thread da UI.
-4. [ ] Extração de caracteres para seleção acontece na thread da UI ao mudar página.
-5. [ ] Bookmarks são extraídos sincronamente durante a abertura.
+4. [x] Extração de caracteres para seleção acontecia na thread da UI; agora usa
+   job visível, deduplicado e aplicado somente à página ainda ativa.
+5. [x] Bookmarks eram extraídos durante a abertura; agora chegam por job de fundo.
 6. [x] O modo contínuo iterava `0..page_count` e montava placeholders para todas as
    páginas a cada frame; agora aloca apenas o range visível em slots estimados.
 7. [ ] Não há scheduler unificado, prioridade, cancelamento ou geração de jobs.
@@ -211,7 +212,8 @@ renderer.
 - [x] BF-103 Migrar Single Page para render assíncrono.
 - [x] BF-104 Manter a última textura válida durante zoom/navegação e exibir loading
   não bloqueante somente quando não houver textura utilizável.
-- [ ] BF-105 Migrar bookmarks, links e extração de caracteres para jobs.
+- [x] BF-105 Migrar bookmarks, links, extração de caracteres e seleção de texto
+  integral para `DocumentWorker`, sem bloquear o loop da UI.
 - [x] BF-106 Migrar busca para execução incremental assíncrona, entregando hits por
   página e permitindo cancelamento ao mudar o termo.
 - [ ] BF-107 Unificar render principal e thumbnails sob limites globais de carga.

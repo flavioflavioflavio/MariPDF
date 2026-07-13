@@ -47,7 +47,7 @@ egui update
   ├─ Continuous → viewport virtual → cache/worker de páginas → textura GPU
   ├─ Thumbnails → worker próprio lazy → cache bitmap → textura GPU
   ├─ Busca → worker lazy, incremental e cancelável
-  └─ Seleção/links/bookmarks → parte síncrona na UI/abertura
+  └─ DocumentWorker → bookmarks, links, caracteres e texto sob demanda
 ```
 
 O render de páginas e a busca já não bloqueiam a UI. O modo contínuo usa um índice
@@ -55,8 +55,10 @@ de layout com alturas estimadas, corrigidas conforme bitmaps reais chegam. Ele
 aloca widgets e texturas somente para o range visível, mantém overscan no cache e
 preserva a página âncora ao recalcular offsets. Render principal, busca e
 miniaturas compartilham por `Arc` o mesmo `PdfEngine` já aberto; os workers são
-lazy, mas não repetem abertura ou parsing do arquivo. Bookmarks, links e extração
-de caracteres ainda possuem operações síncronas e serão migrados em BF-105.
+lazy, mas não repetem abertura ou parsing do arquivo. `DocumentWorker` mantém uma
+fila bounded com prioridade, deduplicação e cancelamento lógico por geração para
+bookmarks, links, caracteres e texto sob demanda. Cada job aceito termina como
+`ready`, `failed` ou `cancelled`, com duração e contadores registrados em debug.
 
 A DLL e sua instância são únicas por processo. A inicialização usa exclusão
 explícita antes de publicar o singleton, e `PdfEngine` serializa abertura,

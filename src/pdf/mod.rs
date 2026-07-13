@@ -1,5 +1,6 @@
 // pdf/mod.rs — Módulo central de integração PDF
 
+pub mod document_worker;
 pub mod engine;
 pub mod extract;
 pub mod page_cache;

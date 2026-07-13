@@ -3,6 +3,7 @@
 //                    app_reader.rs, app_toolbar.rs, app_text_sel.rs, app_overlays.rs
 
 use crate::app_about::AboutState;
+use crate::pdf::document_worker::DocumentWorker;
 use crate::pdf::engine::{get_pdfium, BookmarkEntry, PdfEngine, PdfLinkInfo, TextCharInfo};
 use crate::pdf::persistence::{FileSession, PersistenceManager};
 use crate::pdf::text_search::TextSearch;
@@ -27,6 +28,7 @@ pub struct MariApp {
     // Documento
     pub current_file: Option<PathBuf>,
     pub engine: Option<Arc<PdfEngine>>,
+    pub document_worker: Option<DocumentWorker>,
     pub current_page: usize,
     pub page_count: usize,
     pub render_error: Option<String>,
@@ -98,6 +100,7 @@ impl MariApp {
             version: env!("CARGO_PKG_VERSION"),
             current_file: None,
             engine: None,
+            document_worker: None,
             current_page: 0,
             page_count: 0,
             render_error: None,
@@ -154,13 +157,23 @@ impl MariApp {
                 // a sessao que o usuario ainda esta lendo.
                 self.save_session();
                 let engine = Arc::new(engine);
+                let mut document_worker = DocumentWorker::new(Arc::clone(&engine));
+                document_worker.request_bookmarks();
                 let page_count = engine.page_count();
                 self.page_count = page_count;
-                self.bookmarks = engine.extract_bookmarks();
+                self.bookmarks.clear();
                 self.engine = Some(Arc::clone(&engine));
+                self.document_worker = Some(document_worker);
                 self.current_file = Some(path.clone());
                 self.search.attach_document(Arc::clone(&engine));
                 self.render_error = None;
+                self.page_links.clear();
+                self.links_page = usize::MAX;
+                self.text_chars.clear();
+                self.text_chars_page = usize::MAX;
+                self.sel_anchor = None;
+                self.sel_focus = None;
+                self.selected_text = None;
                 self.viewer.reset();
                 self.side_panel = match self.settings.default_panel {
                     DefaultPanel::None => SidePanelKind::None,
