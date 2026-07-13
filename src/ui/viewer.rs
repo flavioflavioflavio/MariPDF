@@ -8,6 +8,7 @@
 
 use crate::pdf::engine::RenderedPage;
 use crate::pdf::page_cache::{LruPageCache, DEFAULT_CAPACITY};
+use crate::ui::page_layout::{LayoutAnchor, PageLayout};
 use eframe::egui;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -42,6 +43,15 @@ pub struct PdfViewer {
     pub(crate) page_cache: LruPageCache,
     /// Caminho do arquivo atual (para criar novo cache ao trocar de doc)
     pub(crate) pdf_path: Option<PathBuf>,
+    /// Índice de offsets/alturas usado pela virtualização contínua.
+    pub(crate) page_layout: PageLayout,
+    /// Página com maior área visível no viewport contínuo.
+    pub(crate) visible_page: Option<usize>,
+    /// Navegação programática pendente no modo contínuo.
+    pub(crate) pending_scroll_page: Option<usize>,
+    /// Âncora mantida ao recalcular alturas/zoom.
+    pub(crate) continuous_anchor: Option<LayoutAnchor>,
+    pub(crate) continuous_viewport_height: f32,
 
     // ── Sinais para o app.rs ──
     /// Delta de zoom acumulado por Ctrl+Scroll (processado em app.rs)
@@ -79,6 +89,11 @@ impl PdfViewer {
             tex_cache: HashMap::new(),
             page_cache: LruPageCache::new_sync(DEFAULT_CAPACITY),
             pdf_path: None,
+            page_layout: PageLayout::new(),
+            visible_page: None,
+            pending_scroll_page: None,
+            continuous_anchor: None,
+            continuous_viewport_height: 0.0,
             zoom_delta: 0.0,
             page_delta: 0,
             last_page_rect: egui::Rect::NOTHING,
@@ -95,10 +110,11 @@ impl PdfViewer {
 
     /// Inicializa o cache de background ao abrir um novo documento.
     /// Deve ser chamado depois de `reset()` com o caminho do arquivo aberto.
-    pub fn init_cache(&mut self, pdf_path: PathBuf, scale: f32) {
+    pub fn init_cache(&mut self, pdf_path: PathBuf, scale: f32, page_count: usize) {
         self.pdf_path = Some(pdf_path.clone());
         self.page_cache = LruPageCache::new(DEFAULT_CAPACITY, pdf_path, scale);
         self.tex_cache.clear();
+        self.page_layout.ensure_page_count(page_count);
     }
 
     /// Reset completo ao abrir novo documento
@@ -108,6 +124,11 @@ impl PdfViewer {
         self.tex_cache.clear();
         self.page_cache = LruPageCache::new_sync(DEFAULT_CAPACITY);
         self.pdf_path = None;
+        self.page_layout.clear();
+        self.visible_page = None;
+        self.pending_scroll_page = None;
+        self.continuous_anchor = None;
+        self.continuous_viewport_height = 0.0;
         self.zoom_delta = 0.0;
         self.page_delta = 0;
         self.last_page_rect = egui::Rect::NOTHING;
@@ -121,8 +142,22 @@ impl PdfViewer {
     // ── API para Single-Page ─────────────────────────────────────────────────
 
     pub fn load_page(&mut self, ctx: &egui::Context, page: &RenderedPage, idx: usize) {
+        self.page_layout.observe_bitmap(
+            idx,
+            page.width,
+            page.height,
+            self.zoom * self.render_scale,
+        );
         self.texture = Some(upload_texture(ctx, page, idx));
         self.loaded_page = Some(idx);
+    }
+
+    pub fn request_continuous_page(&mut self, page: usize) {
+        self.pending_scroll_page = Some(page);
+    }
+
+    pub fn dominant_continuous_page(&self) -> Option<usize> {
+        self.visible_page
     }
 
     pub fn request_single_page(&mut self, page_index: usize, page_count: usize) {
@@ -287,22 +322,5 @@ impl PdfViewer {
         } else {
             show_spinner(ui, available.y);
         }
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    pub(crate) fn estimate_page_height(&self, available_w: f32) -> f32 {
-        // Usa a primeira textura disponível no tex_cache para estimar
-        if let Some(tex) = self.tex_cache.values().next() {
-            let size = tex.size_vec2();
-            let w = size.x.min(available_w - self.page_margin * 2.0);
-            return size.y * (w / size.x);
-        }
-        if let Some(ref tex) = self.texture {
-            let size = tex.size_vec2();
-            let w = size.x.min(available_w - self.page_margin * 2.0);
-            return size.y * (w / size.x);
-        }
-        1100.0
     }
 }

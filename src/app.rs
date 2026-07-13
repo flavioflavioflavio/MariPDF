@@ -172,7 +172,7 @@ impl MariApp {
                     self.viewer.zoom = 1.0;
                 }
                 let scale = self.viewer.zoom * self.settings.render_quality.scale();
-                self.viewer.init_cache(path, scale);
+                self.viewer.init_cache(path, scale, page_count);
                 if self.viewer.mode == ViewMode::SinglePage {
                     self.render_current_page(ctx);
                 }

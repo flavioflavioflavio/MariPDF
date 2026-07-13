@@ -102,12 +102,34 @@ impl MariApp {
                     self.viewer.smooth_scroll = self.settings.smooth_scroll;
                     self.viewer.show(ui, cp, pc, tint, border);
 
+                    if self.viewer.mode == ViewMode::Continuous {
+                        if let Some(visible_page) = self.viewer.dominant_continuous_page() {
+                            if self.current_page != visible_page {
+                                if self.current_page.abs_diff(visible_page) > 32 {
+                                    tracing::info!(
+                                        "continuous: salto para página dominante {}",
+                                        visible_page + 1
+                                    );
+                                } else {
+                                    tracing::debug!(
+                                        "continuous: página dominante {}",
+                                        visible_page + 1
+                                    );
+                                }
+                                self.current_page = visible_page;
+                            }
+                        }
+                    }
+
                     if let Some(error) = self.viewer.take_error() {
                         self.render_error = Some(error);
                     }
 
                     let page_rect = self.viewer.last_page_rect;
-                    if self.viewer.loaded_page == Some(cp) && page_rect.is_positive() {
+                    if self.viewer.mode == ViewMode::SinglePage
+                        && self.viewer.loaded_page == Some(cp)
+                        && page_rect.is_positive()
+                    {
                         if self.text_chars_page != cp {
                             self.text_chars =
                                 engine.extract_chars_with_bounds(cp).unwrap_or_default();

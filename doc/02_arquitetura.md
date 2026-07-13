@@ -48,11 +48,13 @@ egui update
   └─ Seleção/links/bookmarks → parte síncrona na UI/abertura
 ```
 
-O render de páginas e a busca já não bloqueiam a UI. O modo contínuo aloca
-widgets e texturas somente para o range visível e mantém overscan no cache de
-bitmaps. Os workers de busca e miniaturas só abrem outra instância do documento
-quando a respectiva superfície é usada. Bookmarks, links e extração de caracteres
-ainda possuem operações síncronas e serão migrados em BF-105.
+O render de páginas e a busca já não bloqueiam a UI. O modo contínuo usa um índice
+de layout com alturas estimadas, corrigidas conforme bitmaps reais chegam. Ele
+aloca widgets e texturas somente para o range visível, mantém overscan no cache e
+preserva a página âncora ao recalcular offsets. Os workers de busca e miniaturas só
+abrem outra instância do documento quando a respectiva superfície é usada.
+Bookmarks, links e extração de caracteres ainda possuem operações síncronas e
+serão migrados em BF-105.
 
 ## Fluxo-alvo da v1.0
 
@@ -110,6 +112,7 @@ src/
 │   ├── text_search.rs      busca textual atual
 │   └── persistence.rs      sessões e janela
 ├── ui/
+│   ├── page_layout.rs      offsets, alturas e âncoras do viewport virtual
 │   ├── viewer.rs           viewer Single Page
 │   ├── viewer_continuous.rs viewer Continuous
 │   ├── side_panel_*.rs     miniaturas e TOC

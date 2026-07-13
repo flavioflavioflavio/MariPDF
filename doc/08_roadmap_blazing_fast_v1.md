@@ -80,7 +80,7 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 6. [x] O botão “limpar histórico” não executava nenhuma ação.
 7. [x] Escala e fonte salvas não eram reaplicadas integralmente no startup.
 8. Modo de cor não é persistido; o tema do Windows vence em toda inicialização.
-9. O modo contínuo não mantém de forma confiável a página atual visível para
+9. [x] O modo contínuo não mantinha de forma confiável a página atual visível para
    status, navegação e persistência.
 10. Links só são acionados no caso simplificado de existir exatamente um link na
     página; falta hit-test por retângulo para múltiplos links.
@@ -214,11 +214,11 @@ páginas.
 
 ### Entregas
 
-- [ ] BF-201 Criar índice de layout com altura estimada/real por página.
+- [x] BF-201 Criar índice de layout com altura estimada/real por página.
 - [x] BF-202 Renderizar e alocar widgets somente para o range visível + overscan.
 - [x] BF-203 Remover loops por `page_count` do hot path de cada frame.
-- [ ] BF-204 Atualizar `current_page` pela página dominante no viewport contínuo.
-- [ ] BF-205 Preservar âncora visual ao trocar zoom, modo ou dimensões conhecidas.
+- [x] BF-204 Atualizar `current_page` pela página dominante no viewport contínuo.
+- [x] BF-205 Preservar âncora visual ao trocar zoom, modo ou dimensões conhecidas.
 - [ ] BF-206 Implementar cache CPU e GPU por bytes, com métricas hit/miss/eviction.
 - [ ] BF-207 Priorizar prefetch conforme direção e velocidade do scroll.
 - [ ] BF-208 Evitar reabrir/reprocessar o documento sem necessidade entre pipelines.

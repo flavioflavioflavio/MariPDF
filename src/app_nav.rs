@@ -21,12 +21,19 @@ impl MariApp {
 
     pub fn go_to_page(&mut self, ctx: &egui::Context, page: usize) {
         let page = page.min(self.page_count.saturating_sub(1));
-        if self.current_page == page && self.viewer.texture.is_some() {
+        if self.current_page == page
+            && self.viewer.mode == ViewMode::SinglePage
+            && self.viewer.texture.is_some()
+        {
             return;
         }
         self.current_page = page;
-        if self.viewer.mode == ViewMode::SinglePage {
-            self.render_current_page(ctx);
+        match self.viewer.mode {
+            ViewMode::SinglePage => self.render_current_page(ctx),
+            ViewMode::Continuous => {
+                self.viewer.request_continuous_page(page);
+                ctx.request_repaint();
+            }
         }
     }
 
@@ -51,7 +58,7 @@ impl MariApp {
         self.viewer.loaded_page = None;
         if let Some(path) = self.current_file.clone() {
             let scale = self.viewer.zoom * self.settings.render_quality.scale();
-            self.viewer.init_cache(path, scale);
+            self.viewer.init_cache(path, scale, self.page_count);
         }
         if self.viewer.mode == ViewMode::SinglePage {
             self.render_current_page(ctx);
@@ -80,10 +87,14 @@ impl MariApp {
     pub fn do_toggle_mode(&mut self, ctx: &egui::Context) {
         match self.viewer.mode {
             ViewMode::SinglePage => {
+                tracing::info!("viewer: modo contínuo");
                 self.viewer.mode = ViewMode::Continuous;
                 self.viewer.texture = None;
+                self.viewer.request_continuous_page(self.current_page);
+                ctx.request_repaint();
             }
             ViewMode::Continuous => {
+                tracing::info!("viewer: modo página única");
                 self.viewer.mode = ViewMode::SinglePage;
                 self.viewer.tex_cache.clear();
                 self.viewer.loaded_page = None;
