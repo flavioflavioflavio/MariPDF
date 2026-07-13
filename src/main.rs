@@ -17,13 +17,13 @@ mod app_text_sel;
 mod app_toast;
 mod app_toolbar;
 mod app_update;
+mod i18n;
+mod logger;
 mod pdf;
 mod platform;
-mod ui;
 mod settings;
 mod settings_types;
-mod logger;
-mod i18n;
+mod ui;
 
 fn main() -> anyhow::Result<()> {
     // Logging: stdout + arquivo em %APPDATA%\maripdf\maripdf.log
@@ -77,39 +77,36 @@ fn main() -> anyhow::Result<()> {
             // Outfit Regular → fonte proporcional padrão do app
             fonts.font_data.insert(
                 "outfit".into(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/Outfit-Regular.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!("../assets/Outfit-Regular.ttf")).into(),
             );
             // Outfit Black → família "Title" para o logo
             fonts.font_data.insert(
                 "outfit_black".into(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/Outfit-Black.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!("../assets/Outfit-Black.ttf")).into(),
             );
             // Phosphor → família "Icons"
             fonts.font_data.insert(
                 "phosphor".into(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/phosphor.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!("../assets/phosphor.ttf")).into(),
             );
 
             // Outfit como primeira opção proporcional (mantém fallback egui)
-            fonts.families
+            fonts
+                .families
                 .entry(egui::FontFamily::Proportional)
                 .or_default()
                 .insert(0, "outfit".into());
 
             // Família "Title" com Outfit Black
-            fonts.families
+            fonts
+                .families
                 .entry(egui::FontFamily::Name("Title".into()))
                 .or_default()
                 .insert(0, "outfit_black".into());
 
             // Família "Icons" com Phosphor
-            fonts.families
+            fonts
+                .families
                 .entry(egui::FontFamily::Name("Icons".into()))
                 .or_default()
                 .insert(0, "phosphor".into());
@@ -117,35 +114,45 @@ fn main() -> anyhow::Result<()> {
             // Inter — tipografia humanista legível
             fonts.font_data.insert(
                 "inter".into(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/fonts/Inter-Regular.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!("../assets/fonts/Inter-Regular.ttf"))
+                    .into(),
             );
             // Lora — serifada elegante
             fonts.font_data.insert(
                 "lora".into(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/fonts/Lora-Regular.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!("../assets/fonts/Lora-Regular.ttf"))
+                    .into(),
             );
             // Quicksand — geométrica suave
             fonts.font_data.insert(
                 "quicksand".into(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/fonts/Quicksand-Regular.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!(
+                    "../assets/fonts/Quicksand-Regular.ttf"
+                ))
+                .into(),
             );
             // Roboto Mono — monospace compacta e legível
             fonts.font_data.insert(
                 "robotomono".into(),
-                egui::FontData::from_static(
-                    include_bytes!("../assets/fonts/RobotoMono-Regular.ttf")
-                ).into(),
+                egui::FontData::from_static(include_bytes!(
+                    "../assets/fonts/RobotoMono-Regular.ttf"
+                ))
+                .into(),
             );
 
             cc.egui_ctx.set_fonts(fonts);
 
-            Ok(Box::new(app::MariApp::new(cc, cli_file, initial_color_mode)))
+            // Preferências visuais devem valer desde o primeiro frame.
+            let persisted = crate::settings::AppSettings::load();
+            cc.egui_ctx
+                .set_pixels_per_point(persisted.scale.pixels_per_point());
+            crate::apply_font_settings(&cc.egui_ctx, persisted.font);
+
+            Ok(Box::new(app::MariApp::new(
+                cc,
+                cli_file,
+                initial_color_mode,
+            )))
         }),
     )
     .map_err(|e| anyhow::anyhow!("Erro ao iniciar UI: {e}"))?;
@@ -159,29 +166,46 @@ pub fn apply_font_settings(ctx: &egui::Context, font: FontChoice) {
     let mut fonts = egui::FontDefinitions::default();
 
     // Embute todas as fontes do app
-    fonts.font_data.insert("outfit".into(),
-        egui::FontData::from_static(include_bytes!("../assets/Outfit-Regular.ttf")).into());
-    fonts.font_data.insert("outfit_black".into(),
-        egui::FontData::from_static(include_bytes!("../assets/Outfit-Black.ttf")).into());
-    fonts.font_data.insert("phosphor".into(),
-        egui::FontData::from_static(include_bytes!("../assets/phosphor.ttf")).into());
-    fonts.font_data.insert("inter".into(),
-        egui::FontData::from_static(include_bytes!("../assets/fonts/Inter-Regular.ttf")).into());
-    fonts.font_data.insert("lora".into(),
-        egui::FontData::from_static(include_bytes!("../assets/fonts/Lora-Regular.ttf")).into());
-    fonts.font_data.insert("quicksand".into(),
-        egui::FontData::from_static(include_bytes!("../assets/fonts/Quicksand-Regular.ttf")).into());
-    fonts.font_data.insert("robotomono".into(),
-        egui::FontData::from_static(include_bytes!("../assets/fonts/RobotoMono-Regular.ttf")).into());
+    fonts.font_data.insert(
+        "outfit".into(),
+        egui::FontData::from_static(include_bytes!("../assets/Outfit-Regular.ttf")).into(),
+    );
+    fonts.font_data.insert(
+        "outfit_black".into(),
+        egui::FontData::from_static(include_bytes!("../assets/Outfit-Black.ttf")).into(),
+    );
+    fonts.font_data.insert(
+        "phosphor".into(),
+        egui::FontData::from_static(include_bytes!("../assets/phosphor.ttf")).into(),
+    );
+    fonts.font_data.insert(
+        "inter".into(),
+        egui::FontData::from_static(include_bytes!("../assets/fonts/Inter-Regular.ttf")).into(),
+    );
+    fonts.font_data.insert(
+        "lora".into(),
+        egui::FontData::from_static(include_bytes!("../assets/fonts/Lora-Regular.ttf")).into(),
+    );
+    fonts.font_data.insert(
+        "quicksand".into(),
+        egui::FontData::from_static(include_bytes!("../assets/fonts/Quicksand-Regular.ttf")).into(),
+    );
+    fonts.font_data.insert(
+        "robotomono".into(),
+        egui::FontData::from_static(include_bytes!("../assets/fonts/RobotoMono-Regular.ttf"))
+            .into(),
+    );
 
     // Família Title
-    fonts.families
+    fonts
+        .families
         .entry(egui::FontFamily::Name("Title".into()))
         .or_default()
         .insert(0, "outfit_black".into());
 
     // Família Icons
-    fonts.families
+    fonts
+        .families
         .entry(egui::FontFamily::Name("Icons".into()))
         .or_default()
         .insert(0, "phosphor".into());
@@ -189,7 +213,8 @@ pub fn apply_font_settings(ctx: &egui::Context, font: FontChoice) {
     // Família Proportional — inserimos a fonte escolhida no topo, preservando
     // os fallbacks padrão do egui (Ubuntu-Light, etc.) para não crashar.
     let chosen = font.family_key();
-    let prop = fonts.families
+    let prop = fonts
+        .families
         .entry(egui::FontFamily::Proportional)
         .or_default();
     // Remove duplicata se já existir na lista, depois insere no topo
@@ -210,5 +235,9 @@ fn load_icon() -> egui::IconData {
         .expect("Falha ao carregar ícone (assets/icon.png)")
         .into_rgba8();
     let (width, height) = image.dimensions();
-    egui::IconData { rgba: image.into_raw(), width, height }
+    egui::IconData {
+        rgba: image.into_raw(),
+        width,
+        height,
+    }
 }

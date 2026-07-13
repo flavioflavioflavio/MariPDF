@@ -1,9 +1,9 @@
 // app_toast.rs — UI de notificações (Toast) do MariPDF
 // Extraído de app.rs para manter abaixo de 250 linhas.
 
-use eframe::egui;
 use crate::app::MariApp;
 use crate::app_constants::ToastKind;
+use eframe::egui;
 
 impl MariApp {
     pub(crate) fn ui_toast(&mut self, ctx: &egui::Context) {
@@ -11,18 +11,18 @@ impl MariApp {
         if let Some(ref t) = self.toast.clone() {
             if t.is_alive(now) {
                 let alpha = t.alpha(now);
-                let msg   = t.message.clone();
+                let msg = t.message.clone();
                 let (bg, stroke_c, icon, icon_c, text_c) = match t.kind {
                     ToastKind::Error => (
-                        egui::Color32::from_rgba_unmultiplied(35, 12, 12,    (245.0 * alpha) as u8),
-                        egui::Color32::from_rgba_unmultiplied(180, 50, 50,   (200.0 * alpha) as u8),
+                        egui::Color32::from_rgba_unmultiplied(35, 12, 12, (245.0 * alpha) as u8),
+                        egui::Color32::from_rgba_unmultiplied(180, 50, 50, (200.0 * alpha) as u8),
                         "⚠",
-                        egui::Color32::from_rgba_unmultiplied(239, 100, 80,  (255.0 * alpha) as u8),
+                        egui::Color32::from_rgba_unmultiplied(239, 100, 80, (255.0 * alpha) as u8),
                         egui::Color32::from_rgba_unmultiplied(230, 200, 200, (255.0 * alpha) as u8),
                     ),
                     ToastKind::Info => (
-                        egui::Color32::from_rgba_unmultiplied(15, 20, 35,    (245.0 * alpha) as u8),
-                        egui::Color32::from_rgba_unmultiplied(120, 80, 220,  (200.0 * alpha) as u8),
+                        egui::Color32::from_rgba_unmultiplied(15, 20, 35, (245.0 * alpha) as u8),
+                        egui::Color32::from_rgba_unmultiplied(120, 80, 220, (200.0 * alpha) as u8),
                         "✓",
                         egui::Color32::from_rgba_unmultiplied(167, 139, 250, (255.0 * alpha) as u8),
                         egui::Color32::from_rgba_unmultiplied(210, 200, 240, (255.0 * alpha) as u8),
@@ -32,7 +32,9 @@ impl MariApp {
                     .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -48.0))
                     .order(egui::Order::Foreground)
                     .show(ctx, |ui| {
-                        egui::Frame::new().fill(bg).stroke(egui::Stroke::new(1.0, stroke_c))
+                        egui::Frame::new()
+                            .fill(bg)
+                            .stroke(egui::Stroke::new(1.0, stroke_c))
                             .corner_radius(egui::CornerRadius::same(10))
                             .inner_margin(egui::Margin::symmetric(14, 10))
                             .show(ui, |ui| {
@@ -44,7 +46,9 @@ impl MariApp {
                             });
                     });
                 ctx.request_repaint();
-            } else { self.toast = None; }
+            } else {
+                self.toast = None;
+            }
         }
     }
 }

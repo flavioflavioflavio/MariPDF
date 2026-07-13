@@ -6,8 +6,8 @@
 
 #[cfg(target_os = "windows")]
 pub fn system_prefers_dark() -> bool {
-    use winreg::RegKey;
     use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
 
     let key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
     if let Ok(hkcu) = RegKey::predef(HKEY_CURRENT_USER).open_subkey(key_path) {

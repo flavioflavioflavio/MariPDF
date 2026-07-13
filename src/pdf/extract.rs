@@ -10,18 +10,18 @@ use pdfium_render::prelude::*;
 /// Um caractere com seu bounding box em pontos PDF (origem = canto inferior esquerdo).
 #[derive(Clone, Debug)]
 pub struct TextCharInfo {
-    pub ch:     char,
-    pub left:   f32,
+    pub ch: char,
+    pub left: f32,
     pub bottom: f32,
-    pub right:  f32,
-    pub top:    f32,
+    pub right: f32,
+    pub top: f32,
 }
 
 /// Informação sobre um link URI encontrado numa página PDF.
 /// Coordenadas em pontos PDF (sistema pdfium: origem = canto inferior esquerdo).
 #[derive(Debug, Clone)]
 pub struct PdfLinkInfo {
-    pub uri:  String,
+    pub uri: String,
     #[allow(dead_code)]
     /// Rect em pontos PDF: [left, bottom, right, top] (origem canto inf-esq)
     pub rect: [f32; 4],
@@ -32,7 +32,7 @@ pub struct PdfLinkInfo {
 pub struct BookmarkEntry {
     pub title: String,
     /// Página de destino (0-based). `None` se o destino não é uma página.
-    pub page:  Option<usize>,
+    pub page: Option<usize>,
     /// Profundidade na hierarquia (0 = root, 1 = sub, …)
     pub depth: usize,
 }
@@ -60,7 +60,7 @@ pub fn extract_text(doc: &PdfDocument<'static>, page_index: usize) -> anyhow::Re
 /// Extrai todos os chars de uma página com seus bounding boxes em pontos PDF.
 /// Coordenadas: origem = canto inferior esquerdo da página (sistema pdfium).
 pub fn extract_chars_with_bounds(
-    doc:        &PdfDocument<'static>,
+    doc: &PdfDocument<'static>,
     page_index: usize,
 ) -> anyhow::Result<Vec<TextCharInfo>> {
     let page = doc
@@ -78,21 +78,23 @@ pub fn extract_chars_with_bounds(
     for ch in chars.iter() {
         let c = match ch.unicode_char() {
             Some(c) => c,
-            None    => continue,
+            None => continue,
         };
-        if c.is_control() && c != '\n' && c != '\r' { continue; }
+        if c.is_control() && c != '\n' && c != '\r' {
+            continue;
+        }
 
         let bounds = match ch.tight_bounds() {
-            Ok(r)  => r,
+            Ok(r) => r,
             Err(_) => continue,
         };
 
         result.push(TextCharInfo {
             ch: c,
-            left:   bounds.left().value,
+            left: bounds.left().value,
             bottom: bounds.bottom().value,
-            right:  bounds.right().value,
-            top:    bounds.top().value,
+            right: bounds.right().value,
+            top: bounds.top().value,
         });
     }
 
@@ -104,7 +106,7 @@ pub fn extract_chars_with_bounds(
 /// Extrai todos os links URI de uma página.
 pub fn extract_page_links(doc: &PdfDocument<'static>, page_index: usize) -> Vec<PdfLinkInfo> {
     let page = match doc.pages().get(page_index as u16) {
-        Ok(p)  => p,
+        Ok(p) => p,
         Err(_) => return Vec::new(),
     };
 
@@ -114,7 +116,7 @@ pub fn extract_page_links(doc: &PdfDocument<'static>, page_index: usize) -> Vec<
         let uri = match link.action() {
             Some(action) => match action.as_uri_action() {
                 Some(ua) => match ua.uri() {
-                    Ok(u)  => u,
+                    Ok(u) => u,
                     Err(_) => continue,
                 },
                 None => continue,
@@ -123,7 +125,12 @@ pub fn extract_page_links(doc: &PdfDocument<'static>, page_index: usize) -> Vec<
         };
 
         let rect = match link.rect() {
-            Ok(r)  => [r.left().value, r.bottom().value, r.right().value, r.top().value],
+            Ok(r) => [
+                r.left().value,
+                r.bottom().value,
+                r.right().value,
+                r.top().value,
+            ],
             Err(_) => continue,
         };
 
@@ -145,13 +152,10 @@ pub fn extract_bookmarks(doc: &PdfDocument<'static>) -> Vec<BookmarkEntry> {
     result
 }
 
-fn collect_bookmarks(
-    node:  &PdfBookmark<'_>,
-    depth: usize,
-    out:   &mut Vec<BookmarkEntry>,
-) {
+fn collect_bookmarks(node: &PdfBookmark<'_>, depth: usize, out: &mut Vec<BookmarkEntry>) {
     let title = node.title().unwrap_or_default();
-    let page = node.destination()
+    let page = node
+        .destination()
         .and_then(|d| d.page_index().ok())
         .map(|idx| idx as usize);
 

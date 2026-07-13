@@ -17,29 +17,29 @@ pub struct SearchHit {
     pub page_index: usize,
     /// Trecho de contexto em torno do match (até CONTEXT_CHARS caracteres).
     #[allow(dead_code)]
-    pub context:    String,
+    pub context: String,
     /// Posição do match dentro de `context`.
     #[allow(dead_code)]
     pub match_start: usize,
     #[allow(dead_code)]
-    pub match_end:   usize,
+    pub match_end: usize,
 }
 
 /// Estado da busca: termo atual + resultados + posição ativa.
 pub struct TextSearch {
-    pub query:       String,
-    pub hits:        Vec<SearchHit>,
+    pub query: String,
+    pub hits: Vec<SearchHit>,
     pub current_hit: usize,
-    pub is_running:  bool,
+    pub is_running: bool,
 }
 
 impl TextSearch {
     pub fn new() -> Self {
         Self {
-            query:       String::new(),
-            hits:        Vec::new(),
+            query: String::new(),
+            hits: Vec::new(),
             current_hit: 0,
-            is_running:  false,
+            is_running: false,
         }
     }
 
@@ -63,7 +63,9 @@ impl TextSearch {
 
     pub fn go_prev(&mut self) {
         if !self.hits.is_empty() {
-            self.current_hit = self.current_hit.checked_sub(1)
+            self.current_hit = self
+                .current_hit
+                .checked_sub(1)
                 .unwrap_or(self.hits.len() - 1);
         }
     }
@@ -89,7 +91,7 @@ pub fn search_all_pages(engine: &PdfEngine, query: &str) -> Vec<SearchHit> {
 
     for idx in 0..engine.page_count() {
         let text = match engine.extract_text(idx) {
-            Ok(t)  => t,
+            Ok(t) => t,
             Err(e) => {
                 tracing::warn!("text_search: pg {idx}: {e}");
                 continue;
@@ -104,13 +106,12 @@ pub fn search_all_pages(engine: &PdfEngine, query: &str) -> Vec<SearchHit> {
 
             // Calcula janela de contexto (em bytes, arredondada para char boundary)
             let ctx_start = text.floor_char_boundary(abs_pos.saturating_sub(CONTEXT_CHARS));
-            let ctx_end   = text.ceil_char_boundary(
-                (abs_pos + query.len() + CONTEXT_CHARS).min(text.len())
-            );
+            let ctx_end =
+                text.ceil_char_boundary((abs_pos + query.len() + CONTEXT_CHARS).min(text.len()));
 
             let context = text[ctx_start..ctx_end].to_string();
             let match_start = abs_pos - ctx_start;
-            let match_end   = match_start + query.len();
+            let match_end = match_start + query.len();
 
             hits.push(SearchHit {
                 page_index: idx,

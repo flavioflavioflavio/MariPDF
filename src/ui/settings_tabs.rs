@@ -2,22 +2,26 @@
 // Extraído de settings_panel.rs para respeitar o hardcap de 250L.
 // Cada função renderiza o conteúdo de uma aba específica.
 
-use eframe::egui;
 use crate::app::ColorMode;
-use crate::settings::{AppSettings, UiScale, FontChoice, RenderQuality, PageMargin, DefaultPanel, ColorPalette, Language};
-use crate::ui::settings_widgets::{Tokens, sec, divider, chip, action_btn, toggle_row};
+use crate::pdf::persistence::PersistenceManager;
+use crate::settings::{
+    AppSettings, ColorPalette, DefaultPanel, FontChoice, Language, PageMargin, RenderQuality,
+    UiScale,
+};
 use crate::t;
+use crate::ui::settings_widgets::{action_btn, chip, divider, sec, toggle_row, Tokens};
+use eframe::egui;
 
 // ── Tab: Aparência ─────────────────────────────────────────────────────────────
 
 pub(super) fn tab_appearance(
-    ui:    &mut egui::Ui,
-    settings:  &mut AppSettings,
+    ui: &mut egui::Ui,
+    settings: &mut AppSettings,
     color_mode: &mut ColorMode,
-    cm:         ColorMode,
-    needs_font_reload:   &mut bool,
+    cm: ColorMode,
+    needs_font_reload: &mut bool,
     needs_render_reload: &mut bool,
-    tok:   &Tokens,
+    tok: &Tokens,
 ) {
     sec(ui, t!("settings-ui-scale"), tok.subtle);
     ui.horizontal_wrapped(|ui| {
@@ -52,7 +56,7 @@ pub(super) fn tab_appearance(
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for i in 0u8..4 {
             let name = match cm {
-                ColorMode::Dark  => ColorPalette::dark_name(i),
+                ColorMode::Dark => ColorPalette::dark_name(i),
                 ColorMode::Light => ColorPalette::light_name(i),
                 ColorMode::Sepia => ColorPalette::sepia_name(i),
             };
@@ -69,7 +73,11 @@ pub(super) fn tab_appearance(
     sec(ui, t!("settings-color-mode"), tok.subtle);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
-        for (label, mode) in [("Dark", ColorMode::Dark), ("Light", ColorMode::Light), ("Sépia", ColorMode::Sepia)] {
+        for (label, mode) in [
+            ("Dark", ColorMode::Dark),
+            ("Light", ColorMode::Light),
+            ("Sépia", ColorMode::Sepia),
+        ] {
             let sel = *color_mode == mode;
             if chip(ui, label, sel, tok).clicked() {
                 *color_mode = mode;
@@ -95,10 +103,10 @@ pub(super) fn tab_appearance(
 // ── Tab: Leitura ───────────────────────────────────────────────────────────────
 
 pub(super) fn tab_reading(
-    ui:       &mut egui::Ui,
+    ui: &mut egui::Ui,
     settings: &mut AppSettings,
     needs_render_reload: &mut bool,
-    tok:      &Tokens,
+    tok: &Tokens,
 ) {
     sec(ui, t!("settings-page-margin"), tok.subtle);
     ui.horizontal(|ui| {
@@ -127,8 +135,13 @@ pub(super) fn tab_reading(
     });
 
     ui.add_space(24.0);
-    if toggle_row(ui, t!("settings-smooth-scroll"), t!("settings-smooth-scroll-desc"),
-                  &mut settings.smooth_scroll, tok) {
+    if toggle_row(
+        ui,
+        t!("settings-smooth-scroll"),
+        t!("settings-smooth-scroll-desc"),
+        &mut settings.smooth_scroll,
+        tok,
+    ) {
         settings.save();
     }
 }
@@ -136,9 +149,10 @@ pub(super) fn tab_reading(
 // ── Tab: Privacidade ───────────────────────────────────────────────────────────
 
 pub(super) fn tab_privacy(
-    ui:       &mut egui::Ui,
+    ui: &mut egui::Ui,
     settings: &mut AppSettings,
-    tok:      &Tokens,
+    persistence: &mut PersistenceManager,
+    tok: &Tokens,
 ) {
     sec(ui, t!("settings-default-panel"), tok.subtle);
     ui.horizontal(|ui| {
@@ -153,8 +167,13 @@ pub(super) fn tab_privacy(
     });
 
     ui.add_space(24.0);
-    if toggle_row(ui, t!("settings-track-history"), t!("settings-track-history-desc"),
-                  &mut settings.track_history, tok) {
+    if toggle_row(
+        ui,
+        t!("settings-track-history"),
+        t!("settings-track-history-desc"),
+        &mut settings.track_history,
+        tok,
+    ) {
         settings.save();
     }
 
@@ -164,12 +183,28 @@ pub(super) fn tab_privacy(
 
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
-            ui.label(egui::RichText::new(t!("settings-clear-history")).size(13.0).color(tok.text));
-            ui.label(egui::RichText::new(t!("settings-clear-history-desc")).size(11.0).color(tok.muted));
+            ui.label(
+                egui::RichText::new(t!("settings-clear-history"))
+                    .size(13.0)
+                    .color(tok.text),
+            );
+            ui.label(
+                egui::RichText::new(t!("settings-clear-history-desc"))
+                    .size(11.0)
+                    .color(tok.muted),
+            );
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let resp = action_btn(ui, &format!("  {}  ", t!("settings-clear-btn")), tok.danger, tok.on_acc, tok);
-            if resp.clicked() { /* limpar histórico */ }
+            let resp = action_btn(
+                ui,
+                &format!("  {}  ", t!("settings-clear-btn")),
+                tok.danger,
+                tok.on_acc,
+                tok,
+            );
+            if resp.clicked() {
+                persistence.clear_all();
+            }
         });
     });
 
@@ -183,21 +218,45 @@ pub(super) fn tab_privacy(
     let is_assoc = crate::platform::file_assoc::is_pdf_associated();
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
-            ui.label(egui::RichText::new(t!("settings-assoc-title")).size(13.0).color(tok.text));
+            ui.label(
+                egui::RichText::new(t!("settings-assoc-title"))
+                    .size(13.0)
+                    .color(tok.text),
+            );
             if is_assoc {
-                ui.label(egui::RichText::new(t!("settings-assoc-active")).size(11.0).color(tok.accent));
+                ui.label(
+                    egui::RichText::new(t!("settings-assoc-active"))
+                        .size(11.0)
+                        .color(tok.accent),
+                );
             } else {
-                ui.label(egui::RichText::new(t!("settings-assoc-inactive")).size(11.0).color(tok.muted));
+                ui.label(
+                    egui::RichText::new(t!("settings-assoc-inactive"))
+                        .size(11.0)
+                        .color(tok.muted),
+                );
             }
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if is_assoc {
-                let resp = action_btn(ui, &format!("  {}  ", t!("settings-assoc-remove-btn")), tok.danger, tok.on_acc, tok);
+                let resp = action_btn(
+                    ui,
+                    &format!("  {}  ", t!("settings-assoc-remove-btn")),
+                    tok.danger,
+                    tok.on_acc,
+                    tok,
+                );
                 if resp.clicked() {
                     let _ = crate::platform::file_assoc::unregister_pdf_association();
                 }
             } else {
-                let resp = action_btn(ui, &format!("  {}  ", t!("settings-assoc-set-btn")), tok.accent, tok.on_acc, tok);
+                let resp = action_btn(
+                    ui,
+                    &format!("  {}  ", t!("settings-assoc-set-btn")),
+                    tok.accent,
+                    tok.on_acc,
+                    tok,
+                );
                 if resp.clicked() {
                     let _ = crate::platform::file_assoc::register_pdf_association();
                 }

@@ -1,16 +1,14 @@
 // platform/file_assoc.rs — Associação de arquivo .pdf no Windows (HKCU)
 // Registra MariPDF como handler de .pdf sem necessitar permissão de admin.
 
-use std::path::PathBuf;
-
 /// Registra o MariPDF como leitor padrão de .pdf no HKCU.
 /// Não requer privilégios de admin — escreve apenas em HKCU.
 /// Retorna Ok(()) se bem sucedido, Err com mensagem de falha.
 pub fn register_pdf_association() -> anyhow::Result<()> {
     #[cfg(target_os = "windows")]
     {
-        use winreg::RegKey;
         use winreg::enums::*;
+        use winreg::RegKey;
 
         let exe_path = std::env::current_exe()
             .map(|p| p.to_string_lossy().into_owned())
@@ -31,7 +29,8 @@ pub fn register_pdf_association() -> anyhow::Result<()> {
         icon_key.set_value("", &format!("{exe_path},0"))?;
 
         // 4. Registra o comando de abertura
-        let (cmd_key, _) = hkcu.create_subkey(r"Software\Classes\MariPDF.Document\shell\open\command")?;
+        let (cmd_key, _) =
+            hkcu.create_subkey(r"Software\Classes\MariPDF.Document\shell\open\command")?;
         cmd_key.set_value("", &format!("\"{}\" \"%1\"", exe_path))?;
 
         // 5. Notifica o Windows para atualizar associações (sem windows_sys)
@@ -54,21 +53,24 @@ pub fn register_pdf_association() -> anyhow::Result<()> {
 pub fn is_pdf_associated() -> bool {
     #[cfg(target_os = "windows")]
     {
-        use winreg::RegKey;
         use winreg::enums::*;
+        use winreg::RegKey;
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        hkcu.open_subkey(r"Software\Classes\MariPDF.Document").is_ok()
+        hkcu.open_subkey(r"Software\Classes\MariPDF.Document")
+            .is_ok()
     }
     #[cfg(not(target_os = "windows"))]
-    { false }
+    {
+        false
+    }
 }
 
 /// Remove o registro de associação .pdf do MariPDF.
 pub fn unregister_pdf_association() -> anyhow::Result<()> {
     #[cfg(target_os = "windows")]
     {
-        use winreg::RegKey;
         use winreg::enums::*;
+        use winreg::RegKey;
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let _ = hkcu.delete_subkey_all(r"Software\Classes\MariPDF.Document");
         let ext = hkcu.open_subkey_with_flags(r"Software\Classes\.pdf", KEY_READ | KEY_WRITE);
@@ -82,5 +84,7 @@ pub fn unregister_pdf_association() -> anyhow::Result<()> {
         Ok(())
     }
     #[cfg(not(target_os = "windows"))]
-    { Ok(()) }
+    {
+        Ok(())
+    }
 }

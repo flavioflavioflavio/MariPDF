@@ -1,30 +1,32 @@
 // app_home.rs — Tela inicial (Home) do MariPDF
 // Extraído de app.rs (L917-1296).
 
+use crate::app::{MariApp, ACCENT_LIGHT, ACCENT_PRIMARY};
 use eframe::egui;
-use crate::app::{MariApp, ACCENT_PRIMARY, ACCENT_LIGHT};
-use crate::app_color_mode::ColorMode;
-use crate::ui::icons;
 
 impl MariApp {
     pub(crate) fn ui_home(&mut self, ctx: &egui::Context) {
-        let cm    = self.color_mode;
-        let pal   = self.settings.palette.0;
-        let bg    = cm.bg_for(pal);
-        let surf  = cm.surface_for(pal);
-        let bord  = cm.border();
-        let text  = cm.text_primary();
+        let cm = self.color_mode;
+        let pal = self.settings.palette.0;
+        let bg = cm.bg_for(pal);
+        let surf = cm.surface_for(pal);
+        let bord = cm.border();
+        let text = cm.text_primary();
         let muted = cm.text_muted();
-        let dw    = cm.divider_width();
+        let dw = cm.divider_width();
 
-        let recents = self.persistence.recent_files(8);
+        let recents = if self.settings.track_history {
+            self.persistence.recent_files(8)
+        } else {
+            Vec::new()
+        };
 
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(bg))
             .show(ctx, |ui| {
                 let total_w   = ui.available_width();
                 let total_h   = ui.available_height();
-                let content_w = (total_w * 0.80).min(640.0).max(360.0);
+                let content_w = (total_w * 0.80).clamp(360.0, 640.0);
                 let side_pad  = (total_w - content_w) / 2.0;
 
                 let top_space = if recents.is_empty() { (total_h * 0.25).max(80.0) } else { (total_h * 0.14).max(40.0) };
@@ -42,7 +44,7 @@ impl MariApp {
 
                 // ── Botão CTA ────────────────────────────────────────────────
                 ui.vertical_centered(|ui| {
-                    let btn_w     = (content_w * 0.55).min(280.0).max(200.0);
+                    let btn_w     = (content_w * 0.55).clamp(200.0, 280.0);
                     ui.set_max_width(btn_w);
 
                     let cta_id     = egui::Id::new("home_open_btn");

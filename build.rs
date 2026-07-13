@@ -23,5 +23,6 @@ fn embed_windows_resources() {
     res.set("LegalCopyright", "MariPDF Contributors — GPLv3");
 
     // Compila e linka os recursos
-    res.compile().expect("Falha ao compilar recursos Windows (build.rs)");
+    res.compile()
+        .expect("Falha ao compilar recursos Windows (build.rs)");
 }

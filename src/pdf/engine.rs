@@ -15,16 +15,16 @@
 //   A DLL permanece carregada durante toda a vida do processo — igual ao
 //   comportamento do Chrome/Firefox com suas próprias instâncias do pdfium.
 
+use pdfium_render::prelude::*;
 use std::{
     path::Path,
     sync::{Arc, OnceLock},
 };
-use pdfium_render::prelude::*;
 
 use crate::pdf::extract as engine_extract;
 
 /// Re-exporta tipos de extract.rs para manter compatibilidade com todos os sites de uso.
-pub use crate::pdf::extract::{TextCharInfo, PdfLinkInfo, BookmarkEntry};
+pub use crate::pdf::extract::{BookmarkEntry, PdfLinkInfo, TextCharInfo};
 
 /// DLL do pdfium embutida no executável em compile-time.
 /// Em runtime, é extraída para %TEMP%\maripdf\ e carregada de lá.
@@ -47,7 +47,7 @@ pub fn get_pdfium() -> anyhow::Result<Arc<Pdfium>> {
     let arc = Arc::new(pdfium);
     // Se outra thread já inicializou enquanto carregávamos, usa a dela
     match PDFIUM_INSTANCE.set(Arc::clone(&arc)) {
-        Ok(_)  => Ok(arc),
+        Ok(_) => Ok(arc),
         Err(_) => Ok(Arc::clone(PDFIUM_INSTANCE.get().unwrap())),
     }
 }
@@ -56,15 +56,15 @@ pub fn get_pdfium() -> anyhow::Result<Arc<Pdfium>> {
 /// Prefira `get_pdfium()` para reutilizar o singleton.
 pub fn make_pdfium() -> anyhow::Result<Pdfium> {
     let dll_path = extract_pdfium_dll()?;
-    let dll_dir  = dll_path
+    let dll_dir = dll_path
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Caminho da DLL inválido"))?;
 
-    let bindings = Pdfium::bind_to_library(
-        Pdfium::pdfium_platform_library_name_at_path(
-            dll_dir.to_str().ok_or_else(|| anyhow::anyhow!("Caminho com caracteres inválidos"))?
-        )
-    )
+    let bindings = Pdfium::bind_to_library(Pdfium::pdfium_platform_library_name_at_path(
+        dll_dir
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("Caminho com caracteres inválidos"))?,
+    ))
     .map_err(|e| anyhow::anyhow!("Falha ao carregar pdfium.dll: {e}"))?;
 
     Ok(Pdfium::new(bindings))
@@ -82,7 +82,7 @@ fn extract_pdfium_dll() -> anyhow::Result<std::path::PathBuf> {
     // Só reescreve se o arquivo não existe ou tem tamanho diferente
     let should_write = match std::fs::metadata(&dll_path) {
         Ok(meta) => meta.len() != PDFIUM_DLL_BYTES.len() as u64,
-        Err(_)   => true,
+        Err(_) => true,
     };
 
     if should_write {
@@ -94,21 +94,21 @@ fn extract_pdfium_dll() -> anyhow::Result<std::path::PathBuf> {
     Ok(dll_path)
 }
 
-
 /// Representa um documento PDF aberto e pronto para renderizar.
 pub struct PdfEngine {
     /// Referência ao singleton do pdfium (mantida para garantir que a DLL
     /// não seja descarregada enquanto o doc ainda existe).
     #[allow(dead_code)]
-    pdfium:     Arc<Pdfium>,
-    doc:        PdfDocument<'static>,
+    pdfium: Arc<Pdfium>,
+    doc: PdfDocument<'static>,
     page_count: usize,
 }
 
 impl PdfEngine {
     /// Abre um arquivo PDF usando pdfium.
     pub fn open(path: &Path, pdfium: Arc<Pdfium>) -> anyhow::Result<Self> {
-        let path_str = path.to_str()
+        let path_str = path
+            .to_str()
             .ok_or_else(|| anyhow::anyhow!("Caminho com caracteres inválidos"))?;
 
         // SAFETY: lifetime 'static aqui é um contorno — o doc vive junto com pdfium
@@ -117,7 +117,7 @@ impl PdfEngine {
             std::mem::transmute::<PdfDocument<'_>, PdfDocument<'static>>(
                 pdfium
                     .load_pdf_from_file(path_str, None)
-                    .map_err(|e| anyhow::anyhow!("Falha ao abrir PDF: {e}"))?
+                    .map_err(|e| anyhow::anyhow!("Falha ao abrir PDF: {e}"))?,
             )
         };
 
@@ -129,7 +129,11 @@ impl PdfEngine {
             page_count
         );
 
-        Ok(Self { pdfium, doc, page_count: page_count.into() })
+        Ok(Self {
+            pdfium,
+            doc,
+            page_count: page_count.into(),
+        })
     }
 
     /// Número total de páginas do documento.
@@ -153,16 +157,17 @@ impl PdfEngine {
     /// - `page_index`: índice da página (0-based)
     /// - `scale`: fator de escala (1.0 = 72dpi, 2.0 = 144dpi/HD)
     pub fn render_page(&self, page_index: usize, scale: f32) -> anyhow::Result<RenderedPage> {
-        let page = self.doc
+        let page = self
+            .doc
             .pages()
             .get(page_index as u16)
             .map_err(|e| anyhow::anyhow!("Falha ao carregar página {page_index}: {e}"))?;
 
-        let width_pts  = page.width().value;
+        let width_pts = page.width().value;
         let height_pts = page.height().value;
 
         // Converte pontos (72dpi) para pixels com o fator de escala
-        let width_px  = (width_pts  * scale) as u32;
+        let width_px = (width_pts * scale) as u32;
         let height_px = (height_pts * scale) as u32;
 
         let render_cfg = PdfRenderConfig::new()
@@ -177,7 +182,7 @@ impl PdfEngine {
         let rgba = bgra_to_rgba(&bitmap.as_raw_bytes());
 
         Ok(RenderedPage {
-            width:  width_px,
+            width: width_px,
             height: height_px,
             rgba,
         })
@@ -189,7 +194,10 @@ impl PdfEngine {
     }
 
     /// Extrai todos os chars de uma página com seus bounding boxes em pontos PDF.
-    pub fn extract_chars_with_bounds(&self, page_index: usize) -> anyhow::Result<Vec<TextCharInfo>> {
+    pub fn extract_chars_with_bounds(
+        &self,
+        page_index: usize,
+    ) -> anyhow::Result<Vec<TextCharInfo>> {
         engine_extract::extract_chars_with_bounds(&self.doc, page_index)
     }
 
@@ -204,14 +212,12 @@ impl PdfEngine {
     }
 }
 
-
-
 /// Página renderizada: bitmap RGBA pronto para egui::ColorImage
 #[derive(Clone)]
 pub struct RenderedPage {
-    pub width:  u32,
+    pub width: u32,
     pub height: u32,
-    pub rgba:   Vec<u8>,
+    pub rgba: Vec<u8>,
 }
 
 /// Converte buffer BGRA (pdfium) para RGBA (egui)
@@ -224,4 +230,20 @@ fn bgra_to_rgba(bgra: &[u8]) -> Vec<u8> {
         rgba.push(pixel[3]); // A
     }
     rgba
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bgra_to_rgba;
+
+    #[test]
+    fn converts_bgra_pixels_to_rgba() {
+        let source = [10, 20, 30, 40, 50, 60, 70, 80];
+        assert_eq!(bgra_to_rgba(&source), vec![30, 20, 10, 40, 70, 60, 50, 80]);
+    }
+
+    #[test]
+    fn ignores_incomplete_trailing_pixel() {
+        assert_eq!(bgra_to_rgba(&[1, 2, 3]), Vec::<u8>::new());
+    }
 }

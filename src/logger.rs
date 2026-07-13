@@ -31,8 +31,7 @@ pub fn init() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     tracing_subscriber::registry()
         .with(filter)
@@ -47,8 +46,7 @@ pub fn init() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 
 /// Fallback: só stdout (quando não consegue criar o diretório de log)
 fn init_stdout_only() -> Option<tracing_appender::non_blocking::WorkerGuard> {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     tracing_subscriber::registry()
         .with(filter)
         .with(fmt::layer().with_writer(std::io::stdout).with_ansi(true))

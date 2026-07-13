@@ -1,10 +1,10 @@
 // settings.rs — Configurações persistidas do MariPDF
 // Enums de opção em settings_types.rs; aqui ficam AppSettings + I/O
 
-pub use crate::settings_types::{
-    UiScale, FontChoice, RenderQuality, PageMargin, DefaultPanel, ColorPalette,
-};
 pub use crate::i18n::Language;
+pub use crate::settings_types::{
+    ColorPalette, DefaultPanel, FontChoice, PageMargin, RenderQuality, UiScale,
+};
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -21,31 +21,41 @@ fn settings_path() -> PathBuf {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppSettings {
-    #[serde(default)] pub scale:           UiScale,
-    #[serde(default)] pub font:            FontChoice,
-    #[serde(default)] pub render_quality:  RenderQuality,
-    #[serde(default)] pub page_margin:     PageMargin,
-    #[serde(default)] pub smooth_scroll:   bool,
-    #[serde(default)] pub track_history:   bool,
-    #[serde(default)] pub recent_files:    Vec<PathBuf>,
-    #[serde(default)] pub default_panel:   DefaultPanel,
-    #[serde(default)] pub palette:         ColorPalette,
-    #[serde(default)] pub language:        Language,
+    #[serde(default)]
+    pub scale: UiScale,
+    #[serde(default)]
+    pub font: FontChoice,
+    #[serde(default)]
+    pub render_quality: RenderQuality,
+    #[serde(default)]
+    pub page_margin: PageMargin,
+    #[serde(default)]
+    pub smooth_scroll: bool,
+    #[serde(default)]
+    pub track_history: bool,
+    #[serde(default)]
+    pub recent_files: Vec<PathBuf>,
+    #[serde(default)]
+    pub default_panel: DefaultPanel,
+    #[serde(default)]
+    pub palette: ColorPalette,
+    #[serde(default)]
+    pub language: Language,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
-            scale:          UiScale::default(),
-            font:           FontChoice::default(),
+            scale: UiScale::default(),
+            font: FontChoice::default(),
             render_quality: RenderQuality::default(),
-            page_margin:    PageMargin::default(),
-            smooth_scroll:  true,
-            track_history:  true,
-            recent_files:   Vec::new(),
-            default_panel:  DefaultPanel::default(),
-            palette:        ColorPalette::default(),
-            language:       Language::default(),
+            page_margin: PageMargin::default(),
+            smooth_scroll: true,
+            track_history: true,
+            recent_files: Vec::new(),
+            default_panel: DefaultPanel::default(),
+            palette: ColorPalette::default(),
+            language: Language::default(),
         }
     }
 }

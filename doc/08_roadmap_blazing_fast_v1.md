@@ -162,9 +162,9 @@ renderer.
 - [ ] BF-003 Registrar baseline em hardware e build identificados.
 - [ ] BF-004 Adicionar testes unitários para persistência, settings, LRU, i18n,
   busca e conversões de coordenadas.
-- [ ] BF-005 Adicionar CI Windows com `cargo fmt --check`, `cargo check`, testes,
+- [x] BF-005 Adicionar CI Windows com `cargo fmt --check`, `cargo check`, testes,
   Clippy acordado e build release.
-- [ ] BF-006 Zerar warnings do build e definir política de lints pragmática.
+- [x] BF-006 Zerar warnings do build e definir política de lints pragmática.
 - [ ] BF-007 Criar smoke test que abre o app, abre um PDF conhecido e confirma
   processo responsivo sem panic no log.
 - [ ] BF-008 Congelar os contratos funcionais atuais em uma matriz de testes.
@@ -194,7 +194,7 @@ renderer.
 - [ ] BF-107 Unificar render principal e thumbnails sob limites globais de carga.
 - [ ] BF-108 Corrigir jobs/resultados descartados para nunca deixarem `inflight`
   preso; todo job termina em `ready`, `failed` ou `cancelled`.
-- [ ] BF-109 Remover render duplicado de Fit Width/Fit Page usando dimensões PDF.
+- [x] BF-109 Remover render duplicado de Fit Width/Fit Page usando dimensões PDF.
 - [ ] BF-110 Instrumentar duração e fila dos jobs em logs de debug.
 
 ### DoD
@@ -262,12 +262,12 @@ page rendering assíncrono com LOD simples.
 ### Entregas
 
 - [ ] BF-401 Aplicar escala, fonte, idioma e tema persistidos no startup.
-- [ ] BF-402 Ligar qualidade de render ao scheduler/LOD.
-- [ ] BF-403 Ligar margem de página ao layout single/continuous.
+- [ ] BF-402 Ligar qualidade de render ao scheduler/LOD (o pipeline atual já respeita a escala).
+- [x] BF-403 Ligar margem de página ao layout single/continuous.
 - [ ] BF-404 Definir e implementar comportamento real de scroll suave.
-- [ ] BF-405 Aplicar painel padrão ao abrir documento.
-- [ ] BF-406 Respeitar `track_history` em todas as gravações.
-- [ ] BF-407 Implementar “limpar histórico” com confirmação e feedback.
+- [x] BF-405 Aplicar painel padrão ao abrir documento.
+- [x] BF-406 Respeitar `track_history` nas sessões e na Home.
+- [ ] BF-407 Implementar “limpar histórico” com confirmação e feedback (a limpeza já tem efeito imediato).
 - [ ] BF-408 Persistir modo de cor ou oferecer explicitamente “seguir sistema”.
 - [ ] BF-409 Implementar hit-test correto para todos os links da página.
 - [ ] BF-410 Destacar ocorrência ativa da busca e expor trecho de contexto.

@@ -3,27 +3,29 @@
 // Usa FluentBundle::new_concurrent() que é Send + Sync via IntlLangMemoizer<RwLock>.
 // Bundle global em OnceLock — troca de idioma em runtime com recontrução do bundle.
 
-pub mod loader;
-
-use fluent_bundle::{concurrent::FluentBundle, FluentResource, FluentArgs, FluentValue};
+use fluent_bundle::{concurrent::FluentBundle, FluentArgs, FluentResource, FluentValue};
 use std::sync::{Mutex, OnceLock};
 use unic_langid::langid;
 
 // ── Enum de idioma ─────────────────────────────────────────────────────────────
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub enum Language {
+    #[default]
     PtBr,
     En,
 }
 
-impl Default for Language { fn default() -> Self { Self::PtBr } }
-
 impl Language {
     pub fn label(&self) -> &'static str {
-        match self { Self::PtBr => "PT-BR", Self::En => "EN" }
+        match self {
+            Self::PtBr => "PT-BR",
+            Self::En => "EN",
+        }
     }
-    pub fn all() -> [Self; 2] { [Self::PtBr, Self::En] }
+    pub fn all() -> [Self; 2] {
+        [Self::PtBr, Self::En]
+    }
 }
 
 // ── Bundle global ──────────────────────────────────────────────────────────────
@@ -33,17 +35,19 @@ impl Language {
 static BUNDLE: OnceLock<Mutex<FluentBundle<FluentResource>>> = OnceLock::new();
 
 const FTL_PT_BR: &str = include_str!("../../locales/pt-BR/main.ftl");
-const FTL_EN:    &str = include_str!("../../locales/en/main.ftl");
+const FTL_EN: &str = include_str!("../../locales/en/main.ftl");
 
 fn build_bundle(lang: Language) -> FluentBundle<FluentResource> {
     let (source, locale) = match lang {
         Language::PtBr => (FTL_PT_BR, langid!("pt-BR")),
-        Language::En   => (FTL_EN,    langid!("en-US")),
+        Language::En => (FTL_EN, langid!("en-US")),
     };
-    let resource = FluentResource::try_new(source.to_owned())
-        .expect("FTL inválido — verifique locales/");
+    let resource =
+        FluentResource::try_new(source.to_owned()).expect("FTL inválido — verifique locales/");
     let mut bundle = FluentBundle::new_concurrent(vec![locale]);
-    bundle.add_resource(resource).expect("Falha ao adicionar recurso FTL");
+    bundle
+        .add_resource(resource)
+        .expect("Falha ao adicionar recurso FTL");
     bundle
 }
 
@@ -93,8 +97,10 @@ pub fn get1(key: &str, arg_name: &str, arg_val: &str) -> String {
 /// `t!("chave", arg => "valor")` → String traduzida com argumento
 #[macro_export]
 macro_rules! t {
-    ($key:expr) => { crate::i18n::get($key) };
+    ($key:expr) => {
+        $crate::i18n::get($key)
+    };
     ($key:expr, $arg:ident => $val:expr) => {
-        crate::i18n::get1($key, stringify!($arg), &($val).to_string())
+        $crate::i18n::get1($key, stringify!($arg), &($val).to_string())
     };
 }
