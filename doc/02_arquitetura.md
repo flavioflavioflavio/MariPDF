@@ -43,13 +43,15 @@ Ver [ADR-002](adr/ADR-002_engine_pdf.md) e
 egui update
   ├─ Single Page → worker → cache bitmap → RGBA → textura GPU
   ├─ Continuous → mesmo cache/worker de páginas → textura GPU
-  ├─ Thumbnails → worker próprio → cache bitmap → textura GPU
-  ├─ Busca → worker incremental e cancelável
+  ├─ Thumbnails → worker próprio lazy → cache bitmap → textura GPU
+  ├─ Busca → worker lazy, incremental e cancelável
   └─ Seleção/links/bookmarks → parte síncrona na UI/abertura
 ```
 
-O render de páginas e a busca já não bloqueiam a UI. Bookmarks, links e extração
-de caracteres ainda possuem operações síncronas e serão migrados em BF-105.
+O render de páginas e a busca já não bloqueiam a UI. Os workers de busca e
+miniaturas só abrem outra instância do documento quando a respectiva superfície
+é usada. Bookmarks, links e extração de caracteres ainda possuem operações
+síncronas e serão migrados em BF-105.
 
 ## Fluxo-alvo da v1.0
 

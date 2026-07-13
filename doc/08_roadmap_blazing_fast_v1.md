@@ -49,34 +49,36 @@ v1.0 que possa sustentar, com evidência, a promessa:
 Os números de memória e inicialização acima são somente baseline local. Antes de
 virarem metas públicas, precisam ser repetidos em um protocolo controlado.
 
-### Gaps de núcleo e desempenho
+### Gaps de núcleo e desempenho levantados na auditoria
 
-1. O modo Single Page renderiza sincronamente na thread da UI.
-2. Fit Width e Fit Page renderizam uma página apenas para obter dimensões e,
-   depois, renderizam novamente no zoom final.
-3. Busca full-text percorre e extrai todas as páginas na thread da UI.
-4. Extração de caracteres para seleção acontece na thread da UI ao mudar página.
-5. Bookmarks são extraídos sincronamente durante a abertura.
-6. O modo contínuo ainda itera `0..page_count` e monta placeholders para todas as
+Os itens marcados foram corrigidos durante a execução deste roadmap.
+
+1. [x] O modo Single Page renderizava sincronamente na thread da UI.
+2. [x] Fit Width e Fit Page renderizavam uma página apenas para obter dimensões e,
+   depois, renderizavam novamente no zoom final.
+3. [x] Busca full-text percorria e extraía todas as páginas na thread da UI.
+4. [ ] Extração de caracteres para seleção acontece na thread da UI ao mudar página.
+5. [ ] Bookmarks são extraídos sincronamente durante a abertura.
+6. [ ] O modo contínuo ainda itera `0..page_count` e monta placeholders para todas as
    páginas a cada frame; não é virtualização real.
-7. Não há scheduler unificado, prioridade, cancelamento ou geração de jobs.
-8. Cache é limitado por quantidade de páginas, não por bytes de CPU/GPU.
-9. Se o canal de resultado estiver cheio, um bitmap pode ser descartado sem
+7. [ ] Não há scheduler unificado, prioridade, cancelamento ou geração de jobs.
+8. [ ] Cache é limitado por quantidade de páginas, não por bytes de CPU/GPU.
+9. [x] Se o canal de resultado estivesse cheio, um bitmap podia ser descartado sem
    remover a página de `inflight`, deixando-a sem nova tentativa.
-10. Single Page, Continuous e Thumbnails abrem pipelines/documentos separados,
-    sem coordenação de carga.
-11. O pipeline sempre rasteriza a página inteira; zoom alto não usa tiles/LOD.
-12. A conversão BGRA → RGBA cria um novo buffer e percorre todos os pixels.
+10. [ ] Single Page, Continuous e Thumbnails abrem pipelines/documentos separados,
+    sem coordenação de carga; busca e thumbnails agora são inicializados sob demanda.
+11. [ ] O pipeline sempre rasteriza a página inteira; zoom alto não usa tiles/LOD.
+12. [ ] A conversão BGRA → RGBA cria um novo buffer e percorre todos os pixels.
 
 ### Gaps funcionais confirmados
 
-1. Qualidade de renderização é salva, mas o renderer continua usando escala fixa.
-2. Margem de página é salva, mas o viewer usa constantes fixas.
-3. Scroll suave é salvo, mas não governa o comportamento.
-4. Painel padrão é salvo, mas não é aplicado ao abrir documento.
-5. Desativar histórico não impede gravação de sessões/recentes.
-6. O botão “limpar histórico” não executa nenhuma ação.
-7. Escala e fonte salvas não são reaplicadas integralmente no startup.
+1. [x] Qualidade de renderização era salva, mas o renderer usava escala fixa.
+2. [x] Margem de página era salva, mas o viewer usava constantes fixas.
+3. [x] Scroll suave era salvo, mas não governava o comportamento.
+4. [x] Painel padrão era salvo, mas não era aplicado ao abrir documento.
+5. [x] Desativar histórico não impedia gravação de sessões/recentes.
+6. [x] O botão “limpar histórico” não executava nenhuma ação.
+7. [x] Escala e fonte salvas não eram reaplicadas integralmente no startup.
 8. Modo de cor não é persistido; o tema do Windows vence em toda inicialização.
 9. O modo contínuo não mantém de forma confiável a página atual visível para
    status, navegação e persistência.

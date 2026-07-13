@@ -268,15 +268,11 @@ impl MariApp {
                 match self.side_panel {
                     SidePanelKind::Toc => {
                         let bookmarks = self.bookmarks.clone();
-                        let pc = self
-                            .thumb_cache
-                            .as_ref()
-                            .map_or(self.bookmarks.len(), |tc| tc.page_count);
                         goto_page = side_panel::show_toc(
                             ui,
                             &bookmarks,
                             current_page,
-                            pc,
+                            self.page_count,
                             panel_bg,
                             panel_text,
                             panel_muted,

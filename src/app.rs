@@ -162,7 +162,8 @@ impl MariApp {
                     DefaultPanel::Thumbnails => SidePanelKind::Thumbs,
                     DefaultPanel::Toc => SidePanelKind::Toc,
                 };
-                self.thumb_cache = Some(ThumbCache::new(path.clone(), page_count));
+                self.thumb_cache = (self.side_panel == SidePanelKind::Thumbs)
+                    .then(|| ThumbCache::new(path.clone(), page_count));
                 if let Some(session) = self.persistence.get(&path) {
                     self.viewer.zoom = session.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
                     self.current_page = session.last_page.min(page_count.saturating_sub(1));

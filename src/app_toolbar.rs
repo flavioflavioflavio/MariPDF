@@ -4,6 +4,7 @@
 use crate::app::MariApp;
 use crate::app_color_mode::ColorMode;
 use crate::app_reader::SidePanelKind;
+use crate::pdf::thumb_cache::ThumbCache;
 use crate::ui::icons;
 use crate::ui::viewer::ViewMode;
 use eframe::egui;
@@ -162,6 +163,11 @@ impl MariApp {
                         } else {
                             SidePanelKind::Thumbs
                         };
+                        if self.side_panel == SidePanelKind::Thumbs && self.thumb_cache.is_none() {
+                            if let Some(path) = self.current_file.clone() {
+                                self.thumb_cache = Some(ThumbCache::new(path, self.page_count));
+                            }
+                        }
                     }
 
                     ui.add_space(4.0);

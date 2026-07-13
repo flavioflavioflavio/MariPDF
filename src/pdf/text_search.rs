@@ -39,6 +39,7 @@ pub struct TextSearch {
     pub is_running: bool,
     request_tx: Option<Sender<SearchRequest>>,
     progress_rx: Option<Receiver<SearchProgress>>,
+    document_path: Option<PathBuf>,
     generation: Arc<AtomicU64>,
 }
 
@@ -51,14 +52,26 @@ impl TextSearch {
             is_running: false,
             request_tx: None,
             progress_rx: None,
+            document_path: None,
             generation: Arc::new(AtomicU64::new(0)),
         }
     }
 
-    /// Vincula a busca a um documento. Substituir o sender encerra o worker
-    /// anterior assim que ele observar o cancelamento ou o canal desconectado.
+    /// Vincula a busca a um documento sem abrir uma segunda instancia do PDF.
+    /// O worker so nasce quando a primeira busca for iniciada.
     pub fn attach_document(&mut self, path: PathBuf) {
         self.detach_document();
+        self.document_path = Some(path);
+    }
+
+    fn ensure_worker(&mut self) -> bool {
+        if self.request_tx.is_some() {
+            return true;
+        }
+
+        let Some(path) = self.document_path.clone() else {
+            return false;
+        };
         let (request_tx, request_rx) = mpsc::channel();
         let (progress_tx, progress_rx) = mpsc::channel();
         let generation = Arc::clone(&self.generation);
@@ -70,12 +83,14 @@ impl TextSearch {
 
         self.request_tx = Some(request_tx);
         self.progress_rx = Some(progress_rx);
+        true
     }
 
     pub fn detach_document(&mut self) {
         self.clear();
         self.request_tx = None;
         self.progress_rx = None;
+        self.document_path = None;
     }
 
     /// Inicia uma busca nova e invalida imediatamente resultados anteriores.
@@ -87,6 +102,11 @@ impl TextSearch {
 
         let generation = self.generation.fetch_add(1, Ordering::AcqRel) + 1;
         if query.is_empty() {
+            self.is_running = false;
+            return;
+        }
+
+        if !self.ensure_worker() {
             self.is_running = false;
             return;
         }
@@ -250,5 +270,15 @@ mod tests {
     #[test]
     fn empty_query_has_no_hits() {
         assert!(find_hits_in_text(0, "conteúdo", "").is_empty());
+    }
+
+    #[test]
+    fn attaching_document_does_not_start_worker() {
+        let mut search = TextSearch::new();
+        search.attach_document(PathBuf::from("document.pdf"));
+
+        assert!(search.document_path.is_some());
+        assert!(search.request_tx.is_none());
+        assert!(search.progress_rx.is_none());
     }
 }
