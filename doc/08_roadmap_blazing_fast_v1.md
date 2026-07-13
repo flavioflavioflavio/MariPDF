@@ -59,8 +59,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 3. [x] Busca full-text percorria e extraía todas as páginas na thread da UI.
 4. [ ] Extração de caracteres para seleção acontece na thread da UI ao mudar página.
 5. [ ] Bookmarks são extraídos sincronamente durante a abertura.
-6. [ ] O modo contínuo ainda itera `0..page_count` e monta placeholders para todas as
-   páginas a cada frame; não é virtualização real.
+6. [x] O modo contínuo iterava `0..page_count` e montava placeholders para todas as
+   páginas a cada frame; agora aloca apenas o range visível em slots estimados.
 7. [ ] Não há scheduler unificado, prioridade, cancelamento ou geração de jobs.
 8. [ ] Cache é limitado por quantidade de páginas, não por bytes de CPU/GPU.
 9. [x] Se o canal de resultado estivesse cheio, um bitmap podia ser descartado sem
@@ -215,8 +215,8 @@ páginas.
 ### Entregas
 
 - [ ] BF-201 Criar índice de layout com altura estimada/real por página.
-- [ ] BF-202 Renderizar e alocar widgets somente para o range visível + overscan.
-- [ ] BF-203 Remover loops por `page_count` do hot path de cada frame.
+- [x] BF-202 Renderizar e alocar widgets somente para o range visível + overscan.
+- [x] BF-203 Remover loops por `page_count` do hot path de cada frame.
 - [ ] BF-204 Atualizar `current_page` pela página dominante no viewport contínuo.
 - [ ] BF-205 Preservar âncora visual ao trocar zoom, modo ou dimensões conhecidas.
 - [ ] BF-206 Implementar cache CPU e GPU por bytes, com métricas hit/miss/eviction.

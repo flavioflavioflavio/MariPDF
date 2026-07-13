@@ -67,7 +67,7 @@ pub struct PdfViewer {
     /// Define se deltas suavizados do egui são usados para zoom/scroll.
     pub smooth_scroll: bool,
     /// Última falha de render pronta para o app apresentar.
-    last_error: Option<String>,
+    pub(crate) last_error: Option<String>,
 }
 
 impl PdfViewer {
