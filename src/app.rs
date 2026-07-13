@@ -163,10 +163,6 @@ impl MariApp {
                     DefaultPanel::Toc => SidePanelKind::Toc,
                 };
                 self.thumb_cache = Some(ThumbCache::new(path.clone(), page_count));
-                if self.viewer.mode == ViewMode::Continuous {
-                    let scale = self.viewer.zoom * self.settings.render_quality.scale();
-                    self.viewer.init_cache(path.clone(), scale);
-                }
                 if let Some(session) = self.persistence.get(&path) {
                     self.viewer.zoom = session.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
                     self.current_page = session.last_page.min(page_count.saturating_sub(1));
@@ -174,6 +170,8 @@ impl MariApp {
                     self.current_page = 0;
                     self.viewer.zoom = 1.0;
                 }
+                let scale = self.viewer.zoom * self.settings.render_quality.scale();
+                self.viewer.init_cache(path, scale);
                 if self.viewer.mode == ViewMode::SinglePage {
                     self.render_current_page(ctx);
                 }

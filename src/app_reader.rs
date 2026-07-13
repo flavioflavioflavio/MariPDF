@@ -100,12 +100,14 @@ impl MariApp {
                     self.viewer.render_scale = self.settings.render_quality.scale();
                     self.viewer.page_margin = self.settings.page_margin.px();
                     self.viewer.smooth_scroll = self.settings.smooth_scroll;
-                    let viewer_ptr: *mut crate::ui::viewer::PdfViewer = &mut self.viewer;
-                    // SAFETY: engine e viewer são campos distintos de MariApp — sem aliasing
-                    unsafe { (*viewer_ptr).show(ui, engine, cp, pc, tint, border) };
+                    self.viewer.show(ui, cp, pc, tint, border);
+
+                    if let Some(error) = self.viewer.take_error() {
+                        self.render_error = Some(error);
+                    }
 
                     let page_rect = self.viewer.last_page_rect;
-                    if page_rect.is_positive() {
+                    if self.viewer.loaded_page == Some(cp) && page_rect.is_positive() {
                         if self.text_chars_page != cp {
                             self.text_chars =
                                 engine.extract_chars_with_bounds(cp).unwrap_or_default();

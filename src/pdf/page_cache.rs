@@ -5,7 +5,7 @@
 // Integra-se com um canal mpsc para receber bitmaps de uma thread de fundo.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     path::PathBuf,
     sync::mpsc::{self, Receiver, SyncSender},
 };
@@ -60,6 +60,7 @@ pub struct LruPageCache {
     tx: Option<SyncSender<RenderRequest>>,
     rx: Receiver<RenderResult>,
     inflight: std::collections::HashSet<usize>,
+    failures: VecDeque<(usize, String)>,
 }
 
 impl LruPageCache {
@@ -85,6 +86,7 @@ impl LruPageCache {
             tx: Some(req_tx),
             rx: res_rx,
             inflight: Default::default(),
+            failures: VecDeque::new(),
         }
     }
 
@@ -98,6 +100,7 @@ impl LruPageCache {
             tx: None,
             rx,
             inflight: Default::default(),
+            failures: VecDeque::new(),
         }
     }
 
@@ -166,10 +169,20 @@ impl LruPageCache {
                 }
                 RenderOutcome::Failed(error) => {
                     tracing::warn!("bg_render: página {}: {error}", result.page_index);
+                    self.failures.push_back((result.page_index, error));
                 }
             }
         }
         got_any
+    }
+
+    /// Retorna e remove a falha mais recente da página solicitada.
+    pub fn take_failure(&mut self, page_index: usize) -> Option<String> {
+        let position = self
+            .failures
+            .iter()
+            .position(|(failed_page, _)| *failed_page == page_index)?;
+        self.failures.remove(position).map(|(_, error)| error)
     }
 
     /// Remove páginas fora do range `[first, last]` (janela de viewport).
@@ -178,10 +191,12 @@ impl LruPageCache {
         self.inflight.retain(|&idx| idx >= first && idx <= last);
     }
 
-    /// Remove tudo.
+    /// Remove tudo nos testes unitários do cache.
+    #[cfg(test)]
     pub fn clear(&mut self) {
         self.entries.clear();
         self.inflight.clear();
+        self.failures.clear();
     }
 
     #[allow(dead_code)]
@@ -302,5 +317,30 @@ mod tests {
 
         assert_eq!(cache.len(), 0);
         assert!(!cache.contains(1));
+    }
+
+    #[test]
+    fn failed_result_clears_inflight_and_can_be_consumed() {
+        let (tx, rx) = mpsc::sync_channel(1);
+        let mut cache = LruPageCache {
+            entries: HashMap::new(),
+            capacity: 2,
+            clock: 0,
+            tx: None,
+            rx,
+            inflight: [4].into_iter().collect(),
+            failures: VecDeque::new(),
+        };
+
+        tx.send(RenderResult {
+            page_index: 4,
+            outcome: RenderOutcome::Failed("render failed".into()),
+        })
+        .expect("send failed result");
+
+        assert!(!cache.drain_ready());
+        assert!(!cache.inflight.contains(&4));
+        assert_eq!(cache.take_failure(4).as_deref(), Some("render failed"));
+        assert!(cache.take_failure(4).is_none());
     }
 }

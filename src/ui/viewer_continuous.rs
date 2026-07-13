@@ -2,7 +2,6 @@
 // Extraído de viewer.rs para respeitar o hardcap de 250L.
 // Responsabilidade: show_continuous() com prefetch, skeleton e virtual scrolling.
 
-use crate::pdf::engine::PdfEngine;
 use crate::ui::viewer::PdfViewer;
 use crate::ui::viewer_helpers::{draw_page_tex, fit_page, invert_rgba, upload_texture};
 use eframe::egui;
@@ -15,7 +14,6 @@ impl PdfViewer {
     pub(super) fn show_continuous(
         &mut self,
         ui: &mut egui::Ui,
-        engine: &PdfEngine,
         page_count: usize,
         page_tint: egui::Color32,
         page_border: egui::Color32,
@@ -94,17 +92,6 @@ impl PdfViewer {
 
                 for idx in 0..page_count {
                     let is_visible = idx >= first_visible && idx <= last_visible;
-
-                    // Fallback síncrono se visível mas ainda não chegou do background
-                    if is_visible && !self.tex_cache.contains_key(&idx) && self.pdf_path.is_none() {
-                        if let Ok(mut rendered) = engine.render_page(idx, scale) {
-                            if self.invert_colors {
-                                invert_rgba(&mut rendered.rgba);
-                            }
-                            let tex = upload_texture(ui.ctx(), &rendered, idx);
-                            self.tex_cache.insert(idx, tex);
-                        }
-                    }
 
                     ui.vertical_centered(|ui| {
                         if let Some(tex) = self.tex_cache.get(&idx) {

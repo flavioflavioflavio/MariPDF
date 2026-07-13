@@ -217,7 +217,9 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             .unwrap_or_default();
         app.links_page = app.current_page;
     }
-    if !app.page_links.is_empty() {
+    let current_texture_is_visible =
+        app.viewer.mode == ViewMode::SinglePage && app.viewer.loaded_page == Some(app.current_page);
+    if current_texture_is_visible && !app.page_links.is_empty() {
         let maybe_click = ctx.input(|i| {
             if i.pointer.button_clicked(egui::PointerButton::Primary) {
                 i.pointer.interact_pos()

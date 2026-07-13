@@ -41,14 +41,15 @@ Ver [ADR-002](adr/ADR-002_engine_pdf.md) e
 
 ```text
 egui update
-  ├─ Single Page → PDFium render síncrono → RGBA → textura GPU
-  ├─ Continuous → worker próprio → cache bitmap → textura GPU
+  ├─ Single Page → worker → cache bitmap → RGBA → textura GPU
+  ├─ Continuous → mesmo cache/worker de páginas → textura GPU
   ├─ Thumbnails → worker próprio → cache bitmap → textura GPU
-  ├─ Busca → extração síncrona de todas as páginas
+  ├─ Busca → worker incremental e cancelável
   └─ Seleção/links/bookmarks → parte síncrona na UI/abertura
 ```
 
-Esse fluxo funciona, mas possui pipelines independentes e operações bloqueantes.
+O render de páginas e a busca já não bloqueiam a UI. Bookmarks, links e extração
+de caracteres ainda possuem operações síncronas e serão migrados em BF-105.
 
 ## Fluxo-alvo da v1.0
 

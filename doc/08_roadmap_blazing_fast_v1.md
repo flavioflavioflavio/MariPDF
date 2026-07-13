@@ -185,8 +185,8 @@ renderer.
 - [ ] BF-101 Definir `DocumentWorker`, `RenderJob`, `JobPriority`, `JobResult` e
   `generation_id` atrás de uma interface independente do PDFium.
 - [ ] BF-102 Implementar fila priorizada, cancelamento lógico e backpressure.
-- [ ] BF-103 Migrar Single Page para render assíncrono.
-- [ ] BF-104 Manter a última textura válida durante zoom/navegação e exibir loading
+- [x] BF-103 Migrar Single Page para render assíncrono.
+- [x] BF-104 Manter a última textura válida durante zoom/navegação e exibir loading
   não bloqueante somente quando não houver textura utilizável.
 - [ ] BF-105 Migrar bookmarks, links e extração de caracteres para jobs.
 - [x] BF-106 Migrar busca para execução incremental assíncrona, entregando hits por

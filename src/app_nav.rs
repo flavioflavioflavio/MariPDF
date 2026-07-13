@@ -2,32 +2,21 @@
 // Extraído de app.rs para manter abaixo de 250 linhas.
 
 use crate::app::{MariApp, MAX_ZOOM, MIN_ZOOM};
-use crate::app_color_mode::ColorMode;
-use crate::ui::viewer::{invert_rgba, ViewMode};
+use crate::ui::viewer::ViewMode;
 use eframe::egui;
 
 impl MariApp {
     pub fn render_current_page(&mut self, ctx: &egui::Context) {
-        self.viewer.is_loading = true;
-        let Some(engine) = &self.engine else {
-            self.viewer.is_loading = false;
+        if self.engine.is_none() {
             return;
-        };
-        let scale = self.viewer.zoom * self.settings.render_quality.scale();
-        match engine.render_page(self.current_page, scale) {
-            Ok(mut rendered) => {
-                if matches!(self.color_mode, ColorMode::Dark) {
-                    invert_rgba(&mut rendered.rgba);
-                }
-                self.viewer.load_page(ctx, &rendered, self.current_page);
-                self.render_error = None;
-            }
-            Err(e) => {
-                tracing::error!("{e}");
-                self.render_error = Some(format!("{e}"));
-            }
         }
-        self.viewer.is_loading = false;
+        self.render_error = None;
+        self.viewer.render_scale = self.settings.render_quality.scale();
+        self.viewer.page_margin = self.settings.page_margin.px();
+        self.viewer.smooth_scroll = self.settings.smooth_scroll;
+        self.viewer
+            .request_single_page(self.current_page, self.page_count);
+        ctx.request_repaint();
     }
 
     pub fn go_to_page(&mut self, ctx: &egui::Context, page: usize) {
@@ -58,16 +47,14 @@ impl MariApp {
     }
 
     pub fn invalidate_render(&mut self, ctx: &egui::Context) {
+        self.viewer.tex_cache.clear();
+        self.viewer.loaded_page = None;
+        if let Some(path) = self.current_file.clone() {
+            let scale = self.viewer.zoom * self.settings.render_quality.scale();
+            self.viewer.init_cache(path, scale);
+        }
         if self.viewer.mode == ViewMode::SinglePage {
-            self.viewer.texture = None;
             self.render_current_page(ctx);
-        } else {
-            self.viewer.tex_cache.clear();
-            self.viewer.page_cache.clear();
-            if let Some(path) = self.current_file.clone() {
-                let scale = self.viewer.zoom * self.settings.render_quality.scale();
-                self.viewer.init_cache(path, scale);
-            }
         }
     }
 
@@ -95,15 +82,11 @@ impl MariApp {
             ViewMode::SinglePage => {
                 self.viewer.mode = ViewMode::Continuous;
                 self.viewer.texture = None;
-                if let Some(path) = self.current_file.clone() {
-                    let scale = self.viewer.zoom * self.settings.render_quality.scale();
-                    self.viewer.init_cache(path, scale);
-                }
             }
             ViewMode::Continuous => {
                 self.viewer.mode = ViewMode::SinglePage;
                 self.viewer.tex_cache.clear();
-                self.viewer.page_cache.clear();
+                self.viewer.loaded_page = None;
                 let c = ctx.clone();
                 self.render_current_page(&c);
             }
