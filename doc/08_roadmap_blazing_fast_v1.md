@@ -220,7 +220,7 @@ páginas.
 - [x] BF-204 Atualizar `current_page` pela página dominante no viewport contínuo.
 - [x] BF-205 Preservar âncora visual ao trocar zoom, modo ou dimensões conhecidas.
 - [x] BF-206 Implementar cache CPU e GPU por bytes, com métricas hit/miss/eviction.
-- [ ] BF-207 Priorizar prefetch conforme direção e velocidade do scroll.
+- [x] BF-207 Priorizar prefetch conforme direção e velocidade do scroll.
 - [ ] BF-208 Evitar reabrir/reprocessar o documento sem necessidade entre pipelines.
 - [ ] BF-209 Avaliar reutilização de buffer/conversão in-place BGRA → RGBA com
   benchmark antes/depois.

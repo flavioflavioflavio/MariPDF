@@ -61,6 +61,10 @@ de 64 MiB e texturas do modo contínuo, 128 MiB. Uma página individual maior qu
 orçamento continua utilizável, mas permanece sozinha. Hits, misses, inserções,
 evictions, uso residente e pico ficam disponíveis em métricas de debug.
 
+No modo contínuo, o viewport sempre entra primeiro na fila. O overscan favorece a
+direção do scroll e cresce em saltos rápidos, enquanto mantém uma página de
+retaguarda para reversões imediatas.
+
 ## Fluxo-alvo da v1.0
 
 ```text
@@ -119,6 +123,7 @@ src/
 │   └── persistence.rs      sessões e janela
 ├── ui/
 │   ├── page_layout.rs      offsets, alturas e âncoras do viewport virtual
+│   ├── prefetch.rs         prioridade por direção/velocidade do scroll
 │   ├── texture_cache.rs    orçamento e métricas de texturas GPU
 │   ├── viewer.rs           viewer Single Page
 │   ├── viewer_continuous.rs viewer Continuous

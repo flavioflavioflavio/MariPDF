@@ -29,6 +29,8 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 - Busca e miniaturas abrem seus workers somente quando usadas.
 - Caches de bitmaps CPU e texturas GPU agora usam orçamento em bytes, LRU e
   métricas de hits, misses, evictions, uso residente e pico.
+- Prefetch contínuo prioriza o viewport e adapta o overscan à direção e à
+  velocidade da rolagem.
 
 ### Known limitations
 

@@ -3,13 +3,11 @@
 // Responsabilidade: show_continuous() com prefetch, skeleton e virtual scrolling.
 
 use crate::ui::page_layout::LayoutParams;
+use crate::ui::prefetch::PrefetchPlan;
 use crate::ui::viewer::PdfViewer;
 use crate::ui::viewer_helpers::{draw_page_tex, fit_page, invert_rgba, upload_texture};
 use eframe::egui;
 
-/// Quantas páginas adjacentes pré-renderizar no modo Contínuo
-const PREFETCH_AHEAD: usize = 3;
-const PREFETCH_BEHIND: usize = 1;
 impl PdfViewer {
     /// Renderiza somente a janela visível do scroll contínuo, com prefetch
     /// assíncrono. Páginas fora do viewport ocupam apenas espaço virtual.
@@ -86,17 +84,23 @@ impl PdfViewer {
             );
             self.continuous_anchor = Some(self.page_layout.anchor_at(viewport.center().y));
             self.continuous_viewport_height = viewport.height();
-            let render_first = first_visible.saturating_sub(PREFETCH_BEHIND);
-            let render_last = (last_visible + PREFETCH_AHEAD).min(page_count.saturating_sub(1));
+            let scroll_delta = self
+                .continuous_scroll_offset
+                .map_or(0.0, |previous| viewport.min.y - previous);
+            self.continuous_scroll_offset = Some(viewport.min.y);
+            let prefetch = PrefetchPlan::new(
+                first_visible,
+                last_visible,
+                page_count,
+                scroll_delta,
+                viewport.height(),
+            );
 
             // Evicta texturas fora da janela estendida do viewport
-            self.tex_cache.retain_range(render_first, render_last);
-            self.page_cache.evict_range(render_first, render_last);
+            self.tex_cache.retain_range(prefetch.first, prefetch.last);
+            self.page_cache.evict_range(prefetch.first, prefetch.last);
 
-            // Solicita pré-render das páginas vizinhas
-            for idx in render_first..=render_last {
-                self.page_cache.prefetch(idx, scale);
-            }
+            prefetch.schedule(|page| self.page_cache.prefetch(page, scale));
 
             for idx in first_visible..=last_visible {
                 // Upload para GPU só quando a página chega ao viewport.

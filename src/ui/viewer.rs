@@ -52,6 +52,7 @@ pub struct PdfViewer {
     /// Âncora mantida ao recalcular alturas/zoom.
     pub(crate) continuous_anchor: Option<LayoutAnchor>,
     pub(crate) continuous_viewport_height: f32,
+    pub(crate) continuous_scroll_offset: Option<f32>,
 
     // ── Sinais para o app.rs ──
     /// Delta de zoom acumulado por Ctrl+Scroll (processado em app.rs)
@@ -94,6 +95,7 @@ impl PdfViewer {
             pending_scroll_page: None,
             continuous_anchor: None,
             continuous_viewport_height: 0.0,
+            continuous_scroll_offset: None,
             zoom_delta: 0.0,
             page_delta: 0,
             last_page_rect: egui::Rect::NOTHING,
@@ -129,6 +131,7 @@ impl PdfViewer {
         self.pending_scroll_page = None;
         self.continuous_anchor = None;
         self.continuous_viewport_height = 0.0;
+        self.continuous_scroll_offset = None;
         self.zoom_delta = 0.0;
         self.page_delta = 0;
         self.last_page_rect = egui::Rect::NOTHING;
