@@ -17,6 +17,7 @@ mod app_text_sel;
 mod app_toast;
 mod app_toolbar;
 mod app_update;
+mod byte_cache;
 mod i18n;
 mod logger;
 mod pdf;

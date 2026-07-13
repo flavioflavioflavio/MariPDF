@@ -90,8 +90,7 @@ impl PdfViewer {
             let render_last = (last_visible + PREFETCH_AHEAD).min(page_count.saturating_sub(1));
 
             // Evicta texturas fora da janela estendida do viewport
-            self.tex_cache
-                .retain(|&idx, _| idx >= render_first && idx <= render_last);
+            self.tex_cache.retain_range(render_first, render_last);
             self.page_cache.evict_range(render_first, render_last);
 
             // Solicita pré-render das páginas vizinhas
@@ -101,7 +100,7 @@ impl PdfViewer {
 
             for idx in first_visible..=last_visible {
                 // Upload para GPU só quando a página chega ao viewport.
-                if !self.tex_cache.contains_key(&idx) {
+                if !self.tex_cache.contains(idx) {
                     if let Some(bitmap) = self.page_cache.get(idx) {
                         let tex = if self.invert_colors {
                             let mut inverted = (*bitmap).clone();
@@ -116,10 +115,25 @@ impl PdfViewer {
                             bitmap.height,
                             scale,
                         );
-                        self.tex_cache.insert(idx, tex);
+                        self.tex_cache.insert(idx, tex, bitmap.width, bitmap.height);
                         if learned_size {
                             ctx.request_repaint();
                         }
+                        let cpu = self.page_cache.metrics();
+                        let gpu = self.tex_cache.metrics();
+                        tracing::debug!(
+                            cpu_bytes = cpu.resident_bytes,
+                            cpu_budget = cpu.budget_bytes,
+                            cpu_hits = cpu.hits,
+                            cpu_misses = cpu.misses,
+                            cpu_evictions = cpu.evictions,
+                            gpu_bytes = gpu.resident_bytes,
+                            gpu_budget = gpu.budget_bytes,
+                            gpu_hits = gpu.hits,
+                            gpu_misses = gpu.misses,
+                            gpu_evictions = gpu.evictions,
+                            "viewer cache metrics"
+                        );
                     } else if let Some(error) = self.page_cache.take_failure(idx) {
                         self.last_error = Some(error);
                     }
@@ -133,7 +147,7 @@ impl PdfViewer {
                 );
                 ui.allocate_new_ui(egui::UiBuilder::new().max_rect(slot_rect), |ui| {
                     ui.vertical_centered(|ui| {
-                        if let Some(tex) = self.tex_cache.get(&idx) {
+                        if let Some(tex) = self.tex_cache.get(idx) {
                             let (mut w, mut h) =
                                 fit_page(tex.size_vec2(), available_w - self.page_margin * 2.0);
                             if h > page_height {

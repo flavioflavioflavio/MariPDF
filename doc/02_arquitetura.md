@@ -56,6 +56,11 @@ abrem outra instância do documento quando a respectiva superfície é usada.
 Bookmarks, links e extração de caracteres ainda possuem operações síncronas e
 serão migrados em BF-105.
 
+Os caches de página usam o mesmo LRU por bytes: bitmaps CPU têm orçamento padrão
+de 64 MiB e texturas do modo contínuo, 128 MiB. Uma página individual maior que o
+orçamento continua utilizável, mas permanece sozinha. Hits, misses, inserções,
+evictions, uso residente e pico ficam disponíveis em métricas de debug.
+
 ## Fluxo-alvo da v1.0
 
 ```text
@@ -103,6 +108,7 @@ Na v1.0:
 ```text
 src/
 ├── main.rs                 entrada, fontes e janela
+├── byte_cache.rs           LRU por bytes e métricas compartilhadas
 ├── app*.rs                 estado e coordenação da aplicação
 ├── pdf/
 │   ├── engine.rs           integração PDFium
@@ -113,6 +119,7 @@ src/
 │   └── persistence.rs      sessões e janela
 ├── ui/
 │   ├── page_layout.rs      offsets, alturas e âncoras do viewport virtual
+│   ├── texture_cache.rs    orçamento e métricas de texturas GPU
 │   ├── viewer.rs           viewer Single Page
 │   ├── viewer_continuous.rs viewer Continuous
 │   ├── side_panel_*.rs     miniaturas e TOC

@@ -62,7 +62,7 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 6. [x] O modo contínuo iterava `0..page_count` e montava placeholders para todas as
    páginas a cada frame; agora aloca apenas o range visível em slots estimados.
 7. [ ] Não há scheduler unificado, prioridade, cancelamento ou geração de jobs.
-8. [ ] Cache é limitado por quantidade de páginas, não por bytes de CPU/GPU.
+8. [x] Cache era limitado por quantidade de páginas, não por bytes de CPU/GPU.
 9. [x] Se o canal de resultado estivesse cheio, um bitmap podia ser descartado sem
    remover a página de `inflight`, deixando-a sem nova tentativa.
 10. [ ] Single Page, Continuous e Thumbnails abrem pipelines/documentos separados,
@@ -219,7 +219,7 @@ páginas.
 - [x] BF-203 Remover loops por `page_count` do hot path de cada frame.
 - [x] BF-204 Atualizar `current_page` pela página dominante no viewport contínuo.
 - [x] BF-205 Preservar âncora visual ao trocar zoom, modo ou dimensões conhecidas.
-- [ ] BF-206 Implementar cache CPU e GPU por bytes, com métricas hit/miss/eviction.
+- [x] BF-206 Implementar cache CPU e GPU por bytes, com métricas hit/miss/eviction.
 - [ ] BF-207 Priorizar prefetch conforme direção e velocidade do scroll.
 - [ ] BF-208 Evitar reabrir/reprocessar o documento sem necessidade entre pipelines.
 - [ ] BF-209 Avaliar reutilização de buffer/conversão in-place BGRA → RGBA com

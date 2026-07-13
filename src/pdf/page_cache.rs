@@ -1,24 +1,17 @@
-// pdf/page_cache.rs — Cache LRU de bitmaps de páginas PDF
-//
-// Mantém até `capacity` páginas renderizadas na RAM.
-// Quando o limite é atingido, expulsa a página menos usada recentemente.
-// Integra-se com um canal mpsc para receber bitmaps de uma thread de fundo.
+// pdf/page_cache.rs — Cache LRU por bytes com render em worker.
 
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     path::PathBuf,
     sync::mpsc::{self, Receiver, SyncSender},
 };
 
+use crate::byte_cache::{ByteLruCache, CacheMetrics};
 use crate::pdf::engine::{get_pdfium, PdfEngine, RenderedPage};
 
-// ── Capacidade padrão do cache ────────────────────────────────────────────────
-
-/// Número máximo de páginas renderizadas mantidas na RAM.
-/// A4 a 1.5× escala ≈ 2.5 MB/página. 12 páginas ≈ 30 MB.
-pub const DEFAULT_CAPACITY: usize = 12;
-
-// ── Mensagens da thread de background ────────────────────────────────────────
+/// Bitmaps CPU podem usar até 64 MiB. Uma única página maior continua utilizável
+/// e fica sozinha no cache até ser substituída.
+pub const DEFAULT_CPU_CACHE_BYTES: usize = 64 * 1024 * 1024;
 
 /// Pedido enviado pelo main thread para a thread de render.
 pub struct RenderRequest {
@@ -37,24 +30,13 @@ pub enum RenderOutcome {
     Failed(String),
 }
 
-// ── LruPageCache ─────────────────────────────────────────────────────────────
-
-/// Entrada do cache: bitmap + timestamp LRU.
-struct CacheEntry {
-    page: RenderedPage,
-    /// Contador monotônico de "último acesso".
-    lru_stamp: u64,
-}
-
 /// Cache LRU de páginas renderizadas.
 ///
 /// Possui dois modos de população:
 /// 1. `insert_sync` — insere direto (main thread, Single-Page mode).
 /// 2. Canal async  — recebe bitmaps da thread de background (Continuous).
 pub struct LruPageCache {
-    entries: HashMap<usize, CacheEntry>,
-    capacity: usize,
-    clock: u64,
+    entries: ByteLruCache<usize, RenderedPage>,
 
     // ── Canal para background render ──
     tx: Option<SyncSender<RenderRequest>>,
@@ -64,9 +46,9 @@ pub struct LruPageCache {
 }
 
 impl LruPageCache {
-    /// Cria um cache com capacidade `capacity`.
+    /// Cria um cache com orçamento `budget_bytes`.
     /// Inicia a thread de background imediatamente, ligada ao arquivo `pdf_path`.
-    pub fn new(capacity: usize, pdf_path: PathBuf, _scale_hint: f32) -> Self {
+    pub fn new(budget_bytes: usize, pdf_path: PathBuf, _scale_hint: f32) -> Self {
         let (req_tx, req_rx) = mpsc::sync_channel::<RenderRequest>(4);
         let (res_tx, res_rx) = mpsc::sync_channel::<RenderResult>(4);
 
@@ -80,9 +62,7 @@ impl LruPageCache {
             .expect("Falha ao criar thread de render");
 
         Self {
-            entries: HashMap::with_capacity(capacity),
-            capacity,
-            clock: 0,
+            entries: ByteLruCache::new(budget_bytes),
             tx: Some(req_tx),
             rx: res_rx,
             inflight: Default::default(),
@@ -91,12 +71,10 @@ impl LruPageCache {
     }
 
     /// Cria cache sem thread de background (modo Single-Page sync).
-    pub fn new_sync(capacity: usize) -> Self {
+    pub fn new_sync(budget_bytes: usize) -> Self {
         let (_tx, rx) = mpsc::sync_channel::<RenderResult>(0);
         Self {
-            entries: HashMap::with_capacity(capacity),
-            capacity,
-            clock: 0,
+            entries: ByteLruCache::new(budget_bytes),
             tx: None,
             rx,
             inflight: Default::default(),
@@ -108,34 +86,21 @@ impl LruPageCache {
 
     /// Retorna uma referência ao bitmap se estiver no cache.
     pub fn get(&mut self, page_index: usize) -> Option<&RenderedPage> {
-        if let Some(entry) = self.entries.get_mut(&page_index) {
-            self.clock += 1;
-            entry.lru_stamp = self.clock;
-            Some(&entry.page)
-        } else {
-            None
-        }
+        self.entries.get(page_index)
     }
 
     /// Insere um bitmap diretamente (uso sync / Single-Page).
     #[allow(dead_code)]
     pub fn insert_sync(&mut self, page_index: usize, page: RenderedPage) {
-        self.evict_if_full();
-        self.clock += 1;
-        self.entries.insert(
-            page_index,
-            CacheEntry {
-                page,
-                lru_stamp: self.clock,
-            },
-        );
+        let bytes = page.rgba.len();
+        self.entries.insert(page_index, page, bytes);
         self.inflight.remove(&page_index);
     }
 
     /// Solicita pré-renderização de `page_index` na thread de background.
     /// Não bloqueia; ignora se já estiver em cache ou em voo.
     pub fn prefetch(&mut self, page_index: usize, scale: f32) {
-        if self.entries.contains_key(&page_index) {
+        if self.entries.contains(page_index) {
             return;
         }
         if self.inflight.contains(&page_index) {
@@ -153,27 +118,36 @@ impl LruPageCache {
     pub fn drain_ready(&mut self) -> bool {
         let mut got_any = false;
         while let Ok(result) = self.rx.try_recv() {
-            self.inflight.remove(&result.page_index);
-            match result.outcome {
-                RenderOutcome::Ready(page) => {
-                    self.evict_if_full();
-                    self.clock += 1;
-                    self.entries.insert(
-                        result.page_index,
-                        CacheEntry {
-                            page,
-                            lru_stamp: self.clock,
-                        },
-                    );
-                    got_any = true;
-                }
-                RenderOutcome::Failed(error) => {
-                    tracing::warn!("bg_render: página {}: {error}", result.page_index);
-                    self.failures.push_back((result.page_index, error));
-                }
-            }
+            got_any |= self.accept_result(result);
         }
         got_any
+    }
+
+    fn accept_result(&mut self, result: RenderResult) -> bool {
+        self.inflight.remove(&result.page_index);
+        match result.outcome {
+            RenderOutcome::Ready(page) => {
+                let bytes = page.rgba.len();
+                self.entries.insert(result.page_index, page, bytes);
+                true
+            }
+            RenderOutcome::Failed(error) => {
+                tracing::warn!("bg_render: página {}: {error}", result.page_index);
+                self.failures.push_back((result.page_index, error));
+                false
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn inject_result(&mut self, result: RenderResult) -> bool {
+        self.inflight.insert(result.page_index);
+        self.accept_result(result)
+    }
+
+    #[cfg(test)]
+    pub(super) fn is_inflight(&self, page_index: usize) -> bool {
+        self.inflight.contains(&page_index)
     }
 
     /// Retorna e remove a falha mais recente da página solicitada.
@@ -187,7 +161,7 @@ impl LruPageCache {
 
     /// Remove páginas fora do range `[first, last]` (janela de viewport).
     pub fn evict_range(&mut self, first: usize, last: usize) {
-        self.entries.retain(|&idx, _| idx >= first && idx <= last);
+        self.entries.retain(|idx| idx >= first && idx <= last);
         self.inflight.retain(|&idx| idx >= first && idx <= last);
     }
 
@@ -201,7 +175,7 @@ impl LruPageCache {
 
     #[allow(dead_code)]
     pub fn contains(&self, page_index: usize) -> bool {
-        self.entries.contains_key(&page_index)
+        self.entries.contains(page_index)
     }
 
     #[allow(dead_code)]
@@ -209,20 +183,10 @@ impl LruPageCache {
         self.entries.len()
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    fn evict_if_full(&mut self) {
-        if self.entries.len() < self.capacity {
-            return;
-        }
-        // Expulsa a página com menor lru_stamp (menos recentemente usada)
-        if let Some((&oldest_key, _)) = self.entries.iter().min_by_key(|(_, e)| e.lru_stamp) {
-            self.entries.remove(&oldest_key);
-        }
+    pub fn metrics(&self) -> CacheMetrics {
+        self.entries.metrics()
     }
 }
-
-// ── Thread de background ──────────────────────────────────────────────────────
 
 fn background_render_loop(
     path: PathBuf,
@@ -275,72 +239,4 @@ fn background_render_loop(
         }
     }
     tracing::info!("bg_render: thread encerrada");
-}
-
-// ── Send explícito ────────────────────────────────────────────────────────────
-// pdfium-render com feature "sync" garante que PdfDocument: Send.
-// LruPageCache não é publicamente compartilhado entre threads — reside somente
-// no PdfViewer do main thread. O canal mpsc já é Send por natureza.
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn rendered(marker: u8) -> RenderedPage {
-        RenderedPage {
-            width: 1,
-            height: 1,
-            rgba: vec![marker, 0, 0, 255],
-        }
-    }
-
-    #[test]
-    fn lru_evicts_the_least_recently_used_page() {
-        let mut cache = LruPageCache::new_sync(2);
-        cache.insert_sync(1, rendered(1));
-        cache.insert_sync(2, rendered(2));
-
-        assert!(cache.get(1).is_some());
-        cache.insert_sync(3, rendered(3));
-
-        assert!(cache.contains(1));
-        assert!(!cache.contains(2));
-        assert!(cache.contains(3));
-        assert_eq!(cache.len(), 2);
-    }
-
-    #[test]
-    fn clear_removes_cached_pages() {
-        let mut cache = LruPageCache::new_sync(2);
-        cache.insert_sync(1, rendered(1));
-        cache.clear();
-
-        assert_eq!(cache.len(), 0);
-        assert!(!cache.contains(1));
-    }
-
-    #[test]
-    fn failed_result_clears_inflight_and_can_be_consumed() {
-        let (tx, rx) = mpsc::sync_channel(1);
-        let mut cache = LruPageCache {
-            entries: HashMap::new(),
-            capacity: 2,
-            clock: 0,
-            tx: None,
-            rx,
-            inflight: [4].into_iter().collect(),
-            failures: VecDeque::new(),
-        };
-
-        tx.send(RenderResult {
-            page_index: 4,
-            outcome: RenderOutcome::Failed("render failed".into()),
-        })
-        .expect("send failed result");
-
-        assert!(!cache.drain_ready());
-        assert!(!cache.inflight.contains(&4));
-        assert_eq!(cache.take_failure(4).as_deref(), Some("render failed"));
-        assert!(cache.take_failure(4).is_none());
-    }
 }

@@ -27,6 +27,8 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 - Render de páginas e busca saíram da thread da UI; o modo contínuo agora usa
   virtualização, índice incremental de layout e preservação de âncora.
 - Busca e miniaturas abrem seus workers somente quando usadas.
+- Caches de bitmaps CPU e texturas GPU agora usam orçamento em bytes, LRU e
+  métricas de hits, misses, evictions, uso residente e pico.
 
 ### Known limitations
 
