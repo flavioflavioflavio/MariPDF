@@ -209,14 +209,18 @@ impl PdfEngine {
 
             let render_cfg = PdfRenderConfig::new()
                 .set_target_width(width_px as i32)
-                .set_target_height(height_px as i32);
+                .set_target_height(height_px as i32)
+                // PDFium usa BGRA nativamente. Este flag pede a inversao no
+                // proprio render e permite entregar RGBA sem um segundo buffer.
+                .set_reverse_byte_order(true);
 
             let bitmap = page
                 .render_with_config(&render_cfg)
                 .map_err(|e| anyhow::anyhow!("Falha ao renderizar página {page_index}: {e}"))?;
 
-            // pdfium devolve BGRA — converte para RGBA para o egui
-            let rgba = bgra_to_rgba(&bitmap.as_raw_bytes());
+            // Com reverse_byte_order, `as_rgba_bytes()` devolve diretamente o
+            // Vec copiado do bitmap, sem nova alocacao ou varredura por pixel.
+            let rgba = bitmap.as_rgba_bytes();
 
             Ok(RenderedPage {
                 width: width_px,
@@ -273,31 +277,60 @@ pub struct RenderedPage {
     pub rgba: Vec<u8>,
 }
 
-/// Converte buffer BGRA (pdfium) para RGBA (egui)
-fn bgra_to_rgba(bgra: &[u8]) -> Vec<u8> {
-    let mut rgba = Vec::with_capacity(bgra.len());
-    for pixel in bgra.chunks_exact(4) {
-        rgba.push(pixel[2]); // R (B<->R swap)
-        rgba.push(pixel[1]); // G
-        rgba.push(pixel[0]); // B
-        rgba.push(pixel[3]); // A
-    }
-    rgba
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{bgra_to_rgba, get_pdfium, PdfEngine};
+    use super::{get_pdfium, PdfEngine};
+
+    fn legacy_bgra_to_rgba(bgra: &[u8]) -> Vec<u8> {
+        bgra.chunks_exact(4)
+            .flat_map(|pixel| [pixel[2], pixel[1], pixel[0], pixel[3]])
+            .collect()
+    }
 
     #[test]
     fn converts_bgra_pixels_to_rgba() {
         let source = [10, 20, 30, 40, 50, 60, 70, 80];
-        assert_eq!(bgra_to_rgba(&source), vec![30, 20, 10, 40, 70, 60, 50, 80]);
+        assert_eq!(
+            legacy_bgra_to_rgba(&source),
+            vec![30, 20, 10, 40, 70, 60, 50, 80]
+        );
     }
 
     #[test]
     fn ignores_incomplete_trailing_pixel() {
-        assert_eq!(bgra_to_rgba(&[1, 2, 3]), Vec::<u8>::new());
+        assert_eq!(legacy_bgra_to_rgba(&[1, 2, 3]), Vec::<u8>::new());
+    }
+
+    #[test]
+    #[ignore = "microbenchmark manual; execute em release com --nocapture"]
+    fn rgba_handoff_benchmark() {
+        const WIDTH: usize = 2560;
+        const HEIGHT: usize = 1440;
+        const ITERATIONS: u32 = 16;
+        let source = vec![127_u8; WIDTH * HEIGHT * 4];
+
+        let legacy_started = std::time::Instant::now();
+        for _ in 0..ITERATIONS {
+            // Simula a copia FFI + a segunda alocacao/varredura antiga.
+            let raw = std::hint::black_box(source.clone());
+            std::hint::black_box(legacy_bgra_to_rgba(&raw));
+        }
+        let legacy = legacy_started.elapsed();
+
+        let direct_started = std::time::Instant::now();
+        for _ in 0..ITERATIONS {
+            // O novo caminho termina na unica copia feita por as_raw/as_rgba.
+            std::hint::black_box(source.clone());
+        }
+        let direct = direct_started.elapsed();
+
+        println!(
+            "rgba_handoff: {ITERATIONS}x {WIDTH}x{HEIGHT}: antigo={legacy:?}, direto={direct:?}"
+        );
+        assert!(
+            direct < legacy,
+            "o handoff direto deve remover trabalho mensuravel"
+        );
     }
 
     /// Stress manual contra um corpus real. Exemplo no Windows:

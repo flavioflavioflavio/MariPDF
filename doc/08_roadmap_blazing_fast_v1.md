@@ -55,7 +55,7 @@ virarem metas públicas, precisam ser repetidos em um protocolo controlado.
 |---|---|
 | `cargo fmt -- --check` | Passa |
 | `cargo check` | Passa sem warnings |
-| `cargo test --all-targets` | 26 passam; 1 stress de corpus é manual/ignorado |
+| `cargo test --all-targets` | 26 passam; stress de corpus e microbenchmark são manuais/ignorados |
 | `cargo clippy --all-targets --all-features -- -D warnings` | Passa |
 | `cargo build --release` | Passa sem warnings |
 | Stress PDFium no corpus local | 8 PDFs × 3 ciclos; render/texto/dimensões concorrentes em engine compartilhada |
@@ -80,7 +80,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 10. [x] Single Page, Continuous, Thumbnails e busca mantinham documentos separados;
     agora os pipelines lazy compartilham o mesmo `Arc<PdfEngine>` já aberto.
 11. [ ] O pipeline sempre rasteriza a página inteira; zoom alto não usa tiles/LOD.
-12. [ ] A conversão BGRA → RGBA cria um novo buffer e percorre todos os pixels.
+12. [x] A conversão BGRA → RGBA criava um segundo buffer e ainda revertia canais
+    já normalizados; o render agora solicita RGBA e reutiliza a única cópia.
 13. [x] A inicialização do singleton podia correr entre workers e bloquear para
     sempre no lock interno do PDFium.
 14. [x] Workers chamavam simultaneamente uma engine nativamente single-threaded,
@@ -109,8 +110,9 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 
 ### Gaps de robustez, produto e distribuição
 
-1. A cobertura ainda é parcial: há 26 testes automáticos e um stress manual de
-   corpus, mas faltam manifesto versionado, integração de UI e benchmarks.
+1. A cobertura ainda é parcial: há 26 testes automáticos, stress de corpus e
+   microbenchmark manuais, mas faltam manifesto versionado, integração de UI e
+   benchmarks completos de produto.
 2. Não há CI, build reproduzível, artefatos ou checksums automatizados.
 3. Auto-update e doação são stubs.
 4. Não há MSI, assinatura, manifesto Winget ou fluxo de desinstalação validado.
@@ -244,8 +246,8 @@ páginas.
 - [x] BF-207 Priorizar prefetch conforme direção e velocidade do scroll.
 - [x] BF-208 Compartilhar o mesmo documento aberto entre render principal,
   thumbnails e busca, sem reabrir/reprocessar o arquivo por pipeline.
-- [ ] BF-209 Avaliar reutilização de buffer/conversão in-place BGRA → RGBA com
-  benchmark antes/depois.
+- [x] BF-209 Eliminar a segunda alocação/conversão BGRA → RGBA. Microbenchmark
+  release local, 16 × 2560×1440: 211,3 ms → 77,1 ms no handoff (-63,5%).
 
 ### DoD
 

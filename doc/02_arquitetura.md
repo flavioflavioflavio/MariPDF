@@ -103,8 +103,9 @@ Cache CPU por bytes → upload sob demanda → Cache GPU por bytes
 
 ## Renderização
 
-PDFium rasteriza páginas em bitmap. O MariPDF converte o buffer recebido para RGBA,
-carrega uma textura no egui e deixa o wgpu compor a interface.
+PDFium rasteriza páginas com `reverse_byte_order` explícito e já entrega RGBA. O
+MariPDF transfere esse único `Vec` para o cache, carrega uma textura no egui e
+deixa o wgpu compor a interface; não há uma segunda alocação para trocar R/B.
 
 Na v1.0:
 

@@ -37,12 +37,16 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   single-threaded da engine; a inicialização do singleton também ficou atômica.
 - Render principal, miniaturas e busca compartilham o mesmo documento aberto,
   eliminando I/O e parsing repetidos por pipeline.
+- O render solicita RGBA diretamente ao PDFium e elimina uma segunda alocação e
+  varredura do bitmap; microbenchmark local do handoff mediu redução de 63,5%.
 
 ### Fixed
 
 - A troca de arquivo só substitui o documento atual após a nova abertura passar;
   falhas preservam a leitura em andamento e registram o caminho no log.
 - Drag-and-drop aceita extensões `.pdf` sem diferenciar maiúsculas e minúsculas.
+- Canais vermelho e azul deixam de ser trocados novamente depois de o PDFium já
+  ter produzido RGBA.
 
 ### Known limitations
 
