@@ -22,7 +22,6 @@ pub struct TextCharInfo {
 #[derive(Debug, Clone)]
 pub struct PdfLinkInfo {
     pub uri: String,
-    #[allow(dead_code)]
     /// Rect em pontos PDF: [left, bottom, right, top] (origem canto inf-esq)
     pub rect: [f32; 4],
 }

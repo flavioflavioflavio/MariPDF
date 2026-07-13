@@ -55,7 +55,7 @@ virarem metas públicas, precisam ser repetidos em um protocolo controlado.
 |---|---|
 | `cargo fmt -- --check` | Passa |
 | `cargo check` | Passa sem warnings |
-| `cargo test --all-targets` | 28 passam; 3 testes de corpus/benchmark são manuais/ignorados |
+| `cargo test --all-targets` | 30 passam; 3 testes de corpus/benchmark são manuais/ignorados |
 | `cargo clippy --all-targets --all-features -- -D warnings` | Passa |
 | `cargo build --release` | Passa sem warnings |
 | Stress PDFium no corpus local | 8 PDFs × 3 ciclos; render/texto/dimensões concorrentes em engine compartilhada |
@@ -100,8 +100,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 8. Modo de cor não é persistido; o tema do Windows vence em toda inicialização.
 9. [x] O modo contínuo não mantinha de forma confiável a página atual visível para
    status, navegação e persistência.
-10. Links só são acionados no caso simplificado de existir exatamente um link na
-    página; falta hit-test por retângulo para múltiplos links.
+10. [x] Links só eram acionados quando existia exatamente um na página; o clique
+    agora é convertido para coordenadas PDF e testado contra cada retângulo.
 11. Busca navega até a página, mas não destaca a ocorrência encontrada.
 12. A seleção por arraste copia imediatamente ao soltar, comportamento que deve
     ser decidido e testado como contrato de UX.
@@ -297,7 +297,8 @@ page rendering assíncrono com LOD simples.
 - [x] BF-406 Respeitar `track_history` nas sessões e na Home.
 - [ ] BF-407 Implementar “limpar histórico” com confirmação e feedback (a limpeza já tem efeito imediato).
 - [ ] BF-408 Persistir modo de cor ou oferecer explicitamente “seguir sistema”.
-- [ ] BF-409 Implementar hit-test correto para todos os links da página.
+- [x] BF-409 Implementar hit-test correto para todos os links da página, com
+  conversão tela ↔ PDF coberta por testes de múltiplos retângulos.
 - [ ] BF-410 Destacar ocorrência ativa da busca e expor trecho de contexto.
 - [ ] BF-411 Fechar contrato de seleção/cópia e cobrir mouse + teclado.
 - [ ] BF-412 Persistir tamanho, posição, maximização e monitor com recuperação

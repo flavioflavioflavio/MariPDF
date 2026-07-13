@@ -51,6 +51,8 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 - Drag-and-drop aceita extensões `.pdf` sem diferenciar maiúsculas e minúsculas.
 - Canais vermelho e azul deixam de ser trocados novamente depois de o PDFium já
   ter produzido RGBA.
+- Páginas com múltiplos links agora abrem o URI cujo retângulo contém o clique,
+  em vez de aceitar somente o caso de link único.
 
 ### Known limitations
 

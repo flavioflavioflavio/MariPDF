@@ -5,6 +5,7 @@ use crate::app::{MariApp, SidePanelKind, Toast};
 use crate::pdf::document_worker::{
     DocumentJobOutput, DocumentJobTarget, JobCompletion, JobOutcome,
 };
+use crate::pdf::engine::PdfLinkInfo;
 use crate::ui::viewer::ViewMode;
 use eframe::egui;
 
@@ -233,10 +234,12 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         });
         if let Some(click_pos) = maybe_click {
             let page_rect = app.viewer.last_page_rect;
-            if page_rect.is_positive() && page_rect.contains(click_pos) && app.page_links.len() == 1
-            {
-                let uri = app.page_links[0].uri.clone();
-                let _ = open::that(uri);
+            if let Some(engine) = &app.engine {
+                let page_size = engine.page_size_pts(app.current_page);
+                if let Some(link) = hit_test_link(&app.page_links, click_pos, page_rect, page_size)
+                {
+                    let _ = open::that(&link.uri);
+                }
             }
         }
     }
@@ -279,6 +282,28 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             app.settings.save();
         }
     }
+}
+
+fn hit_test_link(
+    links: &[PdfLinkInfo],
+    click: egui::Pos2,
+    page_rect: egui::Rect,
+    page_size: (f32, f32),
+) -> Option<&PdfLinkInfo> {
+    if !page_rect.is_positive() || !page_rect.contains(click) {
+        return None;
+    }
+    let (pdf_width, pdf_height) = page_size;
+    if pdf_width <= 0.0 || pdf_height <= 0.0 {
+        return None;
+    }
+
+    let pdf_x = (click.x - page_rect.left()) / page_rect.width() * pdf_width;
+    let pdf_y = (page_rect.bottom() - click.y) / page_rect.height() * pdf_height;
+    links.iter().find(|link| {
+        let [left, bottom, right, top] = link.rect;
+        pdf_x >= left && pdf_x <= right && pdf_y >= bottom && pdf_y <= top
+    })
 }
 
 fn apply_document_completion(app: &mut MariApp, ctx: &egui::Context, completion: JobCompletion) {
@@ -330,4 +355,46 @@ fn apply_document_completion(app: &mut MariApp, ctx: &egui::Context, completion:
         JobOutcome::Cancelled => {}
     }
     ctx.request_repaint();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn link(uri: &str, rect: [f32; 4]) -> PdfLinkInfo {
+        PdfLinkInfo {
+            uri: uri.to_string(),
+            rect,
+        }
+    }
+
+    #[test]
+    fn hit_test_maps_screen_to_pdf_coordinates_for_multiple_links() {
+        let links = vec![
+            link("https://first.test", [10.0, 10.0, 30.0, 30.0]),
+            link("https://second.test", [60.0, 150.0, 90.0, 190.0]),
+        ];
+        let page = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(200.0, 400.0));
+
+        let first = hit_test_link(&links, egui::pos2(40.0, 360.0), page, (100.0, 200.0));
+        let second = hit_test_link(&links, egui::pos2(150.0, 60.0), page, (100.0, 200.0));
+
+        assert_eq!(
+            first.map(|link| link.uri.as_str()),
+            Some("https://first.test")
+        );
+        assert_eq!(
+            second.map(|link| link.uri.as_str()),
+            Some("https://second.test")
+        );
+    }
+
+    #[test]
+    fn hit_test_rejects_clicks_outside_page_or_links() {
+        let links = vec![link("https://only.test", [10.0, 10.0, 30.0, 30.0])];
+        let page = egui::Rect::from_min_max(egui::pos2(10.0, 10.0), egui::pos2(210.0, 410.0));
+
+        assert!(hit_test_link(&links, egui::pos2(5.0, 5.0), page, (100.0, 200.0)).is_none());
+        assert!(hit_test_link(&links, egui::pos2(150.0, 200.0), page, (100.0, 200.0)).is_none());
+    }
 }
