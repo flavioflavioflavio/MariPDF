@@ -2,7 +2,6 @@
 // Extraído de app.rs (L1971-2138). Funções chamadas diretamente em app::MariApp.
 
 use crate::app::{MariApp, ACCENT_PRIMARY, BG_SURFACE, TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE};
-use crate::pdf::text_search::search_all_pages;
 use crate::t;
 use eframe::egui;
 
@@ -72,6 +71,18 @@ impl MariApp {
     // ── Search Bar (Ctrl+F) ───────────────────────────────────────────────────
 
     pub(crate) fn ui_search_bar(&mut self, ctx: &egui::Context) {
+        let first_hits_arrived = self.search.poll();
+        if self.search.is_running {
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
+        }
+        if first_hits_arrived {
+            if let Some(hit) = self.search.current() {
+                let page = hit.page_index;
+                let cloned_ctx = ctx.clone();
+                self.go_to_page(&cloned_ctx, page);
+            }
+        }
+
         let total_hits = self.search.hits.len();
         let current_idx = self.search.current_hit;
         let is_running = self.search.is_running;
@@ -174,11 +185,7 @@ impl MariApp {
         }
 
         if do_search || (go_next && self.search.hits.is_empty() && !new_query.is_empty()) {
-            if let Some(engine) = &self.engine {
-                self.search.hits = search_all_pages(engine, &new_query);
-                self.search.current_hit = 0;
-                self.search.is_running = false;
-            }
+            self.search.start(&new_query);
         }
 
         if go_next && !self.search.hits.is_empty() {

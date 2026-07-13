@@ -189,7 +189,7 @@ renderer.
 - [ ] BF-104 Manter a última textura válida durante zoom/navegação e exibir loading
   não bloqueante somente quando não houver textura utilizável.
 - [ ] BF-105 Migrar bookmarks, links e extração de caracteres para jobs.
-- [ ] BF-106 Migrar busca para execução incremental assíncrona, entregando hits por
+- [x] BF-106 Migrar busca para execução incremental assíncrona, entregando hits por
   página e permitindo cancelamento ao mudar o termo.
 - [ ] BF-107 Unificar render principal e thumbnails sob limites globais de carga.
 - [ ] BF-108 Corrigir jobs/resultados descartados para nunca deixarem `inflight`

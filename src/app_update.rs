@@ -14,7 +14,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         app.engine = None;
         app.viewer.reset();
         app.render_error = None;
-        app.search.clear();
+        app.search.detach_document();
         app.search_open = false;
         app.goto_open = false;
         app.page_links = Vec::new();

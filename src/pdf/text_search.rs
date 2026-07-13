@@ -1,36 +1,45 @@
-// pdf/text_search.rs — Busca full-text em PDFs via pdfium
-//
-// Usa pdfium-render para extrair texto de cada página e buscar por substring.
-// Retorna lista de resultados (página + trecho) para exibição na UI.
-//
-// Não implementa highlight de bounding box nesta versão (Fase 2);
-// o highlight visual (fase 3) exige FFI para fz_search_page do MuPDF.
+// pdf/text_search.rs — Busca full-text incremental em worker dedicado.
 
-use crate::pdf::engine::PdfEngine;
+use crate::pdf::engine::{get_pdfium, PdfEngine};
+use std::path::PathBuf;
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    mpsc::{self, Receiver, Sender},
+    Arc,
+};
 
-// ── Tipos públicos ────────────────────────────────────────────────────────────
+const CONTEXT_CHARS: usize = 60;
 
-/// Um resultado de busca: página onde foi encontrado + contexto ao redor.
 #[derive(Clone, Debug)]
 pub struct SearchHit {
-    /// Índice da página (0-based).
     pub page_index: usize,
-    /// Trecho de contexto em torno do match (até CONTEXT_CHARS caracteres).
     #[allow(dead_code)]
     pub context: String,
-    /// Posição do match dentro de `context`.
     #[allow(dead_code)]
     pub match_start: usize,
     #[allow(dead_code)]
     pub match_end: usize,
 }
 
-/// Estado da busca: termo atual + resultados + posição ativa.
+struct SearchRequest {
+    generation: u64,
+    query: String,
+}
+
+struct SearchProgress {
+    generation: u64,
+    hits: Vec<SearchHit>,
+    finished: bool,
+}
+
 pub struct TextSearch {
     pub query: String,
     pub hits: Vec<SearchHit>,
     pub current_hit: usize,
     pub is_running: bool,
+    request_tx: Option<Sender<SearchRequest>>,
+    progress_rx: Option<Receiver<SearchProgress>>,
+    generation: Arc<AtomicU64>,
 }
 
 impl TextSearch {
@@ -40,17 +49,85 @@ impl TextSearch {
             hits: Vec::new(),
             current_hit: 0,
             is_running: false,
+            request_tx: None,
+            progress_rx: None,
+            generation: Arc::new(AtomicU64::new(0)),
         }
     }
 
-    /// Limpa resultados e reseta estado.
+    /// Vincula a busca a um documento. Substituir o sender encerra o worker
+    /// anterior assim que ele observar o cancelamento ou o canal desconectado.
+    pub fn attach_document(&mut self, path: PathBuf) {
+        self.detach_document();
+        let (request_tx, request_rx) = mpsc::channel();
+        let (progress_tx, progress_rx) = mpsc::channel();
+        let generation = Arc::clone(&self.generation);
+
+        std::thread::Builder::new()
+            .name("maripdf-search".into())
+            .spawn(move || search_worker(path, request_rx, progress_tx, generation))
+            .expect("Falha ao criar thread maripdf-search");
+
+        self.request_tx = Some(request_tx);
+        self.progress_rx = Some(progress_rx);
+    }
+
+    pub fn detach_document(&mut self) {
+        self.clear();
+        self.request_tx = None;
+        self.progress_rx = None;
+    }
+
+    /// Inicia uma busca nova e invalida imediatamente resultados anteriores.
+    pub fn start(&mut self, query: &str) {
+        let query = query.trim().to_string();
+        self.query = query.clone();
+        self.hits.clear();
+        self.current_hit = 0;
+
+        let generation = self.generation.fetch_add(1, Ordering::AcqRel) + 1;
+        if query.is_empty() {
+            self.is_running = false;
+            return;
+        }
+
+        self.is_running = self
+            .request_tx
+            .as_ref()
+            .is_some_and(|tx| tx.send(SearchRequest { generation, query }).is_ok());
+    }
+
+    /// Consome progresso sem bloquear. Retorna true quando o primeiro lote de
+    /// resultados da busca atual ficou disponível.
+    pub fn poll(&mut self) -> bool {
+        let current_generation = self.generation.load(Ordering::Acquire);
+        let mut first_hits_arrived = false;
+
+        if let Some(rx) = &self.progress_rx {
+            while let Ok(progress) = rx.try_recv() {
+                if progress.generation != current_generation {
+                    continue;
+                }
+                if self.hits.is_empty() && !progress.hits.is_empty() {
+                    first_hits_arrived = true;
+                }
+                self.hits.extend(progress.hits);
+                if progress.finished {
+                    self.is_running = false;
+                }
+            }
+        }
+
+        first_hits_arrived
+    }
+
     pub fn clear(&mut self) {
+        self.generation.fetch_add(1, Ordering::AcqRel);
         self.hits.clear();
         self.current_hit = 0;
         self.is_running = false;
     }
 
-    /// Resultado ativo (se houver).
     pub fn current(&self) -> Option<&SearchHit> {
         self.hits.get(self.current_hit)
     }
@@ -71,58 +148,107 @@ impl TextSearch {
     }
 }
 
-// ── Buscador síncrono ─────────────────────────────────────────────────────────
+fn search_worker(
+    path: PathBuf,
+    request_rx: Receiver<SearchRequest>,
+    progress_tx: Sender<SearchProgress>,
+    generation: Arc<AtomicU64>,
+) {
+    let engine = get_pdfium()
+        .and_then(|pdfium| PdfEngine::open(&path, pdfium))
+        .map_err(|error| tracing::error!("text_search: falha ao abrir documento: {error}"));
 
-/// Quantos caracteres de contexto exibir ao redor de cada match.
-const CONTEXT_CHARS: usize = 60;
+    let Ok(engine) = engine else {
+        return;
+    };
 
-/// Executa a busca em todas as páginas do documento.
-///
-/// Extrai o texto de cada página via pdfium e busca `query` (case-insensitive).
-/// Indexação inteira é feita no main thread — para documentos grandes (>200 pág)
-/// considerar mover para thread de background na Fase 3.
-pub fn search_all_pages(engine: &PdfEngine, query: &str) -> Vec<SearchHit> {
-    if query.trim().is_empty() {
+    for request in request_rx {
+        if generation.load(Ordering::Acquire) != request.generation {
+            continue;
+        }
+
+        let query_lower = request.query.to_lowercase();
+        for page_index in 0..engine.page_count() {
+            if generation.load(Ordering::Acquire) != request.generation {
+                break;
+            }
+
+            match engine.extract_text(page_index) {
+                Ok(text) => {
+                    let hits = find_hits_in_text(page_index, &text, &query_lower);
+                    if !hits.is_empty()
+                        && progress_tx
+                            .send(SearchProgress {
+                                generation: request.generation,
+                                hits,
+                                finished: false,
+                            })
+                            .is_err()
+                    {
+                        return;
+                    }
+                }
+                Err(error) => tracing::warn!("text_search: pg {page_index}: {error}"),
+            }
+        }
+
+        if generation.load(Ordering::Acquire) == request.generation
+            && progress_tx
+                .send(SearchProgress {
+                    generation: request.generation,
+                    hits: Vec::new(),
+                    finished: true,
+                })
+                .is_err()
+        {
+            return;
+        }
+    }
+}
+
+fn find_hits_in_text(page_index: usize, text: &str, query_lower: &str) -> Vec<SearchHit> {
+    if query_lower.is_empty() {
         return Vec::new();
     }
 
-    let query_lower = query.to_lowercase();
+    let normalized = text.to_lowercase();
     let mut hits = Vec::new();
+    let mut search_from = 0;
 
-    for idx in 0..engine.page_count() {
-        let text = match engine.extract_text(idx) {
-            Ok(t) => t,
-            Err(e) => {
-                tracing::warn!("text_search: pg {idx}: {e}");
-                continue;
-            }
-        };
+    while let Some(relative_pos) = normalized[search_from..].find(query_lower) {
+        let absolute_pos = search_from + relative_pos;
+        let context_start =
+            normalized.floor_char_boundary(absolute_pos.saturating_sub(CONTEXT_CHARS));
+        let context_end = normalized.ceil_char_boundary(
+            (absolute_pos + query_lower.len() + CONTEXT_CHARS).min(normalized.len()),
+        );
 
-        let text_lower = text.to_lowercase();
-        let mut search_from = 0;
+        hits.push(SearchHit {
+            page_index,
+            context: normalized[context_start..context_end].to_string(),
+            match_start: absolute_pos - context_start,
+            match_end: absolute_pos - context_start + query_lower.len(),
+        });
 
-        while let Some(pos) = text_lower[search_from..].find(&query_lower) {
-            let abs_pos = search_from + pos;
-
-            // Calcula janela de contexto (em bytes, arredondada para char boundary)
-            let ctx_start = text.floor_char_boundary(abs_pos.saturating_sub(CONTEXT_CHARS));
-            let ctx_end =
-                text.ceil_char_boundary((abs_pos + query.len() + CONTEXT_CHARS).min(text.len()));
-
-            let context = text[ctx_start..ctx_end].to_string();
-            let match_start = abs_pos - ctx_start;
-            let match_end = match_start + query.len();
-
-            hits.push(SearchHit {
-                page_index: idx,
-                context,
-                match_start,
-                match_end,
-            });
-
-            search_from = abs_pos + query_lower.len().max(1);
-        }
+        search_from = absolute_pos + query_lower.len();
     }
 
     hits
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finds_multiple_case_insensitive_hits() {
+        let hits = find_hits_in_text(7, "MariPDF é rápido. maripdf é leve.", "maripdf");
+        assert_eq!(hits.len(), 2);
+        assert!(hits.iter().all(|hit| hit.page_index == 7));
+    }
+
+    #[test]
+    fn empty_query_has_no_hits() {
+        assert!(find_hits_in_text(0, "conteúdo", "").is_empty());
+    }
 }

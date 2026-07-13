@@ -154,6 +154,7 @@ impl MariApp {
                 self.bookmarks = engine.extract_bookmarks();
                 self.engine = Some(engine);
                 self.current_file = Some(path.clone());
+                self.search.attach_document(path.clone());
                 self.render_error = None;
                 self.viewer.reset();
                 self.side_panel = match self.settings.default_panel {
