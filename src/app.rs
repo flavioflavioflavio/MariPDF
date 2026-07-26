@@ -159,13 +159,14 @@ impl MariApp {
                 let engine = Arc::new(engine);
                 let mut document_worker = DocumentWorker::new(Arc::clone(&engine));
                 document_worker.request_bookmarks();
+                let scheduler = document_worker.handle();
                 let page_count = engine.page_count();
                 self.page_count = page_count;
                 self.bookmarks.clear();
                 self.engine = Some(Arc::clone(&engine));
                 self.document_worker = Some(document_worker);
                 self.current_file = Some(path.clone());
-                self.search.attach_document(Arc::clone(&engine));
+                self.search.attach_document(scheduler.clone(), page_count);
                 self.render_error = None;
                 self.page_links.clear();
                 self.links_page = usize::MAX;
@@ -181,7 +182,7 @@ impl MariApp {
                     DefaultPanel::Toc => SidePanelKind::Toc,
                 };
                 self.thumb_cache = (self.side_panel == SidePanelKind::Thumbs)
-                    .then(|| ThumbCache::new(Arc::clone(&engine)));
+                    .then(|| ThumbCache::new(page_count, scheduler.clone()));
                 if let Some(session) = self.persistence.get(&path) {
                     self.viewer.zoom = session.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
                     self.current_page = session.last_page.min(page_count.saturating_sub(1));
@@ -189,7 +190,7 @@ impl MariApp {
                     self.current_page = 0;
                     self.viewer.zoom = 1.0;
                 }
-                self.viewer.init_cache(engine, page_count);
+                self.viewer.init_cache(scheduler, page_count);
                 if self.viewer.mode == ViewMode::SinglePage {
                     self.render_current_page(ctx);
                 }

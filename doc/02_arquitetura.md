@@ -1,7 +1,7 @@
 # MariPDF — Arquitetura Técnica
 
 > Criado em: 2026-03-22
-> Revisado em: 2026-07-13
+> Revisado em: 2026-07-26
 > Estado: arquitetura atual + direção aprovada para v1.0
 
 ## Stack atual
@@ -13,7 +13,7 @@
 | UI | `egui`/`eframe` 0.31 | Implementado |
 | GPU | `wgpu` 24 | Backend da UI e texturas |
 | Windowing | `winit` via eframe | Implementado |
-| Concorrência | threads + canais `mpsc` | Será unificada pelo scheduler BF-1 |
+| Concorrência | scheduler priorizado + canais `mpsc` | BF-1 implementado |
 | Persistência | TOML + serde | Implementado; escrita atômica pendente |
 | i18n | Mozilla Fluent | PT-BR e EN embutidos |
 | Logging | tracing + rolling appender | Implementado |
@@ -43,22 +43,25 @@ Ver [ADR-002](adr/ADR-002_engine_pdf.md) e
 
 ```text
 egui update
-  ├─ Single Page → worker → cache bitmap → RGBA → textura GPU
-  ├─ Continuous → viewport virtual → cache/worker de páginas → textura GPU
-  ├─ Thumbnails → worker próprio lazy → cache bitmap → textura GPU
-  ├─ Busca → worker lazy, incremental e cancelável
-  └─ DocumentWorker → bookmarks, links, caracteres e texto sob demanda
+  └─ DocumentWorker
+       ├─ Immediate → páginas no viewport e texto solicitado agora
+       ├─ Visible → páginas vizinhas, links e caracteres
+       ├─ Background → thumbnails e bookmarks
+       └─ Search → busca incremental de menor prioridade
+            ↓
+       caches CPU por bytes → texturas GPU sob demanda
 ```
 
-O render de páginas e a busca já não bloqueiam a UI. O modo contínuo usa um índice
+Nenhum pipeline de PDF pesado bloqueia a UI. O modo contínuo usa um índice
 de layout com alturas estimadas, corrigidas conforme bitmaps reais chegam. Ele
 aloca widgets e texturas somente para o range visível, mantém overscan no cache e
-preserva a página âncora ao recalcular offsets. Render principal, busca e
-miniaturas compartilham por `Arc` o mesmo `PdfEngine` já aberto; os workers são
-lazy, mas não repetem abertura ou parsing do arquivo. `DocumentWorker` mantém uma
-fila bounded com prioridade, deduplicação e cancelamento lógico por geração para
-bookmarks, links, caracteres e texto sob demanda. Cada job aceito termina como
-`ready`, `failed` ou `cancelled`, com duração e contadores registrados em debug.
+preserva a página âncora ao recalcular offsets. Render principal, busca,
+miniaturas, bookmarks, links e extração textual compartilham o mesmo
+`DocumentWorker` e o mesmo `PdfEngine` já aberto, sem workers ou documentos
+paralelos por recurso. O scheduler mantém uma fila global limitada a 32 jobs,
+prioridade estável, backpressure e cancelamento lógico por geração. Cada job
+aceito termina como `ready`, `failed` ou `cancelled`, com duração, fila e
+contadores registrados em debug.
 
 A DLL e sua instância são únicas por processo. A inicialização usa exclusão
 explícita antes de publicar o singleton, e `PdfEngine` serializa abertura,
@@ -74,23 +77,23 @@ No modo contínuo, o viewport sempre entra primeiro na fila. O overscan favorece
 direção do scroll e cresce em saltos rápidos, enquanto mantém uma página de
 retaguarda para reversões imediatas.
 
-## Fluxo-alvo da v1.0
+## Contrato do scheduler implementado
 
 ```text
 egui update (agenda e apresenta; nunca renderiza PDF)
   ↓
 DocumentScheduler
-  ├─ prioridade: viewport > vizinhas > texto/links > thumbs > busca > prefetch
+  ├─ prioridade: Immediate > Visible > Background > Search
   ├─ generation_id e cancelamento
   ├─ backpressure e estados terminalmente observáveis
-  └─ orçamento global de memória/trabalho
+  └─ limite global de trabalho; memória limitada nos caches por bytes
   ↓
 PDFium workers (chamadas nativas serializadas)
   ├─ render de página/região
   ├─ texto, links e bookmarks
   └─ resultados tipados
   ↓
-Cache CPU por bytes → upload sob demanda → Cache GPU por bytes
+Caches CPU por bytes → upload sob demanda → Cache GPU por bytes
 ```
 
 ## Abertura de documento
@@ -126,6 +129,7 @@ src/
 ├── app*.rs                 estado e coordenação da aplicação
 ├── pdf/
 │   ├── engine.rs           integração PDFium
+│   ├── document_worker.rs  scheduler global priorizado e cancelável
 │   ├── extract.rs          texto, chars, links e bookmarks
 │   ├── page_cache.rs       cache/render atual de páginas
 │   ├── thumb_cache.rs      cache/render atual de miniaturas
@@ -143,8 +147,8 @@ src/
 └── platform/               tema e integração Windows
 ```
 
-Módulos futuros do scheduler devem ficar sob `src/pdf/` ou `src/render/`, sem
-transferir lógica pesada para `src/ui/`.
+Extensões futuras do scheduler devem permanecer sob `src/pdf/` ou `src/render/`,
+sem transferir lógica pesada para `src/ui/`.
 
 ## Persistência
 

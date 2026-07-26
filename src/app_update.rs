@@ -340,6 +340,13 @@ fn apply_document_completion(app: &mut MariApp, ctx: &egui::Context, completion:
                 }
             }
         }
+        JobOutcome::Ready(
+            DocumentJobOutput::Render { .. }
+            | DocumentJobOutput::Thumbnail { .. }
+            | DocumentJobOutput::SearchText { .. },
+        ) => {
+            tracing::warn!("document_job: resultado entregue ao receptor incorreto");
+        }
         JobOutcome::Failed(error) => {
             tracing::warn!(
                 job_id = completion.id,

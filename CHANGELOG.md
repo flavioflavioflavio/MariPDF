@@ -28,19 +28,20 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 - O roadmap vigente passa a ser `doc/08_roadmap_blazing_fast_v1.md`.
 - Render de páginas e busca saíram da thread da UI; o modo contínuo agora usa
   virtualização, índice incremental de layout e preservação de âncora.
-- Busca e miniaturas abrem seus workers somente quando usadas.
+- Render, miniaturas, busca e metadados passam pelo mesmo scheduler global
+  priorizado; os workers dedicados por recurso foram removidos.
 - Caches de bitmaps CPU e texturas GPU agora usam orçamento em bytes, LRU e
   métricas de hits, misses, evictions, uso residente e pico.
 - Prefetch contínuo prioriza o viewport e adapta o overscan à direção e à
   velocidade da rolagem.
 - Acesso ao PDFium agora é serializado do `open` ao `drop`, respeitando o contrato
   single-threaded da engine; a inicialização do singleton também ficou atômica.
-- Render principal, miniaturas e busca compartilham o mesmo documento aberto,
-  eliminando I/O e parsing repetidos por pipeline.
+- Render principal, miniaturas e busca compartilham o mesmo documento aberto e a
+  mesma fila limitada, eliminando I/O, parsing e concorrência descoordenada.
 - O render solicita RGBA diretamente ao PDFium e elimina uma segunda alocação e
   varredura do bitmap; microbenchmark local do handoff mediu redução de 63,5%.
-- Bookmarks, links, caracteres de seleção e extração integral de texto agora usam
-  um `DocumentWorker` priorizado, bounded, deduplicado e cancelável por geração.
+- Todos os trabalhos PDF usam um `DocumentWorker` priorizado, bounded, deduplicado
+  quando necessário e cancelável por geração.
 - Jobs documentais expõem estados terminais e métricas de fila, duração, sucesso,
   falha e cancelamento nos logs de debug.
 
@@ -56,7 +57,6 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Known limitations
 
-- Bookmarks, links e extração de caracteres ainda possuem operações síncronas.
 - Algumas configurações ainda não controlam integralmente o comportamento.
 - Não há instalador, auto-update ou release pública suportada.
 - O corpus de PDFs e os benchmarks controlados ainda estão sendo construídos.

@@ -2,6 +2,7 @@
 // Extraído de viewer.rs para respeitar o hardcap de 250L.
 // Responsabilidade: show_continuous() com prefetch, skeleton e virtual scrolling.
 
+use crate::pdf::document_worker::JobPriority;
 use crate::ui::page_layout::LayoutParams;
 use crate::ui::prefetch::PrefetchPlan;
 use crate::ui::viewer::PdfViewer;
@@ -39,7 +40,7 @@ impl PdfViewer {
         let available_w = ui.available_width();
         let ctx = ui.ctx().clone();
 
-        // Drena bitmaps prontos da thread de background
+        // Drena bitmaps prontos do scheduler global
         if self.page_cache.drain_ready() {
             ctx.request_repaint();
         }
@@ -100,7 +101,14 @@ impl PdfViewer {
             self.tex_cache.retain_range(prefetch.first, prefetch.last);
             self.page_cache.evict_range(prefetch.first, prefetch.last);
 
-            prefetch.schedule(|page| self.page_cache.prefetch(page, scale));
+            prefetch.schedule(|page| {
+                let priority = if (first_visible..=last_visible).contains(&page) {
+                    JobPriority::Immediate
+                } else {
+                    JobPriority::Visible
+                };
+                self.page_cache.prefetch(page, scale, priority);
+            });
 
             for idx in first_visible..=last_visible {
                 // Upload para GPU só quando a página chega ao viewport.

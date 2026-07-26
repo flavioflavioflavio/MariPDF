@@ -1,27 +1,22 @@
 // pdf/page_cache.rs — Cache LRU por bytes com render em worker.
 
 use std::{
-    collections::VecDeque,
-    sync::{
-        mpsc::{self, Receiver, SyncSender},
-        Arc,
-    },
+    collections::{HashMap, VecDeque},
+    sync::mpsc::{self, Receiver, Sender},
 };
 
 use crate::byte_cache::{ByteLruCache, CacheMetrics};
-use crate::pdf::engine::{PdfEngine, RenderedPage};
+use crate::pdf::document_worker::{
+    DocumentJobOutput, DocumentJobTarget, DocumentWorkerHandle, JobCompletion, JobOutcome,
+    JobPriority,
+};
+use crate::pdf::engine::RenderedPage;
 
 /// Bitmaps CPU podem usar até 64 MiB. Uma única página maior continua utilizável
 /// e fica sozinha no cache até ser substituída.
 pub const DEFAULT_CPU_CACHE_BYTES: usize = 64 * 1024 * 1024;
 
-/// Pedido enviado pelo main thread para a thread de render.
-pub struct RenderRequest {
-    pub page_index: usize,
-    pub scale: f32,
-}
-
-/// Resposta da thread de render para o main thread.
+/// Resposta do scheduler de render para a main thread.
 pub struct RenderResult {
     pub page_index: usize,
     pub outcome: RenderOutcome,
@@ -35,48 +30,42 @@ pub enum RenderOutcome {
 /// Cache LRU de páginas renderizadas.
 ///
 /// Possui dois modos de população:
-/// 1. `insert_sync` — insere direto (main thread, Single-Page mode).
-/// 2. Canal async  — recebe bitmaps da thread de background (Continuous).
+/// 1. `insert_sync` — insere direto em testes e caminhos auxiliares.
+/// 2. Canal async — recebe bitmaps do scheduler global do documento.
 pub struct LruPageCache {
     entries: ByteLruCache<usize, RenderedPage>,
 
-    // ── Canal para background render ──
-    tx: Option<SyncSender<RenderRequest>>,
-    rx: Receiver<RenderResult>,
-    inflight: std::collections::HashSet<usize>,
+    scheduler: Option<DocumentWorkerHandle>,
+    result_tx: Sender<JobCompletion>,
+    result_rx: Receiver<JobCompletion>,
+    inflight: HashMap<usize, u32>,
     failures: VecDeque<(usize, String)>,
 }
 
 impl LruPageCache {
     /// Cria um cache com orçamento `budget_bytes`.
-    /// O worker reutiliza o documento ja aberto pelo app.
-    pub fn new(budget_bytes: usize, engine: Arc<PdfEngine>) -> Self {
-        let (req_tx, req_rx) = mpsc::sync_channel::<RenderRequest>(4);
-        let (res_tx, res_rx) = mpsc::sync_channel::<RenderResult>(4);
-
-        std::thread::Builder::new()
-            .name("maripdf-render".into())
-            .spawn(move || {
-                background_render_loop(engine, req_rx, res_tx);
-            })
-            .expect("Falha ao criar thread de render");
+    /// Render e enviado ao scheduler global do documento.
+    pub fn new(budget_bytes: usize, scheduler: DocumentWorkerHandle) -> Self {
+        let (result_tx, result_rx) = mpsc::channel();
 
         Self {
             entries: ByteLruCache::new(budget_bytes),
-            tx: Some(req_tx),
-            rx: res_rx,
+            scheduler: Some(scheduler),
+            result_tx,
+            result_rx,
             inflight: Default::default(),
             failures: VecDeque::new(),
         }
     }
 
-    /// Cria cache sem thread de background (modo Single-Page sync).
+    /// Cria cache sem scheduler (usado por testes unitários).
     pub fn new_sync(budget_bytes: usize) -> Self {
-        let (_tx, rx) = mpsc::sync_channel::<RenderResult>(0);
+        let (result_tx, result_rx) = mpsc::channel();
         Self {
             entries: ByteLruCache::new(budget_bytes),
-            tx: None,
-            rx,
+            scheduler: None,
+            result_tx,
+            result_rx,
             inflight: Default::default(),
             failures: VecDeque::new(),
         }
@@ -97,28 +86,60 @@ impl LruPageCache {
         self.inflight.remove(&page_index);
     }
 
-    /// Solicita pré-renderização de `page_index` na thread de background.
+    /// Solicita renderização assíncrona de `page_index` ao scheduler global.
     /// Não bloqueia; ignora se já estiver em cache ou em voo.
-    pub fn prefetch(&mut self, page_index: usize, scale: f32) {
+    pub fn prefetch(&mut self, page_index: usize, scale: f32, priority: JobPriority) {
         if self.entries.contains(page_index) {
             return;
         }
-        if self.inflight.contains(&page_index) {
+        if self.inflight.contains_key(&page_index) {
             return;
         }
-        if let Some(ref tx) = self.tx {
-            if tx.try_send(RenderRequest { page_index, scale }).is_ok() {
-                self.inflight.insert(page_index);
+        if let Some(scheduler) = &self.scheduler {
+            if scheduler.request_render(page_index, scale, priority, self.result_tx.clone()) {
+                self.inflight.insert(page_index, scale.to_bits());
             }
         }
     }
 
-    /// Drena resultados prontos da thread de background.
+    /// Drena resultados prontos do scheduler global.
     /// Retorna `true` se ao menos um bitmap chegou (sinaliza repaint).
     pub fn drain_ready(&mut self) -> bool {
         let mut got_any = false;
-        while let Ok(result) = self.rx.try_recv() {
-            got_any |= self.accept_result(result);
+        while let Ok(completion) = self.result_rx.try_recv() {
+            let DocumentJobTarget::Render {
+                page_index,
+                scale_bits,
+            } = completion.target
+            else {
+                continue;
+            };
+            if self.inflight.get(&page_index) != Some(&scale_bits) {
+                continue;
+            }
+            self.inflight.remove(&page_index);
+            match completion.outcome {
+                JobOutcome::Ready(DocumentJobOutput::Render {
+                    page_index: output_page,
+                    scale,
+                    page,
+                }) if output_page == page_index && scale.to_bits() == scale_bits => {
+                    got_any |= self.accept_result(RenderResult {
+                        page_index,
+                        outcome: RenderOutcome::Ready(page),
+                    });
+                }
+                JobOutcome::Failed(error) => {
+                    got_any |= self.accept_result(RenderResult {
+                        page_index,
+                        outcome: RenderOutcome::Failed(error),
+                    });
+                }
+                JobOutcome::Cancelled => {}
+                JobOutcome::Ready(_) => {
+                    tracing::warn!("render: resultado de tipo inesperado");
+                }
+            }
         }
         got_any
     }
@@ -141,13 +162,13 @@ impl LruPageCache {
 
     #[cfg(test)]
     pub(super) fn inject_result(&mut self, result: RenderResult) -> bool {
-        self.inflight.insert(result.page_index);
+        self.inflight.insert(result.page_index, 0);
         self.accept_result(result)
     }
 
     #[cfg(test)]
     pub(super) fn is_inflight(&self, page_index: usize) -> bool {
-        self.inflight.contains(&page_index)
+        self.inflight.contains_key(&page_index)
     }
 
     /// Retorna e remove a falha mais recente da página solicitada.
@@ -162,7 +183,7 @@ impl LruPageCache {
     /// Remove páginas fora do range `[first, last]` (janela de viewport).
     pub fn evict_range(&mut self, first: usize, last: usize) {
         self.entries.retain(|idx| idx >= first && idx <= last);
-        self.inflight.retain(|&idx| idx >= first && idx <= last);
+        self.inflight.retain(|&idx, _| idx >= first && idx <= last);
     }
 
     /// Remove tudo nos testes unitários do cache.
@@ -186,41 +207,4 @@ impl LruPageCache {
     pub fn metrics(&self) -> CacheMetrics {
         self.entries.metrics()
     }
-}
-
-fn background_render_loop(
-    engine: Arc<PdfEngine>,
-    rx: std::sync::mpsc::Receiver<RenderRequest>,
-    tx: SyncSender<RenderResult>,
-) {
-    for req in rx {
-        match engine.render_page(req.page_index, req.scale) {
-            Ok(page) => {
-                // O worker pode aguardar o consumidor: isso aplica backpressure
-                // sem descartar resultados e sem deixar `inflight` preso.
-                match tx.send(RenderResult {
-                    page_index: req.page_index,
-                    outcome: RenderOutcome::Ready(page),
-                }) {
-                    Ok(_) => {}
-                    Err(_) => {
-                        tracing::info!("bg_render: receiver desconectado, encerrando");
-                        return;
-                    }
-                }
-            }
-            Err(e) => {
-                if tx
-                    .send(RenderResult {
-                        page_index: req.page_index,
-                        outcome: RenderOutcome::Failed(e.to_string()),
-                    })
-                    .is_err()
-                {
-                    return;
-                }
-            }
-        }
-    }
-    tracing::info!("bg_render: thread encerrada");
 }

@@ -56,8 +56,8 @@ impl MariApp {
     pub fn invalidate_render(&mut self, ctx: &egui::Context) {
         self.viewer.tex_cache.clear();
         self.viewer.loaded_page = None;
-        if let Some(engine) = self.engine.clone() {
-            self.viewer.init_cache(engine, self.page_count);
+        if let Some(worker) = &self.document_worker {
+            self.viewer.init_cache(worker.handle(), self.page_count);
         }
         if self.viewer.mode == ViewMode::SinglePage {
             self.render_current_page(ctx);

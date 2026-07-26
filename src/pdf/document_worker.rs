@@ -1,12 +1,12 @@
-// pdf/document_worker.rs — Scheduler de metadados do documento.
+// pdf/document_worker.rs — Scheduler global de trabalho PDF do documento.
 
-use crate::pdf::engine::{BookmarkEntry, PdfEngine, PdfLinkInfo, TextCharInfo};
+use crate::pdf::engine::{BookmarkEntry, PdfEngine, PdfLinkInfo, RenderedPage, TextCharInfo};
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, HashMap},
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering as AtomicOrdering},
-        mpsc::{self, Receiver, SyncSender},
+        mpsc::{self, Receiver, Sender, SyncSender},
         Arc,
     },
     time::{Duration, Instant},
@@ -16,6 +16,7 @@ const REQUEST_CAPACITY: usize = 32;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum JobPriority {
+    Search,
     Background,
     Visible,
     Immediate,
@@ -27,6 +28,15 @@ pub enum DocumentJobTarget {
     Links(usize),
     Chars(usize),
     Text(usize),
+    Render {
+        page_index: usize,
+        scale_bits: u32,
+    },
+    Thumbnail(usize),
+    SearchText {
+        page_index: usize,
+        search_generation: u64,
+    },
 }
 
 #[derive(Debug)]
@@ -35,6 +45,18 @@ enum JobKind {
     Links(usize),
     Chars(usize),
     Text(usize),
+    Render {
+        page_index: usize,
+        scale: f32,
+    },
+    Thumbnail {
+        page_index: usize,
+        height_px: u32,
+    },
+    SearchText {
+        page_index: usize,
+        search_generation: u64,
+    },
 }
 
 impl JobKind {
@@ -44,6 +66,18 @@ impl JobKind {
             Self::Links(page) => DocumentJobTarget::Links(*page),
             Self::Chars(page) => DocumentJobTarget::Chars(*page),
             Self::Text(page) => DocumentJobTarget::Text(*page),
+            Self::Render { page_index, scale } => DocumentJobTarget::Render {
+                page_index: *page_index,
+                scale_bits: scale.to_bits(),
+            },
+            Self::Thumbnail { page_index, .. } => DocumentJobTarget::Thumbnail(*page_index),
+            Self::SearchText {
+                page_index,
+                search_generation,
+            } => DocumentJobTarget::SearchText {
+                page_index: *page_index,
+                search_generation: *search_generation,
+            },
         }
     }
 }
@@ -55,6 +89,7 @@ struct DocumentJob {
     sequence: u64,
     priority: JobPriority,
     kind: JobKind,
+    result_tx: Sender<JobCompletion>,
 }
 
 #[derive(Debug)]
@@ -98,6 +133,20 @@ pub enum DocumentJobOutput {
         page_index: usize,
         text: String,
     },
+    Render {
+        page_index: usize,
+        scale: f32,
+        page: RenderedPage,
+    },
+    Thumbnail {
+        page_index: usize,
+        page: RenderedPage,
+    },
+    SearchText {
+        page_index: usize,
+        search_generation: u64,
+        text: String,
+    },
 }
 
 pub enum JobOutcome {
@@ -117,7 +166,7 @@ pub struct JobCompletion {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DocumentWorkerMetrics {
     pub queued: usize,
-    pub inflight: usize,
+    pub running: usize,
     pub completed: usize,
     pub failed: usize,
     pub cancelled: usize,
@@ -126,23 +175,31 @@ pub struct DocumentWorkerMetrics {
 #[derive(Default)]
 struct SharedMetrics {
     queued: AtomicUsize,
+    running: AtomicUsize,
     completed: AtomicUsize,
     failed: AtomicUsize,
     cancelled: AtomicUsize,
 }
 
-/// Worker único para metadados e texto do documento atual.
+/// Worker único para render, miniaturas, busca e metadados do documento atual.
 ///
 /// A fila é bounded, deduplica jobs equivalentes e entrega exatamente um estado
 /// terminal para cada job aceito. Cancelamento é lógico por `generation`.
 pub struct DocumentWorker {
-    request_tx: Option<SyncSender<DocumentJob>>,
+    handle: DocumentWorkerHandle,
+    result_tx: Sender<JobCompletion>,
     result_rx: Receiver<JobCompletion>,
+    inflight: HashMap<DocumentJobTarget, u64>,
+}
+
+#[derive(Clone)]
+pub struct DocumentWorkerHandle {
+    request_tx: SyncSender<DocumentJob>,
+    queue_capacity: usize,
     generation: Arc<AtomicU64>,
     metrics: Arc<SharedMetrics>,
-    inflight: HashMap<DocumentJobTarget, u64>,
-    next_id: u64,
-    next_sequence: u64,
+    next_id: Arc<AtomicU64>,
+    next_sequence: Arc<AtomicU64>,
 }
 
 impl DocumentWorker {
@@ -151,31 +208,32 @@ impl DocumentWorker {
         let (result_tx, result_rx) = mpsc::channel();
         let generation = Arc::new(AtomicU64::new(1));
         let metrics = Arc::new(SharedMetrics::default());
+        let handle = DocumentWorkerHandle {
+            request_tx,
+            queue_capacity: REQUEST_CAPACITY,
+            generation: Arc::clone(&generation),
+            metrics: Arc::clone(&metrics),
+            next_id: Arc::new(AtomicU64::new(1)),
+            next_sequence: Arc::new(AtomicU64::new(1)),
+        };
 
-        let worker_generation = Arc::clone(&generation);
-        let worker_metrics = Arc::clone(&metrics);
         std::thread::Builder::new()
             .name("maripdf-document".into())
             .spawn(move || {
-                run_worker(
-                    engine,
-                    request_rx,
-                    result_tx,
-                    worker_generation,
-                    worker_metrics,
-                );
+                run_worker(engine, request_rx, generation, metrics);
             })
             .expect("Falha ao criar thread maripdf-document");
 
         Self {
-            request_tx: Some(request_tx),
+            handle,
+            result_tx,
             result_rx,
-            generation,
-            metrics,
             inflight: HashMap::new(),
-            next_id: 1,
-            next_sequence: 1,
         }
+    }
+
+    pub fn handle(&self) -> DocumentWorkerHandle {
+        self.handle.clone()
     }
 
     pub fn request_bookmarks(&mut self) -> bool {
@@ -200,27 +258,12 @@ impl DocumentWorker {
             return false;
         }
 
-        let id = self.next_id;
-        self.next_id = self.next_id.wrapping_add(1).max(1);
-        let sequence = self.next_sequence;
-        self.next_sequence = self.next_sequence.wrapping_add(1).max(1);
-        let job = DocumentJob {
-            id,
-            generation: self.generation.load(AtomicOrdering::Acquire),
-            sequence,
-            priority,
-            kind,
-        };
-
-        let accepted = self
-            .request_tx
-            .as_ref()
-            .is_some_and(|tx| tx.try_send(job).is_ok());
-        if accepted {
+        if let Some(id) = self.handle.submit(kind, priority, self.result_tx.clone()) {
             self.inflight.insert(key, id);
-            self.metrics.queued.fetch_add(1, AtomicOrdering::AcqRel);
+            true
+        } else {
+            false
         }
-        accepted
     }
 
     pub fn drain_results(&mut self) -> Vec<JobCompletion> {
@@ -241,7 +284,7 @@ impl DocumentWorker {
             let snapshot = self.metrics();
             tracing::debug!(
                 queued = snapshot.queued,
-                inflight = snapshot.inflight,
+                running = snapshot.running,
                 completed = snapshot.completed,
                 failed = snapshot.failed,
                 cancelled = snapshot.cancelled,
@@ -252,17 +295,17 @@ impl DocumentWorker {
     }
 
     pub fn cancel_pending(&mut self) {
-        self.generation.fetch_add(1, AtomicOrdering::AcqRel);
+        self.handle.cancel_all();
         self.inflight.clear();
     }
 
     pub fn metrics(&self) -> DocumentWorkerMetrics {
         DocumentWorkerMetrics {
-            queued: self.metrics.queued.load(AtomicOrdering::Acquire),
-            inflight: self.inflight.len(),
-            completed: self.metrics.completed.load(AtomicOrdering::Acquire),
-            failed: self.metrics.failed.load(AtomicOrdering::Acquire),
-            cancelled: self.metrics.cancelled.load(AtomicOrdering::Acquire),
+            queued: self.handle.metrics.queued.load(AtomicOrdering::Acquire),
+            running: self.handle.metrics.running.load(AtomicOrdering::Acquire),
+            completed: self.handle.metrics.completed.load(AtomicOrdering::Acquire),
+            failed: self.handle.metrics.failed.load(AtomicOrdering::Acquire),
+            cancelled: self.handle.metrics.cancelled.load(AtomicOrdering::Acquire),
         }
     }
 }
@@ -270,14 +313,98 @@ impl DocumentWorker {
 impl Drop for DocumentWorker {
     fn drop(&mut self) {
         self.cancel_pending();
-        self.request_tx.take();
+    }
+}
+
+impl DocumentWorkerHandle {
+    fn submit(
+        &self,
+        kind: JobKind,
+        priority: JobPriority,
+        result_tx: Sender<JobCompletion>,
+    ) -> Option<u64> {
+        if self
+            .metrics
+            .queued
+            .fetch_update(AtomicOrdering::AcqRel, AtomicOrdering::Acquire, |queued| {
+                (queued < self.queue_capacity).then_some(queued + 1)
+            })
+            .is_err()
+        {
+            return None;
+        }
+
+        let id = self.next_id.fetch_add(1, AtomicOrdering::AcqRel);
+        let sequence = self.next_sequence.fetch_add(1, AtomicOrdering::AcqRel);
+        let job = DocumentJob {
+            id,
+            generation: self.generation.load(AtomicOrdering::Acquire),
+            sequence,
+            priority,
+            kind,
+            result_tx,
+        };
+        if self.request_tx.try_send(job).is_ok() {
+            Some(id)
+        } else {
+            self.metrics.queued.fetch_sub(1, AtomicOrdering::AcqRel);
+            None
+        }
+    }
+
+    pub fn request_render(
+        &self,
+        page_index: usize,
+        scale: f32,
+        priority: JobPriority,
+        result_tx: Sender<JobCompletion>,
+    ) -> bool {
+        self.submit(JobKind::Render { page_index, scale }, priority, result_tx)
+            .is_some()
+    }
+
+    pub fn request_thumbnail(
+        &self,
+        page_index: usize,
+        height_px: u32,
+        result_tx: Sender<JobCompletion>,
+    ) -> bool {
+        self.submit(
+            JobKind::Thumbnail {
+                page_index,
+                height_px,
+            },
+            JobPriority::Background,
+            result_tx,
+        )
+        .is_some()
+    }
+
+    pub fn request_search_text(
+        &self,
+        page_index: usize,
+        search_generation: u64,
+        result_tx: Sender<JobCompletion>,
+    ) -> bool {
+        self.submit(
+            JobKind::SearchText {
+                page_index,
+                search_generation,
+            },
+            JobPriority::Search,
+            result_tx,
+        )
+        .is_some()
+    }
+
+    fn cancel_all(&self) {
+        self.generation.fetch_add(1, AtomicOrdering::AcqRel);
     }
 }
 
 fn run_worker(
     engine: Arc<PdfEngine>,
     request_rx: Receiver<DocumentJob>,
-    result_tx: mpsc::Sender<JobCompletion>,
     generation: Arc<AtomicU64>,
     metrics: Arc<SharedMetrics>,
 ) {
@@ -302,6 +429,7 @@ fn run_worker(
             continue;
         };
         metrics.queued.fetch_sub(1, AtomicOrdering::AcqRel);
+        metrics.running.fetch_add(1, AtomicOrdering::AcqRel);
 
         let started = Instant::now();
         let key = job.kind.key();
@@ -317,6 +445,7 @@ fn run_worker(
         if matches!(outcome, JobOutcome::Ready(_)) {
             metrics.completed.fetch_add(1, AtomicOrdering::AcqRel);
         }
+        metrics.running.fetch_sub(1, AtomicOrdering::AcqRel);
 
         let completion = JobCompletion {
             id: job.id,
@@ -325,9 +454,7 @@ fn run_worker(
             target: key,
             outcome,
         };
-        if result_tx.send(completion).is_err() {
-            break;
-        }
+        let _ = job.result_tx.send(completion);
     }
 }
 
@@ -346,6 +473,34 @@ fn execute_job(engine: &PdfEngine, kind: JobKind) -> anyhow::Result<JobOutcome> 
             page_index,
             text: engine.extract_text(page_index)?,
         },
+        JobKind::Render { page_index, scale } => DocumentJobOutput::Render {
+            page_index,
+            scale,
+            page: engine.render_page(page_index, scale)?,
+        },
+        JobKind::Thumbnail {
+            page_index,
+            height_px,
+        } => {
+            let (_, height_pts) = engine.page_size_pts(page_index);
+            let scale = if height_pts > 0.0 {
+                height_px as f32 / height_pts
+            } else {
+                0.2
+            };
+            DocumentJobOutput::Thumbnail {
+                page_index,
+                page: engine.render_page(page_index, scale)?,
+            }
+        }
+        JobKind::SearchText {
+            page_index,
+            search_generation,
+        } => DocumentJobOutput::SearchText {
+            page_index,
+            search_generation,
+            text: engine.extract_text(page_index)?,
+        },
     };
     Ok(JobOutcome::Ready(output))
 }
@@ -362,6 +517,7 @@ mod tests {
             sequence,
             priority,
             kind: JobKind::Links(id as usize),
+            result_tx: mpsc::channel().0,
         })
     }
 
@@ -372,9 +528,10 @@ mod tests {
         queue.push(queued(2, 2, JobPriority::Visible));
         queue.push(queued(3, 3, JobPriority::Immediate));
         queue.push(queued(4, 4, JobPriority::Visible));
+        queue.push(queued(5, 5, JobPriority::Search));
 
         let order: Vec<_> = std::iter::from_fn(|| queue.pop().map(|job| job.0.id)).collect();
-        assert_eq!(order, vec![3, 2, 4, 1]);
+        assert_eq!(order, vec![3, 2, 4, 1, 5]);
     }
 
     #[test]
@@ -382,6 +539,25 @@ mod tests {
         assert_eq!(JobKind::Links(4).key(), JobKind::Links(4).key());
         assert_ne!(JobKind::Links(4).key(), JobKind::Links(5).key());
         assert_ne!(JobKind::Links(4).key(), JobKind::Chars(4).key());
+    }
+
+    #[test]
+    fn bounded_queue_reports_backpressure_without_counting_rejected_job() {
+        let (request_tx, _request_rx) = mpsc::sync_channel(1);
+        let metrics = Arc::new(SharedMetrics::default());
+        let handle = DocumentWorkerHandle {
+            request_tx,
+            queue_capacity: 1,
+            generation: Arc::new(AtomicU64::new(1)),
+            metrics: Arc::clone(&metrics),
+            next_id: Arc::new(AtomicU64::new(1)),
+            next_sequence: Arc::new(AtomicU64::new(1)),
+        };
+        let (result_tx, _result_rx) = mpsc::channel();
+
+        assert!(handle.request_render(1, 1.0, JobPriority::Immediate, result_tx.clone(),));
+        assert!(!handle.request_render(2, 1.0, JobPriority::Visible, result_tx));
+        assert_eq!(metrics.queued.load(AtomicOrdering::Acquire), 1);
     }
 
     #[test]
@@ -401,21 +577,73 @@ mod tests {
         assert!(worker.request_chars(0));
         assert!(worker.request_text(0));
         assert!(!worker.request_links(0), "job duplicado deve ser recusado");
+        assert!(worker.handle.request_render(
+            0,
+            0.2,
+            JobPriority::Immediate,
+            worker.result_tx.clone(),
+        ));
+        assert!(worker
+            .handle
+            .request_thumbnail(0, 140, worker.result_tx.clone(),));
+        assert!(worker
+            .handle
+            .request_search_text(0, 99, worker.result_tx.clone(),));
 
         let deadline = Instant::now() + Duration::from_secs(10);
         let mut terminal = Vec::new();
-        while terminal.len() < 4 && Instant::now() < deadline {
+        while terminal.len() < 7 && Instant::now() < deadline {
             terminal.extend(worker.drain_results());
             std::thread::sleep(Duration::from_millis(10));
         }
 
-        assert_eq!(terminal.len(), 4);
+        assert_eq!(terminal.len(), 7);
         assert!(terminal
             .iter()
             .all(|result| matches!(result.outcome, JobOutcome::Ready(_))));
         let snapshot = worker.metrics();
-        assert_eq!(snapshot.inflight, 0);
-        assert_eq!(snapshot.completed, 4);
+        assert_eq!(snapshot.running, 0);
+        assert_eq!(snapshot.completed, 7);
         assert_eq!(snapshot.failed, 0);
+    }
+
+    #[test]
+    #[ignore = "requer MARIPDF_TEST_PDFS com um caminho por linha"]
+    fn generation_change_cancels_queued_real_pdf_jobs() {
+        let raw = std::env::var("MARIPDF_TEST_PDFS").expect("defina MARIPDF_TEST_PDFS");
+        let path = std::path::PathBuf::from(
+            raw.lines()
+                .find(|line| !line.trim().is_empty())
+                .expect("inclua ao menos um PDF"),
+        );
+        let engine = Arc::new(PdfEngine::open(&path, get_pdfium().unwrap()).unwrap());
+        let mut worker = DocumentWorker::new(engine);
+
+        let mut accepted = 0;
+        for page_index in 0..16 {
+            accepted += usize::from(worker.handle.request_search_text(
+                page_index,
+                77,
+                worker.result_tx.clone(),
+            ));
+        }
+        assert!(accepted > 1);
+        worker.handle.cancel_all();
+
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut terminal = Vec::new();
+        while terminal.len() < accepted && Instant::now() < deadline {
+            terminal.extend(worker.drain_results());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        assert_eq!(terminal.len(), accepted);
+        assert!(
+            terminal
+                .iter()
+                .any(|result| matches!(result.outcome, JobOutcome::Cancelled)),
+            "ao menos um job enfileirado deve ser cancelado"
+        );
+        assert!(worker.metrics().cancelled > 0);
     }
 }

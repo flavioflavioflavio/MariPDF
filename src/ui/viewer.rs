@@ -6,12 +6,12 @@
 //   • Zoom via Ctrl+Scroll em ambos os modos
 //   • Sinais para o app.rs: zoom_delta, page_delta
 
-use crate::pdf::engine::{PdfEngine, RenderedPage};
+use crate::pdf::document_worker::{DocumentWorkerHandle, JobPriority};
+use crate::pdf::engine::RenderedPage;
 use crate::pdf::page_cache::{LruPageCache, DEFAULT_CPU_CACHE_BYTES};
 use crate::ui::page_layout::{LayoutAnchor, PageLayout};
 use crate::ui::texture_cache::GpuTextureCache;
 use eframe::egui;
-use std::sync::Arc;
 
 pub use crate::ui::viewer_helpers::invert_rgba;
 use crate::ui::viewer_helpers::{draw_page_tex, fit_page, show_spinner, upload_texture};
@@ -36,10 +36,10 @@ pub struct PdfViewer {
     pub(crate) texture: Option<egui::TextureHandle>,
     pub(crate) loaded_page: Option<usize>,
 
-    // ── Continuous-mode: cache LRU com background thread ──
+    // ── Cache LRU alimentado pelo scheduler global ──
     /// Cache de texturas já enviadas para a GPU
     pub(crate) tex_cache: GpuTextureCache,
-    /// Cache LRU de bitmaps vindos da thread de background
+    /// Cache LRU de bitmaps vindos do scheduler global do documento.
     pub(crate) page_cache: LruPageCache,
     /// Índice de offsets/alturas usado pela virtualização contínua.
     pub(crate) page_layout: PageLayout,
@@ -109,8 +109,8 @@ impl PdfViewer {
 
     /// Inicializa o cache de background ao abrir um novo documento.
     /// Deve ser chamado depois de `reset()` com o documento aberto.
-    pub fn init_cache(&mut self, engine: Arc<PdfEngine>, page_count: usize) {
-        self.page_cache = LruPageCache::new(DEFAULT_CPU_CACHE_BYTES, engine);
+    pub fn init_cache(&mut self, scheduler: DocumentWorkerHandle, page_count: usize) {
+        self.page_cache = LruPageCache::new(DEFAULT_CPU_CACHE_BYTES, scheduler);
         self.tex_cache.clear();
         self.page_layout.ensure_page_count(page_count);
     }
@@ -160,12 +160,15 @@ impl PdfViewer {
 
     pub fn request_single_page(&mut self, page_index: usize, page_count: usize) {
         let scale = self.zoom * self.render_scale;
-        self.page_cache.prefetch(page_index, scale);
+        self.page_cache
+            .prefetch(page_index, scale, JobPriority::Immediate);
         if page_index + 1 < page_count {
-            self.page_cache.prefetch(page_index + 1, scale);
+            self.page_cache
+                .prefetch(page_index + 1, scale, JobPriority::Visible);
         }
         if page_index > 0 {
-            self.page_cache.prefetch(page_index - 1, scale);
+            self.page_cache
+                .prefetch(page_index - 1, scale, JobPriority::Visible);
         }
         self.is_loading = self.loaded_page != Some(page_index);
     }

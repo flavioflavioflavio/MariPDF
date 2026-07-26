@@ -164,8 +164,9 @@ impl MariApp {
                             SidePanelKind::Thumbs
                         };
                         if self.side_panel == SidePanelKind::Thumbs && self.thumb_cache.is_none() {
-                            if let Some(engine) = self.engine.clone() {
-                                self.thumb_cache = Some(ThumbCache::new(engine));
+                            if let Some(worker) = &self.document_worker {
+                                self.thumb_cache =
+                                    Some(ThumbCache::new(self.page_count, worker.handle()));
                             }
                         }
                     }

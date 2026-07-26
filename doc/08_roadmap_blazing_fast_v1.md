@@ -1,6 +1,7 @@
 # MariPDF — Roadmap Blazing Fast e v1.0 Redonda
 
 > Criado em: 2026-07-13  
+> Atualizado em: 2026-07-26
 > Baseado em: auditoria do código, documentação, build release, testes e Clippy  
 > Documento complementar ao roadmap histórico `04_roadmap.md`
 
@@ -55,7 +56,7 @@ virarem metas públicas, precisam ser repetidos em um protocolo controlado.
 |---|---|
 | `cargo fmt -- --check` | Passa |
 | `cargo check` | Passa sem warnings |
-| `cargo test --all-targets` | 30 passam; 3 testes de corpus/benchmark são manuais/ignorados |
+| `cargo test --all-targets` | 31 passam; 5 testes de corpus/benchmark são manuais/ignorados |
 | `cargo clippy --all-targets --all-features -- -D warnings` | Passa |
 | `cargo build --release` | Passa sem warnings |
 | Stress PDFium no corpus local | 8 PDFs × 3 ciclos; render/texto/dimensões concorrentes em engine compartilhada |
@@ -74,7 +75,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 5. [x] Bookmarks eram extraídos durante a abertura; agora chegam por job de fundo.
 6. [x] O modo contínuo iterava `0..page_count` e montava placeholders para todas as
    páginas a cada frame; agora aloca apenas o range visível em slots estimados.
-7. [ ] Não há scheduler unificado, prioridade, cancelamento ou geração de jobs.
+7. [x] Render, thumbnails, busca e metadados agora compartilham um scheduler
+   priorizado, bounded e cancelável por geração.
 8. [x] Cache era limitado por quantidade de páginas, não por bytes de CPU/GPU.
 9. [x] Se o canal de resultado estivesse cheio, um bitmap podia ser descartado sem
    remover a página de `inflight`, deixando-a sem nova tentativa.
@@ -206,9 +208,9 @@ renderer.
 
 ### Entregas
 
-- [ ] BF-101 Definir `DocumentWorker`, `RenderJob`, `JobPriority`, `JobResult` e
+- [x] BF-101 Definir `DocumentWorker`, `RenderJob`, `JobPriority`, `JobResult` e
   `generation_id` atrás de uma interface independente do PDFium.
-- [ ] BF-102 Implementar fila priorizada, cancelamento lógico e backpressure.
+- [x] BF-102 Implementar fila priorizada, cancelamento lógico e backpressure.
 - [x] BF-103 Migrar Single Page para render assíncrono.
 - [x] BF-104 Manter a última textura válida durante zoom/navegação e exibir loading
   não bloqueante somente quando não houver textura utilizável.
@@ -216,11 +218,11 @@ renderer.
   integral para `DocumentWorker`, sem bloquear o loop da UI.
 - [x] BF-106 Migrar busca para execução incremental assíncrona, entregando hits por
   página e permitindo cancelamento ao mudar o termo.
-- [ ] BF-107 Unificar render principal e thumbnails sob limites globais de carga.
-- [ ] BF-108 Corrigir jobs/resultados descartados para nunca deixarem `inflight`
+- [x] BF-107 Unificar render principal e thumbnails sob limites globais de carga.
+- [x] BF-108 Corrigir jobs/resultados descartados para nunca deixarem `inflight`
   preso; todo job termina em `ready`, `failed` ou `cancelled`.
 - [x] BF-109 Remover render duplicado de Fit Width/Fit Page usando dimensões PDF.
-- [ ] BF-110 Instrumentar duração e fila dos jobs em logs de debug.
+- [x] BF-110 Instrumentar duração e fila dos jobs em logs de debug.
 - [x] BF-111 Serializar todas as operações nativas do PDFium e tornar atômica a
   inicialização do singleton, incluindo fechamento de documentos sob o lock.
 
