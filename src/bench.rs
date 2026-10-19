@@ -14,6 +14,8 @@ use std::time::Instant;
 
 /// Tempo máximo por etapa antes de registrá-la como falha.
 const STEP_TIMEOUT_SECS: f64 = 30.0;
+/// Marca no relatório uma abertura recusada e tratada (não um timeout).
+const OPEN_REFUSED: &str = "abertura recusada";
 /// Saltos sequenciais no modo contínuo para medir custo de frame.
 const CONTINUOUS_JUMPS: usize = 40;
 
@@ -85,6 +87,7 @@ pub struct BenchRun {
     continuous_ms: Vec<f64>,
     first_frame_seen: bool,
     written: bool,
+    open_failure: Option<String>,
 }
 
 impl BenchRun {
@@ -103,11 +106,17 @@ impl BenchRun {
             continuous_ms: Vec::new(),
             first_frame_seen: false,
             written: false,
+            open_failure: None,
         })
     }
 
     pub fn record_open(&mut self, open_ms: f64) {
         self.report.open_ms = open_ms;
+    }
+
+    /// Abertura recusada e já mostrada ao usuário (senha, corrompido...).
+    pub fn record_open_failure(&mut self, message: String) {
+        self.open_failure = Some(message);
     }
 
     fn finish_step(&mut self, ok: bool, detail: impl Into<String>, next: Step) {
@@ -158,6 +167,9 @@ impl MariApp {
                         .map(|p| p.display().to_string())
                         .unwrap_or_default();
                     run.finish_step(true, "documento aberto", Step::FirstPage);
+                } else if let Some(message) = run.open_failure.take() {
+                    // Prefixo que o bench_report.py exige para "recusa esperada".
+                    run.finish_step(false, format!("{OPEN_REFUSED}: {message}"), Step::Done);
                 } else if self.render_error.is_some() || run.timed_out() {
                     let detail = self
                         .render_error

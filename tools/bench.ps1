@@ -22,6 +22,8 @@ $ErrorActionPreference = "Stop"
 if (-not (Test-Path $Exe)) { throw "Executável não encontrado: $Exe (rode cargo build --release)" }
 
 $files = Select-String -Path $Manifest -Pattern '^file = "(.+)"' | ForEach-Object { $_.Matches[0].Groups[1].Value }
+# Aceita -Only a.pdf,b.pdf tanto em chamada direta quanto via `pwsh -File`.
+$Only = @($Only | ForEach-Object { $_ -split "," } | Where-Object { $_ })
 if ($Only.Count -gt 0) { $files = $files | Where-Object { $Only -contains $_ } }
 
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"

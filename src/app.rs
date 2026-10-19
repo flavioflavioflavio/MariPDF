@@ -235,6 +235,9 @@ impl MariApp {
                 let msg = error_to_user_message(&e);
                 tracing::error!(path = %path.display(), error = %e, "Falha ao abrir PDF");
                 let now = ctx.input(|i| i.time);
+                if let Some(bench) = self.bench.as_mut() {
+                    bench.record_open_failure(msg.clone());
+                }
                 self.toast = Some(Toast::error(msg, 5.0, now));
             }
         }

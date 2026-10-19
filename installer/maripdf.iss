@@ -19,6 +19,13 @@
   #define OutputDir "..\dist"
 #endif
 
+; VersionInfoVersion aceita só números (até 4 partes): 1.0.0-rc.1 → 1.0.0.
+#if Pos("-", AppVersion) > 0
+  #define NumericVersion Copy(AppVersion, 1, Pos("-", AppVersion) - 1)
+#else
+  #define NumericVersion AppVersion
+#endif
+
 #define AppName "MariPDF"
 #define AppExe "maripdf.exe"
 #define ProgId "MariPDF.Document"
@@ -35,7 +42,7 @@ AppSupportURL=https://github.com/flavioflavioflavio/MariPDF/issues
 AppUpdatesURL=https://github.com/flavioflavioflavio/MariPDF/releases
 AppCopyright=© 2026 Flávio Takemoto — GPL-3.0-or-later
 AppComments=Dedicado a Mariana Lima, com muito amor.
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#NumericVersion}
 DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -101,8 +108,13 @@ Root: HKA; Subkey: "Software\MariPDF\Capabilities"; ValueType: string; ValueName
 Root: HKA; Subkey: "Software\MariPDF\Capabilities"; ValueType: string; ValueName: "ApplicationIcon"; ValueData: "{app}\{#AppExe},0"; Tasks: associate
 Root: HKA; Subkey: "Software\MariPDF\Capabilities\FileAssociations"; ValueType: string; ValueName: ".pdf"; ValueData: "{#ProgId}"; Tasks: associate
 Root: HKA; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "{#AppName}"; ValueData: "Software\MariPDF\Capabilities"; Flags: uninsdeletevalue; Tasks: associate
-; Remove o MariPDF.Document mesmo se o app o registrou fora do instalador
-Root: HKA; Subkey: "Software\MariPDF"; Flags: uninsdeletekeyifempty dontcreatekey
+; Limpeza na desinstalação mesmo sem a tarefa "associate": o app também
+; registra estas chaves (Configurações → Definir como padrão).
+Root: HKA; Subkey: "Software\Classes\{#ProgId}"; Flags: uninsdeletekey dontcreatekey
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}"; Flags: uninsdeletekey dontcreatekey
+Root: HKA; Subkey: "Software\MariPDF"; Flags: uninsdeletekey dontcreatekey
+Root: HKA; Subkey: "Software\Classes\.pdf\OpenWithProgids"; ValueType: none; ValueName: "{#ProgId}"; Flags: uninsdeletevalue dontcreatekey
+Root: HKA; Subkey: "Software\RegisteredApplications"; ValueType: none; ValueName: "{#AppName}"; Flags: uninsdeletevalue dontcreatekey
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
@@ -110,7 +122,9 @@ Filename: "ms-settings:defaultapps?registeredAppUser={#AppName}"; Description: "
 
 [UninstallDelete]
 ; Estado do usuário (configurações, histórico) é preservado de propósito.
-Type: filesandordirs; Name: "{app}"
+; Só a pasta do programa, e apenas se ficar vazia: o usuário pode ter
+; escolhido uma pasta existente com outros arquivos.
+Type: dirifempty; Name: "{app}"
 
 [Code]
 { Compara versões semânticas: 1.2.3 > 1.2.3-rc.1 > 1.2.2. }
@@ -128,6 +142,32 @@ begin
   begin
     Result := Copy(S, 1, P - 1);
     S := Copy(S, P + 1, Length(S));
+  end;
+end;
+
+{ Identificadores de pré-release separados por ponto; numéricos comparam
+  como número (rc.10 > rc.2), como em src/updater.rs. }
+function ComparePrerelease(A, B: String): Integer;
+var
+  PartA, PartB: String;
+  NA, NB: Integer;
+begin
+  Result := 0;
+  while (Result = 0) and ((A <> '') or (B <> '')) do
+  begin
+    if A = '' then begin Result := -1; Exit; end;
+    if B = '' then begin Result := 1; Exit; end;
+    PartA := NextPart(A, '.');
+    PartB := NextPart(B, '.');
+    NA := StrToIntDef(PartA, -1);
+    NB := StrToIntDef(PartB, -1);
+    if (NA >= 0) and (NB >= 0) then
+    begin
+      if NA > NB then Result := 1
+      else if NA < NB then Result := -1;
+    end
+    else
+      Result := CompareText(PartA, PartB);
   end;
 end;
 
@@ -151,7 +191,7 @@ begin
   if (PreA = '') and (PreB = '') then Result := 0
   else if PreA = '' then Result := 1
   else if PreB = '' then Result := -1
-  else Result := CompareText(PreA, PreB);
+  else Result := ComparePrerelease(PreA, PreB);
 end;
 
 function InitializeSetup(): Boolean;

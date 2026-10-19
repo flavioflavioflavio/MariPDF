@@ -16,6 +16,9 @@ use std::time::Instant;
 const ACTION_INTERVAL_SECS: f64 = 0.35;
 const SAMPLE_INTERVAL_SECS: f64 = 5.0;
 const SWITCH_DOCUMENT_SECS: f64 = 30.0;
+/// Crescimento estável aceito do working set (caches limitados por bytes
+/// devem estabilizar; acima disso é tratado como vazamento).
+pub(crate) const MAX_GROWTH_MB_PER_HOUR: f64 = 50.0;
 
 #[derive(Debug, Default, Serialize)]
 pub struct SoakReport {
@@ -193,6 +196,15 @@ pub(crate) fn growth_per_hour(samples: &[f64], interval_secs: f64) -> f64 {
     }
 }
 
+/// Passa só se exercitou o app de verdade, não houve falha de render e a
+/// memória não cresce continuamente.
+pub(crate) fn soak_passed(report: &SoakReport) -> bool {
+    report.documents_opened > 1
+        && report.actions > 0
+        && report.render_errors == 0
+        && report.growth_mb_per_hour <= MAX_GROWTH_MB_PER_HOUR
+}
+
 fn finish(run: &mut SoakRun) {
     let report = &mut run.report;
     report.duration_secs = run.started.elapsed().as_secs_f64();
@@ -203,7 +215,7 @@ fn finish(run: &mut SoakRun) {
         mean(&report.samples_mb[report.samples_mb.len().saturating_sub(quarter)..]);
     let steady = &report.samples_mb[quarter.min(report.samples_mb.len())..];
     report.growth_mb_per_hour = growth_per_hour(steady, SAMPLE_INTERVAL_SECS);
-    report.ok = report.documents_opened > 1 && report.actions > 0;
+    report.ok = soak_passed(report);
     match toml::to_string_pretty(&*report) {
         Ok(text) => {
             if let Err(error) = crate::storage::write_atomic(&run.output, text.as_bytes()) {
@@ -223,6 +235,35 @@ fn finish(run: &mut SoakRun) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn soak_fails_on_render_errors_or_memory_growth() {
+        let healthy = SoakReport {
+            documents_opened: 8,
+            actions: 3000,
+            growth_mb_per_hour: 3.0,
+            ..Default::default()
+        };
+        assert!(soak_passed(&healthy));
+        assert!(!soak_passed(&SoakReport {
+            render_errors: 1,
+            ..healthy_clone(&healthy)
+        }));
+        assert!(!soak_passed(&SoakReport {
+            growth_mb_per_hour: 400.0,
+            ..healthy_clone(&healthy)
+        }));
+        assert!(!soak_passed(&SoakReport::default()));
+    }
+
+    fn healthy_clone(r: &SoakReport) -> SoakReport {
+        SoakReport {
+            documents_opened: r.documents_opened,
+            actions: r.actions,
+            growth_mb_per_hour: r.growth_mb_per_hour,
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn flat_memory_has_no_growth_and_a_ramp_is_detected() {

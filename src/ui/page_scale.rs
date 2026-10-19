@@ -100,7 +100,7 @@ mod tests {
         let fit = 1200.0 / display_scale(595.0);
         assert!((effective_zoom(4.0, Some(595.0), 1200.0) - fit).abs() < 1e-5);
         assert_eq!(effective_zoom(1.0, Some(595.0), 1200.0), 1.0);
-        // Sem largura conhecida, não limita.
+        // Sem largura útil conhecida, não limita (o viewer estima a da página).
         assert_eq!(effective_zoom(4.0, None, 1200.0), 4.0);
         assert_eq!(effective_zoom(4.0, Some(595.0), 0.0), 4.0);
     }

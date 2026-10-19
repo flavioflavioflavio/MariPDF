@@ -46,8 +46,12 @@ for name, runs in sorted(by_file.items()):
     ok = all(r.get("ok") for r in reports)
     if name in expected_failure:
         # Deve falhar ao abrir, com mensagem e sem travar: isso é o sucesso.
+        # Só conta como recusa se o app sinalizou a falha tratada; um timeout
+        # (abertura travada) continua sendo erro.
         refused = all(
-            not r.get("ok") and r.get("steps", [{}])[0].get("name") == "WaitDocument"
+            not r.get("ok")
+            and r.get("steps", [{}])[0].get("name") == "WaitDocument"
+            and r["steps"][0].get("detail", "").startswith("abertura recusada")
             for r in reports
         )
         status = "✅ recusado" if refused else "❌"

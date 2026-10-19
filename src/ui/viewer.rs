@@ -431,7 +431,12 @@ pub(crate) fn page_raster_scale(
     usable_width: f32,
     density: f32,
 ) -> f32 {
-    let page_width = layout.page_size_pts(page).map(|(width, _)| width);
+    // Página ainda não vista: estima A4 em vez de não limitar. Se a real for
+    // mais larga, o bitmap menor é re-renderizado pelo UPGRADE_RATIO.
+    let page_width = layout
+        .page_size_pts(page)
+        .map(|(width, _)| width)
+        .or(Some(crate::ui::page_layout::DEFAULT_PAGE_WIDTH));
     let zoom = page_scale::effective_zoom(zoom, page_width, usable_width);
     page_scale::raster_scale(zoom, density)
 }

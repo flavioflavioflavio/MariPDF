@@ -289,15 +289,43 @@ fn download(release: &Release) -> Result<PathBuf, UpdateError> {
     Ok(path)
 }
 
-/// Instalado pelo instalador por usuário? (senão, é o executável portátil)
+const UNINSTALL_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\{73F72B7B-8E4F-4704-8CBA-9FB568284922}_is1";
+
+/// Instalado pelo instalador? Usa a pasta registrada pelo Inno Setup (o
+/// usuário pode ter escolhido outra), não só a pasta padrão.
 pub fn is_installed_copy() -> bool {
     let Ok(exe) = std::env::current_exe() else {
         return false;
     };
-    let Some(programs) = dirs::data_local_dir().map(|d| d.join("Programs").join("MariPDF")) else {
-        return false;
+    installed_location().is_some_and(|dir| is_inside(&exe, &dir))
+}
+
+#[cfg(target_os = "windows")]
+fn installed_location() -> Option<PathBuf> {
+    use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
+    let key = RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(UNINSTALL_KEY)
+        .ok()?;
+    let location: String = key.get_value("InstallLocation").ok()?;
+    Some(PathBuf::from(location))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn installed_location() -> Option<PathBuf> {
+    None
+}
+
+/// Comparação de caminhos sem diferenciar maiúsculas (Windows).
+fn is_inside(exe: &Path, dir: &Path) -> bool {
+    let normalize = |p: &Path| {
+        p.to_string_lossy()
+            .trim_end_matches(['\\', '/'])
+            .to_lowercase()
+            .replace('/', "\\")
     };
-    exe.starts_with(programs)
+    let (exe, dir) = (normalize(exe), normalize(dir));
+    exe.starts_with(&dir) && exe[dir.len()..].starts_with('\\')
 }
 
 /// Inicia o instalador verificado; o app fecha logo em seguida.
@@ -492,6 +520,14 @@ mod tests {
             b"adulterado",
             signature
         ));
+    }
+
+    #[test]
+    fn installed_location_match_is_case_insensitive_and_exact() {
+        let dir = Path::new(r"D:\Apps\MariPDF\");
+        assert!(is_inside(Path::new(r"d:\apps\maripdf\maripdf.exe"), dir));
+        assert!(!is_inside(Path::new(r"D:\Apps\MariPDF2\maripdf.exe"), dir));
+        assert!(!is_inside(Path::new(r"C:\Downloads\maripdf.exe"), dir));
     }
 
     #[test]

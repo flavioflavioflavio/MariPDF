@@ -42,6 +42,9 @@ fn main() -> anyhow::Result<()> {
     let _log_guard = logger::init();
 
     // i18n: carrega idioma salvo ou pt-BR padrão
+    // Idioma padrão primeiro: se settings.toml estiver corrompido, o aviso
+    // de recuperação já sai traduzido em vez de mostrar a chave crua.
+    crate::i18n::init(crate::i18n::Language::default());
     let lang = crate::settings::AppSettings::load().language;
     crate::i18n::init(lang);
 
