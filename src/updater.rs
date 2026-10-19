@@ -487,7 +487,11 @@ mod tests {
         let message = include_bytes!("../tests/fixtures/update_vector.txt");
         let signature = include_str!("../tests/fixtures/update_vector.txt.sig");
         assert!(verify_signature(&RELEASE_PUBLIC_KEY, message, signature));
-        assert!(!verify_signature(&RELEASE_PUBLIC_KEY, b"adulterado", signature));
+        assert!(!verify_signature(
+            &RELEASE_PUBLIC_KEY,
+            b"adulterado",
+            signature
+        ));
     }
 
     #[test]
