@@ -309,6 +309,24 @@ page rendering assíncrono com LOD simples.
   segura quando a topologia de monitores mudar.
 - [ ] BF-413 Completar i18n e remover strings de UI hardcoded.
 - [ ] BF-414 Remover módulos stubs mortos ou conectá-los explicitamente.
+- [ ] BF-415 Modo Moldura: exibir o PDF sem janela, contido num frame, no
+  estilo PureRef. Escopo:
+  - janela sem decoração do Windows, borda fina do tema e página ocupando
+    toda a área, com a janela travada na proporção da página;
+  - arrastar a página move a janela; bordas e cantos redimensionam;
+  - roda troca de página e Ctrl + roda dá zoom/pan dentro da moldura,
+    mantendo o contrato do resto do app;
+  - menu de botão direito com Sempre no topo, navegação, Ir para página,
+    Abrir arquivo, Sair do modo e Fechar; atalho dedicado e botão na toolbar;
+  - reaproveita o pipeline de Single Page (worker, cache e textura), sem
+    novo caminho de render;
+  - sem persistência por padrão: cada sessão abre no modo normal. Lembrar
+    modo, posição, tamanho e Sempre no topo fica como opção futura em
+    Configurações, desligada por padrão;
+  - fora do escopo inicial: transparência/opacidade da janela (exige janela
+    transparente na criação e chamada Win32 fora do eframe);
+  - decisão em aberto: a moldura segue o tema (inclui inversão no Dark) ou
+    mostra sempre a página original.
 
 ### DoD
 
@@ -463,7 +481,7 @@ BF-6 + BF-7 completos e RC validada.
 4. BF-106/BF-108 — busca cancelável e lifecycle correto de jobs.
 5. BF-201 a BF-206 — virtualização real e cache por memória.
 6. Reexecutar benchmark e decidir BF-3.
-7. BF-401 a BF-414 — fechar promessas funcionais.
+7. BF-401 a BF-415 — fechar promessas funcionais e modo Moldura.
 8. BF-5, BF-6 e BF-7 — robustez, distribuição e release.
 
 Esse recorte preserva a base visual já construída e concentra esforço no que
