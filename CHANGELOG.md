@@ -91,6 +91,16 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Configurações, sessões e janela agora usam escrita atômica (temp → sync →
+  rename); TOML corrompido é movido para `*.corrupt-<unix>.toml`, o app volta ao
+  padrão e avisa. Falhas de gravação e da associação `.pdf` viram toasts.
+- PDF protegido por senha, corrompido ou ausente mostra a mensagem certa;
+  caminhos Unicode abrem normalmente (testado com fixtures versionadas).
+- Panic em job do worker vira falha daquele job (`panic = "unwind"`), sem
+  derrubar o app nem envenenar o lock do PDFium; páginas com dimensões
+  inválidas são recusadas com erro claro.
+- A `pdfium.dll` extraída é validada pelo conteúdo inteiro (não só tamanho) e
+  gravada atomicamente.
 - A qualidade de render alterava o tamanho da página na tela e telas HiDPI
   recebiam bitmaps ampliados; zoom alto em Ultra podia exceder o limite de
   textura da GPU.

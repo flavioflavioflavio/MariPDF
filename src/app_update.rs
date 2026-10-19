@@ -42,6 +42,15 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         }
     }
 
+    // Avisos de persistência/integração vindos de fora da UI
+    for notice in crate::notices::drain() {
+        let now = ctx.input(|i| i.time);
+        app.toast = Some(match notice.kind {
+            crate::notices::NoticeKind::Info => Toast::info(notice.message, 4.0, now),
+            crate::notices::NoticeKind::Error => Toast::error(notice.message, 5.0, now),
+        });
+    }
+
     // Arquivo pendente
     if let Some(path) = app.pending_open.take() {
         let c = ctx.clone();

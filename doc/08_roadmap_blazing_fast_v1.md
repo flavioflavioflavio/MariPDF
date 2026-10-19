@@ -126,13 +126,13 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 6. README e Cargo ainda contêm URLs e dados de doação placeholder.
 7. O README promete aproximadamente 25 MB de RAM e instalador de 8–10 MB sem
    benchmark que sustente esses números.
-8. Escritas TOML não são atômicas e erros de persistência são frequentemente
-   descartados; queda durante escrita pode perder configurações.
+8. [x] Escritas TOML não eram atômicas e erros eram descartados; agora `storage.rs`
+   grava temp → sync → rename, recupera TOML corrompido com backup e avisa o usuário.
 9. A associação de arquivo precisa registrar corretamente o aplicativo e orientar
    o usuário pelo fluxo do Windows, sem prometer que o app consegue forçar o
    `UserChoice` moderno.
-10. Não existe política explícita de suporte a PDF malformado, crash do engine ou
-    isolamento do renderizador.
+10. [x] Não existia política para PDF malformado, crash do engine ou isolamento;
+    ver testes de robustez e ADR-007.
 
 ## 3. Decisões arquiteturais para a v1.0
 
@@ -348,16 +348,16 @@ page rendering assíncrono com LOD simples.
 
 ### Entregas
 
-- [ ] BF-501 Centralizar diretório, schema e versão de settings/sessões.
-- [ ] BF-502 Implementar escrita atômica `temp → flush → rename`.
-- [ ] BF-503 Fazer backup/recovery de TOML corrompido e logar motivo.
-- [ ] BF-504 Propagar erros hoje descartados e mostrar feedback quando acionável.
-- [ ] BF-505 Definir limites para páginas, dimensões, alocações e zoom.
-- [ ] BF-506 Testar PDF corrompido, senha, arquivo removido, path Unicode, rede lenta
+- [x] BF-501 Centralizar diretório, schema e versão de settings/sessões.
+- [x] BF-502 Implementar escrita atômica `temp → flush → rename`.
+- [x] BF-503 Fazer backup/recovery de TOML corrompido e logar motivo.
+- [x] BF-504 Propagar erros hoje descartados e mostrar feedback quando acionável.
+- [x] BF-505 Definir limites para páginas, dimensões, alocações e zoom.
+- [x] BF-506 Testar PDF corrompido, senha, arquivo removido, path Unicode, rede lenta
   e falta de espaço/permissão.
-- [ ] BF-507 Tratar falha/panic de worker sem derrubar silenciosamente a feature.
-- [ ] BF-508 Decidir, por threat model, se isolamento do PDFium em processo separado
-  é requisito de v1.x; documentar custo e benefício.
+- [x] BF-507 Tratar falha/panic de worker sem derrubar silenciosamente a feature.
+- [x] BF-508 Decidir, por threat model, se isolamento do PDFium em processo separado
+  é requisito de v1.x; documentar custo e benefício. Decisão: ADR-007.
 
 ### DoD
 

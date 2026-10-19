@@ -91,19 +91,28 @@ fn extract_pdfium_dll() -> anyhow::Result<std::path::PathBuf> {
 
     let dll_path = target_dir.join("pdfium.dll");
 
-    // Só reescreve se o arquivo não existe ou tem tamanho diferente
-    let should_write = match std::fs::metadata(&dll_path) {
-        Ok(meta) => meta.len() != PDFIUM_DLL_BYTES.len() as u64,
-        Err(_) => true,
-    };
+    // Compara o conteúdo inteiro (não só o tamanho): uma DLL truncada ou
+    // trocada por outra do mesmo tamanho nunca deve ser carregada.
+    let up_to_date = std::fs::read(&dll_path)
+        .map(|existing| existing == PDFIUM_DLL_BYTES)
+        .unwrap_or(false);
 
-    if should_write {
+    if !up_to_date {
         tracing::info!("Extraindo pdfium.dll para {}", dll_path.display());
-        std::fs::write(&dll_path, PDFIUM_DLL_BYTES)
+        crate::storage::write_atomic(&dll_path, PDFIUM_DLL_BYTES)
             .map_err(|e| anyhow::anyhow!("Falha ao extrair pdfium.dll: {e}"))?;
     }
 
     Ok(dll_path)
+}
+
+/// Limite de sanidade para uma página (PDF permite até 14.400 pt por lado;
+/// UserUnit pode ampliar). Fora disso o render é recusado com erro claro.
+const MAX_PAGE_SIDE_PTS: f32 = 200_000.0;
+
+pub(crate) fn valid_page_size(width_pts: f32, height_pts: f32) -> bool {
+    let ok = |v: f32| v.is_finite() && v > 0.0 && v <= MAX_PAGE_SIDE_PTS;
+    ok(width_pts) && ok(height_pts)
 }
 
 /// Representa um documento PDF aberto e pronto para renderizar.
@@ -118,6 +127,9 @@ pub struct PdfEngine {
 impl PdfEngine {
     /// Abre um arquivo PDF usando pdfium.
     pub fn open(path: &Path, pdfium: Arc<Mutex<Pdfium>>) -> anyhow::Result<Self> {
+        if !path.is_file() {
+            anyhow::bail!("Arquivo não encontrado (not found): {}", path.display());
+        }
         let path_str = path
             .to_str()
             .ok_or_else(|| anyhow::anyhow!("Caminho com caracteres inválidos"))?;
@@ -158,10 +170,12 @@ impl PdfEngine {
         &self,
         operation: impl FnOnce(&PdfDocument<'static>) -> anyhow::Result<T>,
     ) -> anyhow::Result<T> {
+        // Um panic em outro job envenena o mutex, mas o estado do PDFium segue
+        // válido: recupera o lock em vez de inutilizar o documento inteiro.
         let _pdfium_guard = self
             .pdfium
             .lock()
-            .map_err(|_| anyhow::anyhow!("Lock global do Pdfium foi corrompido"))?;
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let doc = self
             .doc
             .as_ref()
@@ -201,6 +215,12 @@ impl PdfEngine {
 
             let width_pts = page.width().value;
             let height_pts = page.height().value;
+            if !valid_page_size(width_pts, height_pts) {
+                anyhow::bail!(
+                    "Página {} com dimensões inválidas ({width_pts}×{height_pts} pt)",
+                    page_index + 1
+                );
+            }
             // Zoom alto × qualidade pode passar do limite de textura da GPU;
             // a página mantém o tamanho na tela e só perde nitidez.
             let scale = crate::ui::page_scale::capped_raster_scale(width_pts, height_pts, scale);

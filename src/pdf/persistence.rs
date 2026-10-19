@@ -1,15 +1,13 @@
-// pdf/persistence.rs — Persistência de sessão por arquivo
+// pdf/persistence.rs — Persistência de sessão por arquivo e da janela
 //
-// Salva: última página, zoom, modo de visualização
-// Local: %APPDATA%\maripdf\session.toml
+// Salva: última página, zoom e último acesso por PDF; posição da janela.
+// Local e I/O resiliente: storage.rs (%LOCALAPPDATA%\maripdf\*.toml).
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-const APP_DIR: &str = "maripdf";
-const SESSION_FILE: &str = "session.toml";
-const WINDOW_FILE: &str = "window.toml";
+use crate::storage::{self, StoreKind};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FileSession {
@@ -24,16 +22,30 @@ pub struct FileSession {
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct SessionStore {
+    #[serde(default = "storage::schema_version")]
+    schema_version: u32,
     /// Chave: caminho absoluto do arquivo PDF
+    #[serde(default)]
     files: HashMap<String, FileSession>,
 }
 
 /// Posição, tamanho e maximização da janela entre sessões. Arquivos do formato
 /// antigo (só largura/altura aproximadas) são ignorados e caem no padrão.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WindowSession {
+    #[serde(default = "storage::schema_version")]
+    pub schema_version: u32,
     #[serde(default)]
     pub placement: Option<crate::platform::window_placement::Placement>,
+}
+
+impl Default for WindowSession {
+    fn default() -> Self {
+        Self {
+            schema_version: storage::SCHEMA_VERSION,
+            placement: None,
+        }
+    }
 }
 
 pub struct PersistenceManager {
@@ -44,7 +56,7 @@ pub struct PersistenceManager {
 impl PersistenceManager {
     /// Carrega (ou cria) o arquivo de sessão
     pub fn load() -> Self {
-        let path = session_path();
+        let path = storage::session_path();
         let store = try_load(&path).unwrap_or_default();
         Self { path, store }
     }
@@ -106,57 +118,27 @@ impl PersistenceManager {
 
     /// Carrega o estado da janela da sessão anterior.
     pub fn load_window() -> WindowSession {
-        let path = window_path();
-        std::fs::read_to_string(&path)
-            .ok()
-            .and_then(|s| toml::from_str(&s).ok())
-            .unwrap_or_default()
+        storage::load_toml(&storage::window_path(), StoreKind::Window)
     }
 
-    /// Persiste o estado da janela com escrita atômica (temp → rename).
+    /// Persiste o estado da janela (escrita atômica em storage.rs).
     pub fn save_window(
         placement: crate::platform::window_placement::Placement,
     ) -> anyhow::Result<()> {
-        let path = window_path();
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
         let session = WindowSession {
             placement: Some(placement),
+            ..WindowSession::default()
         };
-        let tmp = path.with_extension("toml.tmp");
-        std::fs::write(&tmp, toml::to_string_pretty(&session)?)?;
-        std::fs::rename(&tmp, &path)?;
-        Ok(())
+        storage::save_toml(&storage::window_path(), &session, StoreKind::Window)
     }
-}
-
-fn session_path() -> PathBuf {
-    let base = dirs::data_local_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join(APP_DIR).join(SESSION_FILE)
-}
-
-fn window_path() -> PathBuf {
-    let base = dirs::data_local_dir()
-        .or_else(dirs::home_dir)
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join(APP_DIR).join(WINDOW_FILE)
 }
 
 fn try_load(path: &Path) -> Option<SessionStore> {
-    let text = std::fs::read_to_string(path).ok()?;
-    toml::from_str(&text).ok()
+    Some(storage::load_toml(path, StoreKind::Session))
 }
 
 fn try_save(path: &Path, store: &SessionStore) -> anyhow::Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let text = toml::to_string_pretty(store)?;
-    std::fs::write(path, text)?;
-    Ok(())
+    storage::save_toml(path, store, StoreKind::Session)
 }
 
 #[cfg(test)]

@@ -221,7 +221,10 @@ pub(super) fn tab_privacy(
                     tok,
                 );
                 if resp.clicked() {
-                    let _ = crate::platform::file_assoc::unregister_pdf_association();
+                    if let Err(error) = crate::platform::file_assoc::unregister_pdf_association() {
+                        tracing::warn!("associação .pdf: falha ao remover: {error}");
+                        crate::notices::error(t!("settings-assoc-failed", error => error));
+                    }
                 }
             } else {
                 let resp = action_btn(
@@ -232,7 +235,10 @@ pub(super) fn tab_privacy(
                     tok,
                 );
                 if resp.clicked() {
-                    let _ = crate::platform::file_assoc::register_pdf_association();
+                    if let Err(error) = crate::platform::file_assoc::register_pdf_association() {
+                        tracing::warn!("associação .pdf: falha ao registrar: {error}");
+                        crate::notices::error(t!("settings-assoc-failed", error => error));
+                    }
                 }
             }
         });

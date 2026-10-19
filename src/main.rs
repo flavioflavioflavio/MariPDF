@@ -22,10 +22,12 @@ mod app_window;
 mod byte_cache;
 mod i18n;
 mod logger;
+mod notices;
 mod pdf;
 mod platform;
 mod settings;
 mod settings_types;
+mod storage;
 mod text_selection;
 mod ui;
 

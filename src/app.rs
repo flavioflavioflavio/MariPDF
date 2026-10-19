@@ -293,7 +293,11 @@ pub(crate) fn error_to_user_message(e: &anyhow::Error) -> String {
     if s.contains("password") || s.contains("encrypted") || s.contains("senha") {
         return crate::t!("err-pdf-password");
     }
-    if s.contains("corrupt") || s.contains("invalid") || s.contains("damaged") {
+    if s.contains("corrupt")
+        || s.contains("invalid")
+        || s.contains("damaged")
+        || s.contains("format")
+    {
         return crate::t!("err-pdf-corrupt");
     }
     if s.contains("not found") || s.contains("no such file") {

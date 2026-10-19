@@ -176,3 +176,11 @@ palette-sepia-3 = Old Rose
 sel-copy = Copy (Ctrl+C)
 sel-select-all = Select all (Ctrl+A)
 page-render-failed = Could not display page { $page }
+
+## Persistência e integração
+storage-save-failed = Could not save { $what }: { $error }
+storage-recovered = { $what } was corrupted and was reset to defaults (backup kept next to it)
+storage-what-settings = the settings
+storage-what-session = the reading history
+storage-what-window = the window position
+settings-assoc-failed = Could not change the .pdf association: { $error }

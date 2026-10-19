@@ -70,7 +70,9 @@ opt-level     = 3
 lto           = true          # Link-Time Optimization — binário menor e mais rápido
 codegen-units = 1             # Melhor otimização, build mais lento
 strip         = true          # Remove símbolos de debug do binário
-panic         = "abort"       # Menor binário, sem stack unwinding
+# Unwind permite que o worker transforme um panic de job em falha recuperável
+# (BF-507) em vez de encerrar o processo; o custo em tamanho é pequeno.
+panic         = "unwind"
 
 [profile.dev]
 opt-level     = 1             # Equilibrio entre velocidade de build e performance em dev

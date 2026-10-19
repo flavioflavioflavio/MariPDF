@@ -176,3 +176,11 @@ palette-sepia-3 = Rosa Antigo
 sel-copy = Copiar (Ctrl+C)
 sel-select-all = Selecionar tudo (Ctrl+A)
 page-render-failed = Não foi possível exibir a página { $page }
+
+## Persistência e integração
+storage-save-failed = Não foi possível salvar { $what }: { $error }
+storage-recovered = { $what } estava corrompido e voltou ao padrão (backup guardado ao lado)
+storage-what-settings = as configurações
+storage-what-session = o histórico de leitura
+storage-what-window = a posição da janela
+settings-assoc-failed = Não foi possível alterar a associação .pdf: { $error }

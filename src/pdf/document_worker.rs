@@ -449,7 +449,9 @@ fn run_worker(
             metrics.cancelled.fetch_add(1, AtomicOrdering::AcqRel);
             JobOutcome::Cancelled
         } else {
-            execute_job(&engine, job.kind).unwrap_or_else(|error| {
+            // Um panic dentro do job vira falha daquele job; o worker segue
+            // atendendo a fila em vez de deixar a feature morta em silêncio.
+            guarded(|| execute_job(&engine, job.kind)).unwrap_or_else(|error| {
                 metrics.failed.fetch_add(1, AtomicOrdering::AcqRel);
                 JobOutcome::Failed(error.to_string())
             })
@@ -471,6 +473,20 @@ fn run_worker(
             wake();
         }
     }
+}
+
+/// Executa um job convertendo panic em erro comum.
+pub(crate) fn guarded<T>(job: impl FnOnce() -> anyhow::Result<T>) -> anyhow::Result<T> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(job))
+        .unwrap_or_else(|panic| Err(anyhow::anyhow!("panic no job: {}", panic_message(&panic))))
+}
+
+fn panic_message(panic: &Box<dyn std::any::Any + Send>) -> String {
+    panic
+        .downcast_ref::<&str>()
+        .map(|s| s.to_string())
+        .or_else(|| panic.downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "sem mensagem".into())
 }
 
 fn execute_job(engine: &PdfEngine, kind: JobKind) -> anyhow::Result<JobOutcome> {
