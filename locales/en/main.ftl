@@ -15,19 +15,23 @@ about-desc = Ultra-light PDF reader for Windows.
 about-version = Version { $version }
 
 ## Toolbar
-toolbar-back-hint = Back (close PDF)
-toolbar-toc-hint = Table of Contents
-toolbar-thumbs-hint = Page thumbnails
+toolbar-back-hint = Back (closes the PDF)
+toolbar-toc-hint = Contents
+toolbar-thumbs-hint = Thumbnails
 toolbar-settings-hint = Settings
 toolbar-about-hint = About MariPDF
-toolbar-color-hint = Toggle color mode
+toolbar-color-hint = Switch theme (Dark · Light · Sepia)
 toolbar-mode-single = Single page (Ctrl+Shift+M)
 toolbar-mode-continuous = Continuous (Ctrl+Shift+M)
-toolbar-fit-page-hint = Fit Page (Ctrl+0)
-toolbar-fit-width-hint = Fit Width (W)
+toolbar-fit-page-hint = Fit page (Ctrl+0)
+toolbar-fit-width-hint = Fit width (W)
 toolbar-goto-hint = Go to page (Ctrl+G)
-toolbar-prev-hint = Previous
-toolbar-next-hint = Next
+toolbar-prev-hint = Previous page (←)
+toolbar-next-hint = Next page (→)
+toolbar-zoom-100 = Actual size (100%)
+toolbar-zoom-menu-hint = Zoom options
+toolbar-zoom-out-hint = Zoom out (Ctrl+−)
+toolbar-zoom-in-hint = Zoom in (Ctrl++)
 
 ## Home
 home-recents = RECENTS
@@ -96,17 +100,17 @@ toast-text-copied = Text copied!
 toast-no-text = Page has no extractable text
 toast-text-fail = Failed to extract text
 
-# Modo Moldura
-frame-enter = Frame mode (Ctrl+Shift+F)
+# Modo Flutuante
+frame-enter = Float mode (Ctrl+Shift+F)
 frame-always-on-top = Always on top
 frame-next = Next page
 frame-prev = Previous page
 frame-goto = Go to page…
 frame-reset-view = Fit page
 frame-open = Open file…
-frame-exit = Exit frame (Esc)
+frame-exit = Exit Float mode (Esc)
 frame-close = Close MariPDF
-frame-bar-open = Frame controls
+frame-bar-open = Float mode controls
 frame-bar-close = Collapse controls
 frame-zoom-in = Zoom in (Ctrl + wheel)
 frame-zoom-out = Zoom out (Ctrl + wheel)

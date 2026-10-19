@@ -1,5 +1,8 @@
 // app_toolbar.rs — Barra de ferramentas do leitor PDF
-// Extraído de app_reader.rs para manter abaixo de 250 linhas.
+// Três zonas: documento (esquerda), navegação de página (centro) e
+// visualização (direita). Um único estilo de botão, ícones Phosphor e
+// tooltips via Fluent. A zona direita é desenhada primeiro para que o centro
+// e o nome do arquivo se ajustem ao espaço que sobra em janelas estreitas.
 
 use crate::app::MariApp;
 use crate::app_color_mode::ColorMode;
@@ -9,6 +12,62 @@ use crate::t;
 use crate::ui::icons;
 use crate::ui::viewer::ViewMode;
 use eframe::egui;
+
+const ROW_HEIGHT: f32 = 28.0;
+const BTN_SIZE: egui::Vec2 = egui::vec2(32.0, ROW_HEIGHT);
+const ICON_SIZE: f32 = 16.0;
+/// Largura do grupo central `‹ n / N ›`.
+const PAGE_GROUP_WIDTH: f32 = 148.0;
+const ZONE_GAP: f32 = 12.0;
+/// Menor largura útil para ainda mostrar o nome do arquivo.
+const MIN_NAME_WIDTH: f32 = 64.0;
+
+/// Cores da toolbar derivadas do tema atual.
+#[derive(Clone, Copy)]
+struct Tok {
+    icon: egui::Color32,
+    text: egui::Color32,
+    subtle: egui::Color32,
+    accent: egui::Color32,
+    hover: egui::Color32,
+    group_fill: egui::Color32,
+    border: egui::Color32,
+}
+
+impl Tok {
+    fn new(cm: ColorMode, palette: u8) -> Self {
+        Self {
+            icon: cm.text_muted(),
+            text: cm.text_primary(),
+            subtle: cm.text_subtle(),
+            accent: cm.accent_for(palette),
+            hover: cm.surface_hover(),
+            group_fill: cm.statusbar_for(palette),
+            border: cm.border(),
+        }
+    }
+}
+
+/// Ações coletadas durante o desenho e aplicadas depois, fora dos closures.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum ToolbarAction {
+    Back,
+    ToggleToc,
+    ToggleThumbs,
+    PrevPage,
+    NextPage,
+    GoTo,
+    ZoomOut,
+    ZoomIn,
+    Zoom100,
+    FitWidth,
+    FitPage,
+    SetMode(ViewMode),
+    Float,
+    CycleTheme,
+    Settings,
+    About,
+}
 
 impl MariApp {
     #[allow(clippy::too_many_arguments)]
@@ -24,439 +83,435 @@ impl MariApp {
         tb_alpha: u8,
         dw: f32,
     ) {
-        let palette_idx = self.settings.palette.0;
-        let accent = color_mode.accent_for(palette_idx);
-        let hover_fill =
-            egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 18);
-        let hover_fill_strong =
-            egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 35);
+        let palette = self.settings.palette.0;
+        let tok = Tok::new(color_mode, palette);
+        let surface = color_mode.surface_for(palette);
+        let fill = surface.gamma_multiply(self.toolbar_opacity.max(0.0));
+        let border = color_mode.border().gamma_multiply(tb_alpha as f32 / 255.0);
+        let side_panel = self.side_panel;
+        let mut actions: Vec<ToolbarAction> = Vec::new();
 
         egui::TopBottomPanel::top("toolbar")
             .frame(
                 egui::Frame::new()
-                    .fill({
-                        let s = color_mode.surface_for(palette_idx);
-                        egui::Color32::from_rgba_premultiplied(
-                            s.r(),
-                            s.g(),
-                            s.b(),
-                            ((s.a() as f32) * self.toolbar_opacity) as u8,
-                        )
-                    })
-                    .stroke(egui::Stroke::new(
-                        dw,
-                        egui::Color32::from_rgba_premultiplied(
-                            color_mode.border().r(),
-                            color_mode.border().g(),
-                            color_mode.border().b(),
-                            tb_alpha,
-                        ),
-                    ))
-                    .inner_margin(egui::Margin::symmetric(12, 5)),
+                    .fill(fill)
+                    .stroke(egui::Stroke::new(dw, border))
+                    .inner_margin(egui::Margin::symmetric(10, 6)),
             )
             .show(ctx, |ui| {
-                let make_icon_btn = |ic: &str, size: f32| -> egui::Button<'_> {
-                    egui::Button::new(icons::ph(ic, size, color_mode.text_muted()))
-                        .fill(egui::Color32::TRANSPARENT)
-                        .stroke(egui::Stroke::NONE)
-                };
-                ui.horizontal(|ui| {
-                    // ← Voltar
-                    let r = ui
-                        .add(
-                            egui::Button::new(icons::ph(
-                                icons::ARROW_LEFT,
-                                17.0,
-                                color_mode.text_muted(),
-                            ))
-                            .fill(egui::Color32::TRANSPARENT)
-                            .stroke(egui::Stroke::NONE),
-                        )
-                        .on_hover_text("Voltar (fecha PDF)");
-                    if r.hovered() {
-                        ui.painter().rect_filled(
-                            r.rect,
-                            egui::CornerRadius::same(5),
-                            hover_fill_strong,
-                        );
-                        ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if r.clicked() {
-                        self.save_session();
-                        self.pending_close = true;
-                    }
+                let (row, _) = ui.allocate_exact_size(
+                    egui::vec2(ui.available_width(), ROW_HEIGHT),
+                    egui::Sense::hover(),
+                );
 
-                    ui.add_space(4.0);
-                    ui.separator();
-                    ui.add_space(6.0);
+                // ── Direita: zoom · modo · Flutuante · tema/config/sobre ──
+                let mut right = zone(ui, row, egui::Layout::right_to_left(egui::Align::Center));
+                right_zone(&mut right, &tok, color_mode, zoom_pct, mode, &mut actions);
+                let right_left = right.min_rect().left();
 
-                    // Side Panel
-                    let toc_color = if self.side_panel == SidePanelKind::Toc {
-                        accent
-                    } else {
-                        color_mode.text_muted()
-                    };
-                    let thumb_color = if self.side_panel == SidePanelKind::Thumbs {
-                        accent
-                    } else {
-                        color_mode.text_muted()
-                    };
+                // ── Centro: ‹ n / N › ────────────────────────────────────
+                let center_x = row
+                    .center()
+                    .x
+                    .min(right_left - ZONE_GAP - PAGE_GROUP_WIDTH * 0.5);
+                let center_rect = egui::Rect::from_center_size(
+                    egui::pos2(center_x, row.center().y),
+                    egui::vec2(PAGE_GROUP_WIDTH, ROW_HEIGHT),
+                );
+                let mut center = zone(
+                    ui,
+                    center_rect,
+                    egui::Layout::left_to_right(egui::Align::Center),
+                );
+                page_group(&mut center, &tok, current_page, page_count, &mut actions);
 
-                    let r_toc = ui
-                        .add(
-                            egui::Button::new(icons::ph(icons::LIST, 16.0, toc_color))
-                                .fill(if self.side_panel == SidePanelKind::Toc {
-                                    egui::Color32::from_rgba_unmultiplied(
-                                        accent.r(),
-                                        accent.g(),
-                                        accent.b(),
-                                        20,
-                                    )
-                                } else {
-                                    egui::Color32::TRANSPARENT
-                                })
-                                .stroke(egui::Stroke::NONE),
-                        )
-                        .on_hover_text("Índice / TOC");
-                    if r_toc.hovered() && self.side_panel != SidePanelKind::Toc {
-                        ui.painter().rect_filled(
-                            r_toc.rect,
-                            egui::CornerRadius::same(5),
-                            hover_fill,
-                        );
-                        ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if r_toc.clicked() {
-                        self.side_panel = if self.side_panel == SidePanelKind::Toc {
-                            SidePanelKind::None
-                        } else {
-                            SidePanelKind::Toc
-                        };
-                    }
-
-                    let r_th = ui
-                        .add(
-                            egui::Button::new(icons::ph(icons::SQUARES_FOUR, 16.0, thumb_color))
-                                .fill(if self.side_panel == SidePanelKind::Thumbs {
-                                    egui::Color32::from_rgba_unmultiplied(
-                                        accent.r(),
-                                        accent.g(),
-                                        accent.b(),
-                                        20,
-                                    )
-                                } else {
-                                    egui::Color32::TRANSPARENT
-                                })
-                                .stroke(egui::Stroke::NONE),
-                        )
-                        .on_hover_text("Miniaturas de página");
-                    if r_th.hovered() && self.side_panel != SidePanelKind::Thumbs {
-                        ui.painter().rect_filled(
-                            r_th.rect,
-                            egui::CornerRadius::same(5),
-                            hover_fill,
-                        );
-                        ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                    }
-                    if r_th.clicked() {
-                        self.side_panel = if self.side_panel == SidePanelKind::Thumbs {
-                            SidePanelKind::None
-                        } else {
-                            SidePanelKind::Thumbs
-                        };
-                        if self.side_panel == SidePanelKind::Thumbs && self.thumb_cache.is_none() {
-                            if let Some(worker) = &self.document_worker {
-                                self.thumb_cache =
-                                    Some(ThumbCache::new(self.page_count, worker.handle()));
-                            }
-                        }
-                    }
-
-                    ui.add_space(4.0);
-                    ui.separator();
-                    ui.add_space(6.0);
-
-                    let name = if filename.len() > 40 {
-                        format!("…{}", &filename[filename.len() - 38..])
-                    } else {
-                        filename.to_string()
-                    };
-                    ui.label(
-                        egui::RichText::new(name)
-                            .size(13.0)
-                            .color(color_mode.text_primary()),
-                    );
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Modo de cor
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new(color_mode.label())
-                                        .size(11.0)
-                                        .color(color_mode.text_muted()),
-                                )
-                                .fill(color_mode.statusbar_for(palette_idx))
-                                .stroke(egui::Stroke::new(1.0, color_mode.border()))
-                                .corner_radius(egui::CornerRadius::same(5)),
-                            )
-                            .on_hover_text("Alternar modo de cor")
-                            .clicked()
-                        {
-                            self.color_mode = self.color_mode.next();
-                            self.viewer.tex_cache.clear();
-                            self.viewer.texture = None;
-                            self.viewer.loaded_page = None;
-                            self.pending_rerender = true;
-                        }
-                        ui.add_space(2.0);
-
-                        // Configurações
-                        let rs = ui
-                            .add(
-                                egui::Button::new(icons::ph(
-                                    icons::GEAR,
-                                    15.0,
-                                    color_mode.text_muted(),
-                                ))
-                                .fill(color_mode.statusbar_for(palette_idx))
-                                .stroke(egui::Stroke::new(1.0, color_mode.border()))
-                                .corner_radius(egui::CornerRadius::same(5)),
-                            )
-                            .on_hover_text("Configurações");
-                        if rs.hovered() {
-                            ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if rs.clicked() {
-                            self.settings_open = !self.settings_open;
-                        }
-
-                        // About (?)
-                        let ra = ui
-                            .add(
-                                egui::Button::new(icons::ph(
-                                    icons::INFO,
-                                    15.0,
-                                    color_mode.text_muted(),
-                                ))
-                                .fill(color_mode.statusbar_for(palette_idx))
-                                .stroke(egui::Stroke::new(1.0, color_mode.border()))
-                                .corner_radius(egui::CornerRadius::same(5)),
-                            )
-                            .on_hover_text("Sobre o MariPDF");
-                        if ra.hovered() {
-                            ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if ra.clicked() {
-                            self.about.open = !self.about.open;
-                        }
-                        ui.add_space(4.0);
-
-                        // Toggle modo
-                        let (mode_icon, hint_mode) = match mode {
-                            ViewMode::SinglePage => (icons::SQUARE_HALF, "Contínuo (Ctrl+Shift+M)"),
-                            ViewMode::Continuous => (icons::ROWS, "Página única (Ctrl+Shift+M)"),
-                        };
-                        if ui
-                            .add(
-                                egui::Button::new(icons::ph(
-                                    mode_icon,
-                                    15.0,
-                                    color_mode.text_muted(),
-                                ))
-                                .fill(color_mode.statusbar_for(palette_idx))
-                                .stroke(egui::Stroke::new(1.0, color_mode.border()))
-                                .corner_radius(egui::CornerRadius::same(5)),
-                            )
-                            .on_hover_text(hint_mode)
-                            .clicked()
-                        {
-                            let c = ctx.clone();
-                            self.do_toggle_mode(&c);
-                        }
-                        // Modo Moldura
-                        let r_frame = frame_mode_button(
-                            ui,
-                            color_mode.statusbar_for(palette_idx),
-                            color_mode.border(),
-                            color_mode.text_muted(),
-                        )
-                        .on_hover_text(t!("frame-enter"));
-                        if r_frame.hovered() {
-                            ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if r_frame.clicked() {
-                            let c = ctx.clone();
-                            self.enter_frame_mode(&c);
-                        }
-                        ui.add_space(4.0);
-                        ui.separator();
-                        ui.add_space(4.0);
-
-                        // Fit Page / Fit Width
-                        let r_fw = ui
-                            .add(make_icon_btn(icons::FRAME_CORNERS, 15.0))
-                            .on_hover_text("Fit Page (Ctrl+0)");
-                        if r_fw.hovered() {
-                            ui.painter().rect_filled(
-                                r_fw.rect,
-                                egui::CornerRadius::same(5),
-                                hover_fill,
-                            );
-                            ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if r_fw.clicked() {
-                            let c = ctx.clone();
-                            self.fit_page(&c);
-                        }
-                        let r_fh = ui
-                            .add(make_icon_btn(icons::ARROWS_OUT, 15.0))
-                            .on_hover_text("Fit Width (W)");
-                        if r_fh.hovered() {
-                            ui.painter().rect_filled(
-                                r_fh.rect,
-                                egui::CornerRadius::same(5),
-                                hover_fill,
-                            );
-                            ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                        }
-                        if r_fh.clicked() {
-                            let c = ctx.clone();
-                            self.fit_width(&c);
-                        }
-                        ui.add_space(4.0);
-                        ui.separator();
-                        ui.add_space(4.0);
-
-                        // Zoom
-                        ui.label(
-                            egui::RichText::new(format!("{zoom_pct}%"))
-                                .size(12.0)
-                                .color(color_mode.text_muted())
-                                .monospace(),
-                        );
-                        ui.add_space(2.0);
-                        let r_zm = ui.add(make_icon_btn(icons::MINUS, 15.0));
-                        if r_zm.hovered() {
-                            ui.painter().rect_filled(
-                                r_zm.rect,
-                                egui::CornerRadius::same(5),
-                                hover_fill,
-                            );
-                        }
-                        if r_zm.clicked() {
-                            self.apply_zoom(ctx, -0.15);
-                        }
-                        let r_zr = ui
-                            .add(make_icon_btn(icons::ARROW_COUNTER_CW, 15.0))
-                            .on_hover_text("100%");
-                        if r_zr.hovered() {
-                            ui.painter().rect_filled(
-                                r_zr.rect,
-                                egui::CornerRadius::same(5),
-                                hover_fill,
-                            );
-                        }
-                        if r_zr.clicked() {
-                            self.set_zoom(ctx, 1.0);
-                        }
-                        let r_zp = ui.add(make_icon_btn(icons::PLUS, 15.0));
-                        if r_zp.hovered() {
-                            ui.painter().rect_filled(
-                                r_zp.rect,
-                                egui::CornerRadius::same(5),
-                                hover_fill,
-                            );
-                        }
-                        if r_zp.clicked() {
-                            self.apply_zoom(ctx, 0.15);
-                        }
-                        ui.add_space(4.0);
-                        ui.separator();
-                        ui.add_space(4.0);
-
-                        // Navegação
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    egui::RichText::new(format!(
-                                        "{}/{}",
-                                        current_page + 1,
-                                        page_count
-                                    ))
-                                    .size(12.0)
-                                    .color(color_mode.text_muted())
-                                    .monospace(),
-                                )
-                                .fill(color_mode.statusbar_for(palette_idx))
-                                .stroke(egui::Stroke::new(1.0, color_mode.border()))
-                                .corner_radius(egui::CornerRadius::same(4)),
-                            )
-                            .on_hover_text("Ir para página (Ctrl+G)")
-                            .clicked()
-                        {
-                            self.goto_open = true;
-                            self.goto_input.clear();
-                        }
-                        ui.add_space(2.0);
-                        let r_cn = ui
-                            .add(make_icon_btn(icons::CARET_RIGHT, 15.0))
-                            .on_hover_text("Próxima");
-                        if r_cn.hovered() {
-                            ui.painter().rect_filled(
-                                r_cn.rect,
-                                egui::CornerRadius::same(5),
-                                hover_fill,
-                            );
-                        }
-                        if r_cn.clicked() && current_page + 1 < page_count {
-                            let p = current_page + 1;
-                            let c = ctx.clone();
-                            self.go_to_page(&c, p);
-                        }
-                        let r_cp = ui
-                            .add(make_icon_btn(icons::CARET_LEFT, 15.0))
-                            .on_hover_text("Anterior");
-                        if r_cp.hovered() {
-                            ui.painter().rect_filled(
-                                r_cp.rect,
-                                egui::CornerRadius::same(5),
-                                hover_fill,
-                            );
-                        }
-                        if r_cp.clicked() && current_page > 0 {
-                            let p = current_page - 1;
-                            let c = ctx.clone();
-                            self.go_to_page(&c, p);
-                        }
-                    });
-                });
+                // ── Esquerda: voltar · painéis · nome ────────────────────
+                let left_rect = egui::Rect::from_min_max(
+                    row.min,
+                    egui::pos2(center_rect.left() - ZONE_GAP, row.max.y),
+                );
+                let mut left = zone(
+                    ui,
+                    left_rect,
+                    egui::Layout::left_to_right(egui::Align::Center),
+                );
+                left_zone(&mut left, &tok, side_panel, filename, &mut actions);
             });
+
+        for action in actions {
+            self.apply_toolbar_action(ctx, action);
+        }
+    }
+
+    fn apply_toolbar_action(&mut self, ctx: &egui::Context, action: ToolbarAction) {
+        match action {
+            ToolbarAction::Back => {
+                self.save_session();
+                self.pending_close = true;
+            }
+            ToolbarAction::ToggleToc => self.toggle_side_panel(SidePanelKind::Toc),
+            ToolbarAction::ToggleThumbs => self.toggle_side_panel(SidePanelKind::Thumbs),
+            ToolbarAction::PrevPage if self.current_page > 0 => {
+                let page = self.current_page - 1;
+                self.go_to_page(ctx, page);
+            }
+            ToolbarAction::NextPage if self.current_page + 1 < self.page_count => {
+                let page = self.current_page + 1;
+                self.go_to_page(ctx, page);
+            }
+            ToolbarAction::PrevPage | ToolbarAction::NextPage => {}
+            ToolbarAction::GoTo => {
+                self.search_open = false;
+                self.goto_open = true;
+                self.goto_input.clear();
+            }
+            ToolbarAction::ZoomOut => self.apply_zoom(ctx, -0.15),
+            ToolbarAction::ZoomIn => self.apply_zoom(ctx, 0.15),
+            ToolbarAction::Zoom100 => self.set_zoom(ctx, 1.0),
+            ToolbarAction::FitWidth => self.fit_width(ctx),
+            ToolbarAction::FitPage => self.fit_page(ctx),
+            ToolbarAction::SetMode(mode) => {
+                if self.viewer.mode != mode {
+                    self.do_toggle_mode(ctx);
+                }
+            }
+            ToolbarAction::Float => self.enter_frame_mode(ctx),
+            ToolbarAction::CycleTheme => {
+                self.color_mode = self.color_mode.next();
+                self.viewer.tex_cache.clear();
+                self.viewer.texture = None;
+                self.viewer.loaded_page = None;
+                self.pending_rerender = true;
+            }
+            ToolbarAction::Settings => self.settings_open = !self.settings_open,
+            ToolbarAction::About => self.about.open = !self.about.open,
+        }
+    }
+
+    fn toggle_side_panel(&mut self, kind: SidePanelKind) {
+        self.side_panel = if self.side_panel == kind {
+            SidePanelKind::None
+        } else {
+            kind
+        };
+        if self.side_panel == SidePanelKind::Thumbs && self.thumb_cache.is_none() {
+            if let Some(worker) = &self.document_worker {
+                self.thumb_cache = Some(ThumbCache::new(self.page_count, worker.handle()));
+            }
+        }
     }
 }
 
-/// Botão com ícone desenhado de moldura (retângulo com página interna).
-fn frame_mode_button(
+// ── Zonas ─────────────────────────────────────────────────────────────────────
+
+fn zone(ui: &mut egui::Ui, rect: egui::Rect, layout: egui::Layout) -> egui::Ui {
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
+    child.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+    child
+}
+
+fn left_zone(
     ui: &mut egui::Ui,
-    fill: egui::Color32,
-    border: egui::Color32,
-    icon: egui::Color32,
+    tok: &Tok,
+    side_panel: SidePanelKind,
+    filename: &str,
+    actions: &mut Vec<ToolbarAction>,
+) {
+    if tool_button(ui, icons::ARROW_LEFT, false, true, tok)
+        .on_hover_text(t!("toolbar-back-hint"))
+        .clicked()
+    {
+        actions.push(ToolbarAction::Back);
+    }
+    divider(ui, tok);
+    if tool_button(ui, icons::LIST, side_panel == SidePanelKind::Toc, true, tok)
+        .on_hover_text(t!("toolbar-toc-hint"))
+        .clicked()
+    {
+        actions.push(ToolbarAction::ToggleToc);
+    }
+    if tool_button(
+        ui,
+        icons::SQUARES_FOUR,
+        side_panel == SidePanelKind::Thumbs,
+        true,
+        tok,
+    )
+    .on_hover_text(t!("toolbar-thumbs-hint"))
+    .clicked()
+    {
+        actions.push(ToolbarAction::ToggleThumbs);
+    }
+
+    let name_width = ui.available_width() - 8.0;
+    if name_width >= MIN_NAME_WIDTH {
+        ui.add_space(8.0);
+        ui.allocate_ui(egui::vec2(name_width, ROW_HEIGHT), |ui| {
+            ui.add(
+                egui::Label::new(egui::RichText::new(filename).size(13.0).color(tok.text))
+                    .truncate(),
+            )
+            .on_hover_text(filename);
+        });
+    }
+}
+
+fn page_group(
+    ui: &mut egui::Ui,
+    tok: &Tok,
+    current_page: usize,
+    page_count: usize,
+    actions: &mut Vec<ToolbarAction>,
+) {
+    group(ui, tok, |ui| {
+        if tool_button(ui, icons::CARET_LEFT, false, current_page > 0, tok)
+            .on_hover_text(t!("toolbar-prev-hint"))
+            .clicked()
+        {
+            actions.push(ToolbarAction::PrevPage);
+        }
+        let label = egui::RichText::new(format!("{} / {}", current_page + 1, page_count))
+            .size(12.5)
+            .monospace()
+            .color(tok.text);
+        let width = PAGE_GROUP_WIDTH - BTN_SIZE.x * 2.0 - 12.0;
+        if text_button(ui, label, width, tok)
+            .on_hover_text(t!("toolbar-goto-hint"))
+            .clicked()
+        {
+            actions.push(ToolbarAction::GoTo);
+        }
+        if tool_button(
+            ui,
+            icons::CARET_RIGHT,
+            false,
+            current_page + 1 < page_count,
+            tok,
+        )
+        .on_hover_text(t!("toolbar-next-hint"))
+        .clicked()
+        {
+            actions.push(ToolbarAction::NextPage);
+        }
+    });
+}
+
+/// Desenhada da direita para a esquerda: o último item fica mais à esquerda.
+fn right_zone(
+    ui: &mut egui::Ui,
+    tok: &Tok,
+    color_mode: ColorMode,
+    zoom_pct: u32,
+    mode: ViewMode,
+    actions: &mut Vec<ToolbarAction>,
+) {
+    if tool_button(ui, icons::INFO, false, true, tok)
+        .on_hover_text(t!("toolbar-about-hint"))
+        .clicked()
+    {
+        actions.push(ToolbarAction::About);
+    }
+    if tool_button(ui, icons::GEAR, false, true, tok)
+        .on_hover_text(t!("toolbar-settings-hint"))
+        .clicked()
+    {
+        actions.push(ToolbarAction::Settings);
+    }
+    let theme_icon = match color_mode {
+        ColorMode::Dark => icons::MOON,
+        ColorMode::Light => icons::SUN,
+        ColorMode::Sepia => icons::LAMP_PENDANT,
+    };
+    if tool_button(ui, theme_icon, false, true, tok)
+        .on_hover_text(t!("toolbar-color-hint"))
+        .clicked()
+    {
+        actions.push(ToolbarAction::CycleTheme);
+    }
+    divider(ui, tok);
+
+    if tool_button(ui, icons::PICTURE_IN_PICTURE, false, true, tok)
+        .on_hover_text(t!("frame-enter"))
+        .clicked()
+    {
+        actions.push(ToolbarAction::Float);
+    }
+    divider(ui, tok);
+
+    // Grupos herdam o layout da direita para a esquerda: itens em ordem inversa.
+    group(ui, tok, |ui| {
+        for (glyph, value, hint) in [
+            (icons::ROWS, ViewMode::Continuous, "toolbar-mode-continuous"),
+            (icons::FILE, ViewMode::SinglePage, "toolbar-mode-single"),
+        ] {
+            if tool_button(ui, glyph, mode == value, true, tok)
+                .on_hover_text(t!(hint))
+                .clicked()
+            {
+                actions.push(ToolbarAction::SetMode(value));
+            }
+        }
+    });
+    ui.add_space(6.0);
+
+    group(ui, tok, |ui| {
+        if tool_button(ui, icons::PLUS, false, true, tok)
+            .on_hover_text(t!("toolbar-zoom-in-hint"))
+            .clicked()
+        {
+            actions.push(ToolbarAction::ZoomIn);
+        }
+        zoom_menu(ui, tok, zoom_pct, actions);
+        if tool_button(ui, icons::MINUS, false, true, tok)
+            .on_hover_text(t!("toolbar-zoom-out-hint"))
+            .clicked()
+        {
+            actions.push(ToolbarAction::ZoomOut);
+        }
+    });
+}
+
+/// `100% ▾` abre um menu com zoom real e os ajustes à janela.
+fn zoom_menu(ui: &mut egui::Ui, tok: &Tok, zoom_pct: u32, actions: &mut Vec<ToolbarAction>) {
+    let label = egui::RichText::new(format!("{zoom_pct}%"))
+        .size(12.5)
+        .monospace()
+        .color(tok.text);
+    let resp = text_button(ui, label, 58.0, tok).on_hover_text(t!("toolbar-zoom-menu-hint"));
+    let popup_id = ui.make_persistent_id("toolbar_zoom_menu");
+    if resp.clicked() {
+        ui.memory_mut(|m| m.toggle_popup(popup_id));
+    }
+    egui::popup_below_widget(
+        ui,
+        popup_id,
+        &resp,
+        egui::PopupCloseBehavior::CloseOnClick,
+        |ui| {
+            ui.set_min_width(180.0);
+            for (glyph, key, action) in [
+                (
+                    icons::ARROW_COUNTER_CW,
+                    "toolbar-zoom-100",
+                    ToolbarAction::Zoom100,
+                ),
+                (
+                    icons::ARROWS_OUT_LINE_H,
+                    "toolbar-fit-width-hint",
+                    ToolbarAction::FitWidth,
+                ),
+                (
+                    icons::FRAME_CORNERS,
+                    "toolbar-fit-page-hint",
+                    ToolbarAction::FitPage,
+                ),
+            ] {
+                let mut text = egui::text::LayoutJob::default();
+                text.append(
+                    glyph,
+                    0.0,
+                    egui::TextFormat::simple(
+                        egui::FontId::new(14.0, egui::FontFamily::Name("Icons".into())),
+                        tok.icon,
+                    ),
+                );
+                text.append(
+                    &t!(key),
+                    10.0,
+                    egui::TextFormat::simple(egui::FontId::proportional(13.0), tok.text),
+                );
+                if ui.add(egui::Button::new(text).frame(false)).clicked() {
+                    actions.push(action);
+                }
+            }
+        },
+    );
+}
+
+// ── Widgets ───────────────────────────────────────────────────────────────────
+
+/// Contêiner discreto que agrupa controles relacionados.
+fn group(ui: &mut egui::Ui, tok: &Tok, add: impl FnOnce(&mut egui::Ui)) {
+    egui::Frame::new()
+        .fill(tok.group_fill)
+        .stroke(egui::Stroke::new(1.0, tok.border))
+        .corner_radius(egui::CornerRadius::same(8))
+        .inner_margin(egui::Margin::same(1))
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            add(ui);
+        });
+}
+
+/// Botão de ícone: fundo só no hover ou quando ativo, sempre por baixo do glifo.
+fn tool_button(
+    ui: &mut egui::Ui,
+    glyph: &str,
+    active: bool,
+    enabled: bool,
+    tok: &Tok,
 ) -> egui::Response {
-    let resp = ui.add(
-        egui::Button::new("")
-            .min_size(egui::vec2(28.0, 24.0))
-            .fill(fill)
-            .stroke(egui::Stroke::new(1.0, border))
-            .corner_radius(egui::CornerRadius::same(5)),
+    let sense = if enabled {
+        egui::Sense::click()
+    } else {
+        egui::Sense::hover()
+    };
+    let (rect, resp) = ui.allocate_exact_size(BTN_SIZE, sense);
+    let bg = if active {
+        tok.accent.gamma_multiply(0.16)
+    } else if enabled && resp.hovered() {
+        tok.hover
+    } else {
+        egui::Color32::TRANSPARENT
+    };
+    let color = match (enabled, active) {
+        (false, _) => tok.subtle,
+        (true, true) => tok.accent,
+        (true, false) if resp.hovered() => tok.text,
+        (true, false) => tok.icon,
+    };
+    ui.painter()
+        .rect_filled(rect.shrink(1.0), egui::CornerRadius::same(6), bg);
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        glyph,
+        egui::FontId::new(ICON_SIZE, egui::FontFamily::Name("Icons".into())),
+        color,
     );
-    let outer = egui::Rect::from_center_size(resp.rect.center(), egui::vec2(14.0, 11.0));
-    let painter = ui.painter();
-    painter.rect_stroke(
-        outer,
-        egui::CornerRadius::same(2),
-        egui::Stroke::new(1.3, icon),
-        egui::StrokeKind::Inside,
-    );
-    painter.rect_filled(outer.shrink2(egui::vec2(4.0, 2.5)), 1.0, icon);
+    if enabled && resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
     resp
+}
+
+/// Botão de texto com o mesmo hover dos botões de ícone.
+fn text_button(ui: &mut egui::Ui, label: egui::RichText, width: f32, tok: &Tok) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, ROW_HEIGHT), egui::Sense::click());
+    if resp.hovered() {
+        ui.painter()
+            .rect_filled(rect.shrink(1.0), egui::CornerRadius::same(6), tok.hover);
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    let galley = egui::WidgetText::from(label).into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Body,
+    );
+    ui.painter()
+        .galley(rect.center() - galley.size() * 0.5, galley, tok.text);
+    resp
+}
+
+fn divider(ui: &mut egui::Ui, tok: &Tok) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(13.0, ROW_HEIGHT), egui::Sense::hover());
+    let x = rect.center().x;
+    ui.painter().line_segment(
+        [
+            egui::pos2(x, rect.top() + 6.0),
+            egui::pos2(x, rect.bottom() - 6.0),
+        ],
+        egui::Stroke::new(1.0, tok.border),
+    );
 }

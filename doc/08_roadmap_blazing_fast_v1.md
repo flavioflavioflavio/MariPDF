@@ -309,7 +309,7 @@ page rendering assíncrono com LOD simples.
   segura quando a topologia de monitores mudar.
 - [ ] BF-413 Completar i18n e remover strings de UI hardcoded.
 - [ ] BF-414 Remover módulos stubs mortos ou conectá-los explicitamente.
-- [x] BF-415 Modo Moldura: exibir o PDF sem janela, contido num frame, no
+- [x] BF-415 Modo Flutuante (antes “Moldura”): exibir o PDF sem janela, contido num frame, no
   estilo PureRef. Escopo:
   - janela sem decoração do Windows, borda fina do tema e página ocupando
     toda a área, com a janela travada na proporção da página;
@@ -485,7 +485,7 @@ BF-6 + BF-7 completos e RC validada.
 4. BF-106/BF-108 — busca cancelável e lifecycle correto de jobs.
 5. BF-201 a BF-206 — virtualização real e cache por memória.
 6. Reexecutar benchmark e decidir BF-3.
-7. BF-401 a BF-415 — fechar promessas funcionais e modo Moldura.
+7. BF-401 a BF-415 — fechar promessas funcionais e modo Flutuante.
 8. BF-5, BF-6 e BF-7 — robustez, distribuição e release.
 
 Esse recorte preserva a base visual já construída e concentra esforço no que

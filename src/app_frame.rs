@@ -1,4 +1,4 @@
-// app_frame.rs — Modo Moldura (BF-415): o PDF vira a própria janela.
+// app_frame.rs — Modo Flutuante (BF-415): o PDF vira a própria janela.
 // Sem decoração do Windows, toolbar ou status bar; a página ocupa a janela,
 // que fica travada na proporção da página. Mover, redimensionar, zoom e menu
 // acontecem direto sobre a página, no estilo PureRef.
@@ -15,7 +15,7 @@ mod bar;
 const FRAME_BORDER: f32 = 1.0;
 /// Faixa sensível nas bordas para redimensionar.
 const RESIZE_MARGIN: f32 = 6.0;
-/// Menor lado aceito para a janela em modo Moldura.
+/// Menor lado aceito para a janela em modo Flutuante.
 const MIN_FRAME_SIDE: f32 = 160.0;
 const MAX_FRAME_ZOOM: f32 = 8.0;
 /// Passo dos botões de zoom da barra.
@@ -23,7 +23,7 @@ const FRAME_ZOOM_STEP: f32 = 1.25;
 /// Tempo sem mudança de tamanho antes de reajustar a proporção.
 const SNAP_SETTLE_SECS: f64 = 0.2;
 
-/// Estado do modo Moldura. Nada aqui é persistido: cada sessão abre normal.
+/// Estado do modo Flutuante. Nada aqui é persistido: cada sessão abre normal.
 pub struct FrameMode {
     pub active: bool,
     pub always_on_top: bool,
@@ -59,7 +59,7 @@ impl Default for FrameMode {
     }
 }
 
-/// O que o modo normal tinha antes de entrar na Moldura.
+/// O que o modo normal tinha antes de entrar no modo Flutuante.
 struct FrameRestore {
     outer_pos: Option<egui::Pos2>,
     inner_size: Option<egui::Vec2>,
@@ -132,7 +132,7 @@ impl MariApp {
                 egui::WindowLevel::AlwaysOnTop,
             ));
         }
-        tracing::info!("viewer: modo Moldura");
+        tracing::info!("viewer: modo Flutuante");
         ctx.request_repaint();
     }
 
@@ -164,7 +164,7 @@ impl MariApp {
                 }
             }
         }
-        tracing::info!("viewer: saiu do modo Moldura");
+        tracing::info!("viewer: saiu do modo Flutuante");
         ctx.request_repaint();
     }
 

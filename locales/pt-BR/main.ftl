@@ -15,19 +15,23 @@ about-desc = Leitor de PDF ultra-leve para Windows.
 about-version = Versão { $version }
 
 ## Toolbar
-toolbar-back-hint = Voltar (fecha PDF)
-toolbar-toc-hint = Índice / TOC
-toolbar-thumbs-hint = Miniaturas de página
+toolbar-back-hint = Voltar (fecha o PDF)
+toolbar-toc-hint = Sumário
+toolbar-thumbs-hint = Miniaturas
 toolbar-settings-hint = Configurações
 toolbar-about-hint = Sobre o MariPDF
-toolbar-color-hint = Alternar modo de cor
+toolbar-color-hint = Alternar tema (Dark · Light · Sépia)
 toolbar-mode-single = Página única (Ctrl+Shift+M)
 toolbar-mode-continuous = Contínuo (Ctrl+Shift+M)
-toolbar-fit-page-hint = Fit Page (Ctrl+0)
-toolbar-fit-width-hint = Fit Width (W)
+toolbar-fit-page-hint = Ajustar à página (Ctrl+0)
+toolbar-fit-width-hint = Ajustar à largura (W)
 toolbar-goto-hint = Ir para página (Ctrl+G)
-toolbar-prev-hint = Anterior
-toolbar-next-hint = Próxima
+toolbar-prev-hint = Página anterior (←)
+toolbar-next-hint = Próxima página (→)
+toolbar-zoom-100 = Tamanho real (100%)
+toolbar-zoom-menu-hint = Opções de zoom
+toolbar-zoom-out-hint = Afastar (Ctrl+−)
+toolbar-zoom-in-hint = Aproximar (Ctrl++)
 
 ## Home
 home-recents = RECENTES
@@ -96,17 +100,17 @@ toast-text-copied = Texto copiado!
 toast-no-text = Página sem texto extraível
 toast-text-fail = Falha ao extrair texto
 
-# Modo Moldura
-frame-enter = Modo Moldura (Ctrl+Shift+F)
+# Modo Flutuante
+frame-enter = Modo Flutuante (Ctrl+Shift+F)
 frame-always-on-top = Sempre no topo
 frame-next = Próxima página
 frame-prev = Página anterior
 frame-goto = Ir para página…
 frame-reset-view = Enquadrar página
 frame-open = Abrir arquivo…
-frame-exit = Sair da Moldura (Esc)
+frame-exit = Sair do Modo Flutuante (Esc)
 frame-close = Fechar MariPDF
-frame-bar-open = Controles da moldura
+frame-bar-open = Controles do Modo Flutuante
 frame-bar-close = Recolher controles
 frame-zoom-in = Aproximar (Ctrl + roda)
 frame-zoom-out = Afastar (Ctrl + roda)

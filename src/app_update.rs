@@ -114,7 +114,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     if toggle_frame && app.engine.is_some() {
         app.toggle_frame_mode(ctx);
     }
-    // Esc sai da Moldura quando nenhum overlay está aberto.
+    // Esc sai do modo Flutuante quando nenhum overlay está aberto.
     if escape && app.frame.active && !app.goto_open && !app.search_open {
         app.exit_frame_mode(ctx);
     }

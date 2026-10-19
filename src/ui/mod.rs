@@ -8,7 +8,6 @@ pub mod recent_files;
 pub mod search;
 pub mod settings_panel;
 pub mod side_panel;
-pub mod toolbar;
 pub mod viewer;
 
 // Módulos extraídos (refactoring Fase 2)

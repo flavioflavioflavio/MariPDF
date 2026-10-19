@@ -20,7 +20,7 @@ use crate::ui::viewer_helpers::{
 
 // ── Modo de visualização ─────────────────────────────────────────────────────
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ViewMode {
     /// Uma página por vez; scroll do mouse → muda página
     SinglePage,

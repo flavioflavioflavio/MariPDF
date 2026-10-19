@@ -1,4 +1,4 @@
-// app_frame/bar.rs — Controles flutuantes do modo Moldura.
+// app_frame/bar.rs — Controles flutuantes do modo Flutuante.
 // Invisível fora da janela, um chevron semitransparente sobre a página e
 // opacidade total ao passar o mouse na barra. O chevron expande uma pílula com
 // zoom, mão de pan, fixar no topo e sair.
@@ -150,7 +150,7 @@ impl MariApp {
         let hand_color = if pan_on { colors.accent } else { colors.icon };
         action = action.or(button(
             ui,
-            egui::RichText::new("✋").size(13.0).color(hand_color),
+            icons::ph(icons::HAND, 14.0, hand_color),
             pan_on,
             pan_tip,
             FrameAction::TogglePan,
@@ -162,7 +162,7 @@ impl MariApp {
         };
         action = action.or(button(
             ui,
-            egui::RichText::new("📌").size(12.0).color(pin_color),
+            icons::ph(icons::PUSH_PIN, 14.0, pin_color),
             self.frame.always_on_top,
             t!("frame-always-on-top"),
             FrameAction::ToggleOnTop,

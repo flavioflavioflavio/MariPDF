@@ -90,7 +90,7 @@ pub struct MariApp {
     // About dialog
     pub about: AboutState,
 
-    // Modo Moldura (BF-415)
+    // Modo Flutuante (BF-415)
     pub frame: FrameMode,
 }
 

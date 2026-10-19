@@ -26,12 +26,12 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 - Busca destaca a ocorrência ativa sobre a página (Single e Continuous) e mostra
   o trecho de contexto com o termo marcado; no modo contínuo a navegação
   centraliza a linha da ocorrência, não só o topo da página.
-- Modo Moldura (Ctrl+Shift+F ou botão na toolbar): o PDF vira a própria janela,
+- Modo Flutuante (Ctrl+Shift+F ou botão na toolbar): o PDF vira a própria janela,
   sem decoração, travada na proporção da página. Arrastar move a janela, bordas
   redimensionam, roda troca de página, Ctrl + roda dá zoom no cursor com pan,
   duplo clique reenquadra e o botão direito abre o menu com Sempre no topo,
   navegação, abrir arquivo e sair. Segue o tema do app e não persiste estado.
-- Controles flutuantes da Moldura: chevron no canto superior direito, invisível
+- Controles flutuantes do modo Flutuante: chevron no canto superior direito, invisível
   fora da janela, semitransparente sobre a página e opaco no hover. Expande uma
   pílula com zoom −/%/+, mão de pan, fixar no topo e sair.
 - Stress manual parametrizado para abrir, renderizar e fechar um corpus real em
@@ -39,6 +39,11 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Toolbar redesenhada em três zonas (documento, página centralizada e
+  visualização), com um único estilo de botão, hover por baixo do ícone, grupos
+  para página/zoom/modo, menu de zoom (100%, ajustar largura, ajustar página) e
+  tooltips traduzidos com atalhos.
+- Modo Moldura passa a se chamar Modo Flutuante.
 - PDFium é a engine oficial da v1.0; MuPDF permanece apenas como alternativa
   futura sujeita a benchmark e decisão de licença.
 - O roadmap vigente passa a ser `doc/08_roadmap_blazing_fast_v1.md`.
@@ -69,6 +74,8 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Ícones Phosphor apontavam para glifos errados (ex.: sumário exibia uma
+  lâmpada); a tabela foi regenerada a partir do CSS oficial do Phosphor 2.1.
 - A troca de arquivo só substitui o documento atual após a nova abertura passar;
   falhas preservam a leitura em andamento e registram o caminho no log.
 - Drag-and-drop aceita extensões `.pdf` sem diferenciar maiúsculas e minúsculas.
