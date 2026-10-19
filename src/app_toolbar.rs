@@ -14,7 +14,12 @@ use crate::ui::viewer::ViewMode;
 use eframe::egui;
 
 const ROW_HEIGHT: f32 = 28.0;
-const BTN_SIZE: egui::Vec2 = egui::vec2(32.0, ROW_HEIGHT);
+/// Altura dos itens dentro dos grupos (página, zoom, modo).
+const GROUP_ITEM_HEIGHT: f32 = 22.0;
+/// Respiro interno igual em todos os lados do grupo.
+const GROUP_PADDING: i8 = 1;
+/// Botões são um pouco mais largos que altos.
+const BTN_EXTRA_WIDTH: f32 = 4.0;
 const ICON_SIZE: f32 = 16.0;
 /// Largura do grupo central `‹ n / N ›`.
 const PAGE_GROUP_WIDTH: f32 = 148.0;
@@ -207,6 +212,7 @@ impl MariApp {
 fn zone(ui: &mut egui::Ui, rect: egui::Rect, layout: egui::Layout) -> egui::Ui {
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
     child.spacing_mut().item_spacing = egui::vec2(2.0, 0.0);
+    child.spacing_mut().interact_size.y = ROW_HEIGHT;
     child
 }
 
@@ -271,10 +277,13 @@ fn page_group(
             actions.push(ToolbarAction::PrevPage);
         }
         let label = egui::RichText::new(format!("{} / {}", current_page + 1, page_count))
-            .size(12.5)
+            .size(12.0)
             .monospace()
             .color(tok.text);
-        let width = PAGE_GROUP_WIDTH - BTN_SIZE.x * 2.0 - 12.0;
+        let width = PAGE_GROUP_WIDTH
+            - item_width(GROUP_ITEM_HEIGHT) * 2.0
+            - f32::from(GROUP_PADDING) * 2.0
+            - 2.0;
         if text_button(ui, label, width, tok)
             .on_hover_text(t!("toolbar-goto-hint"))
             .clicked()
@@ -374,7 +383,7 @@ fn right_zone(
 /// `100% ▾` abre um menu com zoom real e os ajustes à janela.
 fn zoom_menu(ui: &mut egui::Ui, tok: &Tok, zoom_pct: u32, actions: &mut Vec<ToolbarAction>) {
     let label = egui::RichText::new(format!("{zoom_pct}%"))
-        .size(12.5)
+        .size(12.0)
         .monospace()
         .color(tok.text);
     let resp = text_button(ui, label, 58.0, tok).on_hover_text(t!("toolbar-zoom-menu-hint"));
@@ -436,9 +445,10 @@ fn group(ui: &mut egui::Ui, tok: &Tok, add: impl FnOnce(&mut egui::Ui)) {
         .fill(tok.group_fill)
         .stroke(egui::Stroke::new(1.0, tok.border))
         .corner_radius(egui::CornerRadius::same(8))
-        .inner_margin(egui::Margin::same(1))
+        .inner_margin(egui::Margin::same(GROUP_PADDING))
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            ui.spacing_mut().interact_size.y = GROUP_ITEM_HEIGHT;
             add(ui);
         });
 }
@@ -456,7 +466,8 @@ fn tool_button(
     } else {
         egui::Sense::hover()
     };
-    let (rect, resp) = ui.allocate_exact_size(BTN_SIZE, sense);
+    let height = ui.spacing().interact_size.y;
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(item_width(height), height), sense);
     let bg = if active {
         tok.accent.gamma_multiply(0.16)
     } else if enabled && resp.hovered() {
@@ -472,13 +483,13 @@ fn tool_button(
     };
     ui.painter()
         .rect_filled(rect.shrink(1.0), egui::CornerRadius::same(6), bg);
-    ui.painter().text(
-        rect.center(),
-        egui::Align2::CENTER_CENTER,
-        glyph,
-        egui::FontId::new(ICON_SIZE, egui::FontFamily::Name("Icons".into())),
+    let icon_size = ICON_SIZE.min(height - 8.0);
+    let galley = ui.painter().layout_no_wrap(
+        glyph.to_owned(),
+        egui::FontId::new(icon_size, egui::FontFamily::Name("Icons".into())),
         color,
     );
+    paint_centered(ui, rect, galley, color);
     if enabled && resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
@@ -487,7 +498,8 @@ fn tool_button(
 
 /// Botão de texto com o mesmo hover dos botões de ícone.
 fn text_button(ui: &mut egui::Ui, label: egui::RichText, width: f32, tok: &Tok) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, ROW_HEIGHT), egui::Sense::click());
+    let height = ui.spacing().interact_size.y;
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::click());
     if resp.hovered() {
         ui.painter()
             .rect_filled(rect.shrink(1.0), egui::CornerRadius::same(6), tok.hover);
@@ -499,9 +511,32 @@ fn text_button(ui: &mut egui::Ui, label: egui::RichText, width: f32, tok: &Tok) 
         f32::INFINITY,
         egui::TextStyle::Body,
     );
-    ui.painter()
-        .galley(rect.center() - galley.size() * 0.5, galley, tok.text);
+    paint_centered(ui, rect, galley, tok.text);
     resp
+}
+
+fn item_width(height: f32) -> f32 {
+    height + BTN_EXTRA_WIDTH
+}
+
+/// Centraliza pelo contorno visível dos glifos, não pela caixa da linha: a
+/// métrica da fonte reserva espaço para descendentes e deixava números e
+/// porcentagens encostados na base.
+fn paint_centered(
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    galley: std::sync::Arc<egui::Galley>,
+    color: egui::Color32,
+) {
+    let pos = centered_galley_pos(rect, galley.mesh_bounds);
+    ui.painter().galley(pos, galley, color);
+}
+
+fn centered_galley_pos(rect: egui::Rect, ink: egui::Rect) -> egui::Pos2 {
+    if !ink.is_positive() {
+        return rect.center();
+    }
+    (rect.center() - ink.center().to_vec2()).round()
 }
 
 fn divider(ui: &mut egui::Ui, tok: &Tok) {
@@ -514,4 +549,26 @@ fn divider(ui: &mut egui::Ui, tok: &Tok) {
         ],
         egui::Stroke::new(1.0, tok.border),
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ink_bounds_are_centered_with_equal_padding() {
+        let rect = egui::Rect::from_min_size(egui::pos2(100.0, 10.0), egui::vec2(40.0, 22.0));
+        // Dígitos ocupam y 3..12 dentro de uma linha de 16pt de altura.
+        let ink = egui::Rect::from_min_max(egui::pos2(0.0, 3.0), egui::pos2(20.0, 12.0));
+        let pos = centered_galley_pos(rect, ink);
+        let top = pos.y + ink.top() - rect.top();
+        let bottom = rect.bottom() - (pos.y + ink.bottom());
+        assert!((top - bottom).abs() <= 1.0, "top {top} bottom {bottom}");
+    }
+
+    #[test]
+    fn group_is_shorter_than_the_row() {
+        let group_height = GROUP_ITEM_HEIGHT + f32::from(GROUP_PADDING) * 2.0;
+        assert!(group_height < ROW_HEIGHT);
+    }
 }
