@@ -107,8 +107,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
     agora é convertido para coordenadas PDF e testado contra cada retângulo.
 11. [x] Busca navegava até a página sem destacar a ocorrência; agora destaca a
     ocorrência ativa e mostra o trecho de contexto.
-12. A seleção por arraste copia imediatamente ao soltar, comportamento que deve
-    ser decidido e testado como contrato de UX.
+12. [x] A seleção por arraste copiava ao soltar; agora arrastar só seleciona e a
+    cópia é explícita (Ctrl+C/menu), com palavra, linha e Ctrl+A testados.
 13. [x] Persistência de janela salvava largura aproximada e altura fixa; agora
     guarda posição, tamanho e maximização reais e recupera monitores ausentes.
 14. [x] Havia strings PT-BR hardcoded fora do Fluent; a UI em inglês agora cobre
@@ -295,9 +295,11 @@ page rendering assíncrono com LOD simples.
 ### Entregas
 
 - [x] BF-401 Aplicar escala, fonte, idioma e tema persistidos no startup.
-- [ ] BF-402 Ligar qualidade de render ao scheduler/LOD (o pipeline atual já respeita a escala).
+- [x] BF-402 Ligar qualidade de render ao scheduler/LOD: qualidade e DPI definem só a
+  resolução do bitmap (com teto de textura/memória); o tamanho na tela depende só do
+  zoom, com 100% = tamanho físico. LOD por tiles segue na BF-304.
 - [x] BF-403 Ligar margem de página ao layout single/continuous.
-- [ ] BF-404 Definir e implementar comportamento real de scroll suave.
+- [x] BF-404 Definir e implementar comportamento real de scroll suave.
 - [x] BF-405 Aplicar painel padrão ao abrir documento.
 - [x] BF-406 Respeitar `track_history` nas sessões e na Home.
 - [x] BF-407 Implementar “limpar histórico” com confirmação e feedback.
@@ -305,11 +307,11 @@ page rendering assíncrono com LOD simples.
 - [x] BF-409 Implementar hit-test correto para todos os links da página, com
   conversão tela ↔ PDF coberta por testes de múltiplos retângulos.
 - [x] BF-410 Destacar ocorrência ativa da busca e expor trecho de contexto.
-- [ ] BF-411 Fechar contrato de seleção/cópia e cobrir mouse + teclado.
+- [x] BF-411 Fechar contrato de seleção/cópia e cobrir mouse + teclado.
 - [x] BF-412 Persistir tamanho, posição, maximização e monitor com recuperação
   segura quando a topologia de monitores mudar.
 - [x] BF-413 Completar i18n e remover strings de UI hardcoded.
-- [ ] BF-414 Remover módulos stubs mortos ou conectá-los explicitamente.
+- [x] BF-414 Remover módulos stubs mortos ou conectá-los explicitamente.
 - [x] BF-415 Modo Flutuante (antes “Moldura”): exibir o PDF sem janela, contido num frame, no
   estilo PureRef. Escopo:
   - janela sem decoração do Windows, borda fina do tema e página ocupando
