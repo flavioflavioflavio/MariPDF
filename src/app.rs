@@ -100,6 +100,12 @@ pub struct MariApp {
 
     // Medidor/smoke test embutido (BF-002/BF-007), só com MARIPDF_BENCH
     pub bench: Option<crate::bench::BenchRun>,
+
+    // Teste de longa duração (BF-708), só com MARIPDF_SOAK_SECS
+    pub soak: Option<crate::soak::SoakRun>,
+
+    // Capturas de tela do fluxo real (BF-706), só com MARIPDF_SHOWCASE
+    pub showcase: Option<crate::showcase::ShowcaseRun>,
 }
 
 impl MariApp {
@@ -152,6 +158,8 @@ impl MariApp {
             frame: FrameMode::default(),
             window: WindowTracker::default(),
             bench: crate::bench::BenchRun::from_env(),
+            soak: crate::soak::SoakRun::from_env(),
+            showcase: crate::showcase::ShowcaseRun::from_env(),
         }
     }
 
@@ -264,13 +272,20 @@ impl eframe::App for MariApp {
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         let started = std::time::Instant::now();
-        let track = self.tracks_window() && self.bench.is_none();
+        let scripted = self.bench.is_some() || self.soak.is_some() || self.showcase.is_some();
+        let track = self.tracks_window() && !scripted;
         self.window.on_frame(ctx, frame, track);
         configure_visuals(ctx);
         crate::app_update::run(self, ctx);
         if self.bench.is_some() {
             let frame_ms = started.elapsed().as_secs_f64() * 1000.0;
             self.bench_step(ctx, frame_ms);
+        }
+        if self.soak.is_some() {
+            self.soak_step(ctx);
+        }
+        if self.showcase.is_some() {
+            self.showcase_step(ctx);
         }
     }
 }

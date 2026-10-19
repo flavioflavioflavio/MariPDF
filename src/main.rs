@@ -28,6 +28,8 @@ mod pdf;
 mod platform;
 mod settings;
 mod settings_types;
+mod showcase;
+mod soak;
 mod storage;
 mod text_selection;
 mod ui;

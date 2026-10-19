@@ -4,6 +4,7 @@
 use crate::app::{MariApp, ACCENT_PRIMARY, BG_SURFACE, TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE};
 use crate::pdf::text_search::SearchHit;
 use crate::t;
+use crate::ui::icons;
 use crate::ui::viewer::{SearchHighlight, ViewMode};
 use eframe::egui;
 
@@ -159,14 +160,23 @@ impl MariApp {
                             }
 
                             ui.add_space(8.0);
-                            if ui.small_button("◀").clicked() {
+                            if ui
+                                .small_button(icons::ph(icons::CARET_LEFT, 13.0, TEXT_PRIMARY))
+                                .clicked()
+                            {
                                 go_prev = true;
                             }
-                            if ui.small_button("▶").clicked() {
+                            if ui
+                                .small_button(icons::ph(icons::CARET_RIGHT, 13.0, TEXT_PRIMARY))
+                                .clicked()
+                            {
                                 go_next = true;
                             }
                             ui.add_space(4.0);
-                            if ui.small_button("✕").clicked() {
+                            if ui
+                                .small_button(icons::ph(icons::X, 13.0, TEXT_PRIMARY))
+                                .clicked()
+                            {
                                 do_close = true;
                             }
                         });
