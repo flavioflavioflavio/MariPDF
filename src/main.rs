@@ -26,6 +26,7 @@ mod pdf;
 mod platform;
 mod settings;
 mod settings_types;
+mod text_selection;
 mod ui;
 
 fn main() -> anyhow::Result<()> {

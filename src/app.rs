@@ -68,7 +68,8 @@ pub struct MariApp {
     pub sel_focus: Option<usize>,
     pub text_chars: Vec<TextCharInfo>,
     pub text_chars_page: usize,
-    pub selected_text: Option<String>,
+    /// Ctrl+A pedido antes de os chars da página chegarem.
+    pub pending_select_all: bool,
 
     // Links
     pub page_links: Vec<PdfLinkInfo>,
@@ -129,7 +130,7 @@ impl MariApp {
             search: TextSearch::new(),
             search_open: false,
             search_focused: false,
-            selected_text: None,
+            pending_select_all: false,
             sel_anchor: None,
             sel_focus: None,
             text_chars: Vec::new(),
@@ -188,7 +189,7 @@ impl MariApp {
                 self.text_chars_page = usize::MAX;
                 self.sel_anchor = None;
                 self.sel_focus = None;
-                self.selected_text = None;
+                self.pending_select_all = false;
                 self.viewer.reset();
                 self.side_panel = match self.settings.default_panel {
                     DefaultPanel::None => SidePanelKind::None,

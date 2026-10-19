@@ -98,7 +98,6 @@ err-pdf-not-found = ❌ Arquivo não encontrado
 toast-text-selected = Texto selecionado — Ctrl+C para copiar
 toast-text-copied = Texto copiado!
 toast-no-text = Página sem texto extraível
-toast-text-fail = Falha ao extrair texto
 
 # Modo Flutuante
 frame-enter = Modo Flutuante (Ctrl+Shift+F)
@@ -166,3 +165,7 @@ palette-sepia-0 = Pergaminho
 palette-sepia-1 = Âmbar
 palette-sepia-2 = Vintage
 palette-sepia-3 = Rosa Antigo
+
+## Seleção de texto
+sel-copy = Copiar (Ctrl+C)
+sel-select-all = Selecionar tudo (Ctrl+A)

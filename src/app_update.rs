@@ -30,7 +30,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         app.text_chars_page = usize::MAX;
         app.sel_anchor = None;
         app.sel_focus = None;
-        app.selected_text = None;
+        app.pending_select_all = false;
         app.thumb_cache = None;
         app.side_panel = SidePanelKind::None;
     }
@@ -163,6 +163,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         app.goto_open = false;
         app.search_open = false;
         app.search.clear();
+        app.clear_selection();
     }
     if (search_next || search_prev) && app.search_open {
         if let Some(hit) = app.search.current() {
@@ -213,17 +214,11 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         }
     }
 
-    if select_all && app.engine.is_some() {
-        if let Some(worker) = app.document_worker.as_mut() {
-            worker.request_text(app.current_page);
-        }
+    if select_all && app.engine.is_some() && !app.search_open && !app.goto_open {
+        app.select_all_text(ctx);
     }
-    if copy_text {
-        if let Some(ref text) = app.selected_text.clone() {
-            let now = ctx.input(|i| i.time);
-            ctx.copy_text(text.clone());
-            app.toast = Some(Toast::info(crate::t!("toast-text-copied"), 2.0, now));
-        }
+    if copy_text && !app.search_open && !app.goto_open {
+        app.copy_selection(ctx);
     }
 
     // Cache de links
@@ -343,18 +338,9 @@ fn apply_document_completion(app: &mut MariApp, ctx: &egui::Context, completion:
             if page_index == app.current_page {
                 app.text_chars = chars;
                 app.text_chars_page = page_index;
-                app.sel_anchor = None;
-                app.sel_focus = None;
-            }
-        }
-        JobOutcome::Ready(DocumentJobOutput::Text { page_index, text }) => {
-            if page_index == app.current_page {
-                let now = ctx.input(|input| input.time);
-                if text.trim().is_empty() {
-                    app.toast = Some(Toast::error(crate::t!("toast-no-text"), 2.5, now));
-                } else {
-                    app.selected_text = Some(text);
-                    app.toast = Some(Toast::info(crate::t!("toast-text-selected"), 3.0, now));
+                app.clear_selection();
+                if app.pending_select_all {
+                    app.select_all_text(ctx);
                 }
             }
         }
@@ -372,9 +358,12 @@ fn apply_document_completion(app: &mut MariApp, ctx: &egui::Context, completion:
                 error,
                 "document_job: falha"
             );
-            if matches!(completion.target, DocumentJobTarget::Text(_)) {
+            if matches!(completion.target, DocumentJobTarget::Chars(page) if page == app.current_page)
+                && app.pending_select_all
+            {
+                app.pending_select_all = false;
                 let now = ctx.input(|input| input.time);
-                app.toast = Some(Toast::error(crate::t!("toast-text-fail"), 2.5, now));
+                app.toast = Some(Toast::error(crate::t!("toast-no-text"), 2.5, now));
             }
         }
         JobOutcome::Cancelled => {}

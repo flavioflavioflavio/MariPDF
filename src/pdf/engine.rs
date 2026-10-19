@@ -229,11 +229,6 @@ impl PdfEngine {
         })
     }
 
-    /// Extrai o texto de uma página como String.
-    pub fn extract_text(&self, page_index: usize) -> anyhow::Result<String> {
-        self.with_document(|doc| engine_extract::extract_text(doc, page_index))
-    }
-
     /// Extrai todos os chars de uma página com seus bounding boxes em pontos PDF.
     pub fn extract_chars_with_bounds(
         &self,
@@ -381,7 +376,7 @@ mod tests {
                         let text_path = path.clone();
                         let extractor = std::thread::spawn(move || {
                             text_engine
-                                .extract_text(0)
+                                .extract_search_page(0)
                                 .unwrap_or_else(|error| panic!("{}: {error}", text_path.display()));
                         });
 

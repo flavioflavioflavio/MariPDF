@@ -1,12 +1,69 @@
-// app_text_sel.rs — Lógica de seleção de texto sobre o PDF
-// Extraído de app_reader.rs para manter abaixo de 250 linhas.
+// app_text_sel.rs — Seleção e cópia de texto sobre a página (BF-411).
+//
+// Contrato:
+//   • arrastar seleciona (não copia sozinho); Shift+clique estende;
+//   • duplo clique seleciona a palavra, triplo clique a linha;
+//   • Ctrl+A seleciona a página inteira; Ctrl+C copia; Esc/clique limpam;
+//   • botão direito oferece Copiar e Selecionar tudo.
+// As regras de texto/palavra/linha vivem em text_selection.rs (testadas).
 
 use crate::app::{MariApp, Toast};
 use crate::app_color_mode::ColorMode;
 use crate::pdf::engine::TextCharInfo;
+use crate::t;
+use crate::text_selection::{line_range, ordered, selection_text, word_range};
 use eframe::egui;
 
 impl MariApp {
+    /// Texto atualmente selecionado na página visível, se houver.
+    pub(crate) fn selected_text(&self) -> Option<String> {
+        if self.text_chars_page != self.current_page {
+            return None;
+        }
+        let (lo, hi) = ordered(self.sel_anchor?, self.sel_focus?);
+        let text = selection_text(&self.text_chars, lo, hi);
+        (!text.is_empty()).then_some(text)
+    }
+
+    pub(crate) fn clear_selection(&mut self) {
+        self.sel_anchor = None;
+        self.sel_focus = None;
+    }
+
+    /// Ctrl+C / menu Copiar.
+    pub(crate) fn copy_selection(&mut self, ctx: &egui::Context) {
+        let Some(text) = self.selected_text() else {
+            return;
+        };
+        ctx.copy_text(text);
+        let now = ctx.input(|i| i.time);
+        self.toast = Some(Toast::info(t!("toast-text-copied"), 2.0, now));
+    }
+
+    /// Ctrl+A / menu Selecionar tudo. Se os chars da página ainda não
+    /// chegaram, pede ao worker e conclui quando o resultado for aplicado.
+    pub(crate) fn select_all_text(&mut self, ctx: &egui::Context) {
+        if self.text_chars_page != self.current_page {
+            self.pending_select_all = true;
+            if let Some(worker) = self.document_worker.as_mut() {
+                worker.request_chars(self.current_page);
+            }
+            return;
+        }
+        self.pending_select_all = false;
+        let now = ctx.input(|i| i.time);
+        if self.text_chars.is_empty() {
+            self.toast = Some(Toast::error(t!("toast-no-text"), 2.5, now));
+            return;
+        }
+        self.sel_anchor = Some(0);
+        self.sel_focus = Some(self.text_chars.len() - 1);
+        // Sem destaque visual no modo contínuo: avisa que a cópia está pronta.
+        if self.viewer.mode == crate::ui::viewer::ViewMode::Continuous {
+            self.toast = Some(Toast::info(t!("toast-text-selected"), 3.0, now));
+        }
+    }
+
     pub(crate) fn handle_text_selection(
         &mut self,
         ctx: &egui::Context,
@@ -15,184 +72,205 @@ impl MariApp {
         pdf_w: f32,
         pdf_h: f32,
     ) {
-        let chars = &self.text_chars;
-
-        let screen_to_pdf = |pos: egui::Pos2| -> (f32, f32) {
-            let nx = (pos.x - page_rect.left()) / page_rect.width().max(1.0);
-            let ny = 1.0 - (pos.y - page_rect.top()) / page_rect.height().max(1.0);
-            (nx * pdf_w, ny * pdf_h)
-        };
-        let nearest_idx = |pos: egui::Pos2| -> usize {
-            let (px, py) = screen_to_pdf(pos);
-            chars
-                .iter()
-                .enumerate()
-                .min_by_key(|(_, c)| {
-                    let cx = (c.left + c.right) * 0.5;
-                    let cy = (c.bottom + c.top) * 0.5;
-                    (((cx - px).abs() + (cy - py).abs() * 3.0) * 1000.0) as i64
-                })
-                .map(|(i, _)| i)
-                .unwrap_or(0)
+        let nearest = |chars: &[TextCharInfo], pos: egui::Pos2| {
+            nearest_char(chars, pos, page_rect, pdf_w, pdf_h)
         };
 
-        let drag_resp = ui.interact(
+        let resp = ui.interact(
             page_rect,
             egui::Id::new("text_sel_drag"),
             egui::Sense::click_and_drag(),
         );
+        let shift = ui.input(|i| i.modifiers.shift);
+        let pointer = resp.interact_pointer_pos();
 
-        if drag_resp.drag_started() {
-            let pos = drag_resp
-                .interact_pointer_pos()
-                .unwrap_or(page_rect.center());
-            self.sel_anchor = Some(nearest_idx(pos));
-            self.sel_focus = self.sel_anchor;
-            self.selected_text = None;
+        if resp.drag_started_by(egui::PointerButton::Primary) {
+            let index = nearest(&self.text_chars, pointer.unwrap_or(page_rect.center()));
+            if !(shift && self.sel_anchor.is_some()) {
+                self.sel_anchor = Some(index);
+            }
+            self.sel_focus = Some(index);
         }
-        if drag_resp.dragged() {
-            if let Some(pos) = drag_resp.interact_pointer_pos() {
-                self.sel_focus = Some(nearest_idx(pos));
+        if resp.dragged_by(egui::PointerButton::Primary) {
+            if let Some(pos) = pointer {
+                self.sel_focus = Some(nearest(&self.text_chars, pos));
             }
         }
-        if drag_resp.drag_stopped() {
-            if let (Some(a), Some(f)) = (self.sel_anchor, self.sel_focus) {
-                let lo = a.min(f);
-                let hi = (a.max(f) + 1).min(chars.len());
-                let mut text = String::new();
-                let mut last_r = f32::MIN;
-                for ch in &chars[lo..hi] {
-                    if ch.left > last_r + 1.5 && !text.is_empty() {
-                        text.push(' ');
-                    }
-                    text.push(ch.ch);
-                    last_r = ch.right;
+        if let Some(pos) = pointer.filter(|_| resp.clicked()) {
+            let index = nearest(&self.text_chars, pos);
+            let range = if resp.triple_clicked() {
+                Some(line_range(&self.text_chars, index))
+            } else if resp.double_clicked() {
+                Some(word_range(&self.text_chars, index))
+            } else {
+                None
+            };
+            match range {
+                Some((lo, hi)) => {
+                    self.sel_anchor = Some(lo);
+                    self.sel_focus = Some(hi);
                 }
-                let clean = text.trim().to_string();
-                if !clean.is_empty() {
-                    ctx.copy_text(clean.clone());
-                    self.selected_text = Some(clean);
-                    let now = ctx.input(|i| i.time);
-                    self.toast = Some(Toast::info(crate::t!("toast-text-copied"), 2.0, now));
-                }
+                None if shift && self.sel_anchor.is_some() => self.sel_focus = Some(index),
+                None => self.clear_selection(),
             }
         }
-        if drag_resp.clicked() {
-            self.sel_anchor = None;
-            self.sel_focus = None;
-            self.selected_text = None;
-        }
-        if drag_resp.hovered() {
+        if resp.hovered() {
             ctx.set_cursor_icon(egui::CursorIcon::Text);
         }
 
-        // ── Highlight de seleção ──────────────────────────────────────────────
-        if let (Some(a), Some(f)) = (self.sel_anchor, self.sel_focus) {
-            let lo = a.min(f);
-            let hi = (a.max(f) + 1).min(chars.len());
-            if lo < hi {
-                let char_rect = |ch: &TextCharInfo| -> egui::Rect {
-                    let lx = page_rect.left() + ch.left / pdf_w * page_rect.width();
-                    let rx = page_rect.left() + ch.right / pdf_w * page_rect.width();
-                    let ty = page_rect.bottom() - ch.top / pdf_h * page_rect.height();
-                    let by = page_rect.bottom() - ch.bottom / pdf_h * page_rect.height();
-                    egui::Rect::from_min_max(egui::pos2(lx, ty), egui::pos2(rx, by))
-                };
-                let mut line_rects: Vec<egui::Rect> = Vec::new();
-                let mut cur_rect: Option<egui::Rect> = None;
-                let mut cur_cy = f32::NAN;
-                const LINE_MERGE_PX: f32 = 5.0;
-                for ch in &chars[lo..hi] {
-                    let r = char_rect(ch);
-                    if r.width() <= 0.0 || r.height() <= 0.0 {
-                        continue;
-                    }
-                    let cy = r.center().y;
-                    if cur_rect.is_none() || (cy - cur_cy).abs() > LINE_MERGE_PX {
-                        if let Some(prev) = cur_rect {
-                            line_rects.push(prev);
-                        }
-                        cur_rect = Some(r);
-                        cur_cy = cy;
-                    } else {
-                        cur_rect = Some(cur_rect.unwrap().union(r));
-                    }
-                }
-                if let Some(last) = cur_rect {
-                    line_rects.push(last);
-                }
+        let has_selection = self.selected_text().is_some();
+        let mut copy = false;
+        let mut select_all = false;
+        resp.context_menu(|ui| {
+            if ui
+                .add_enabled(has_selection, egui::Button::new(t!("sel-copy")))
+                .clicked()
+            {
+                copy = true;
+                ui.close_menu();
+            }
+            if ui.button(t!("sel-select-all")).clicked() {
+                select_all = true;
+                ui.close_menu();
+            }
+        });
+        if copy {
+            self.copy_selection(ctx);
+        }
+        if select_all {
+            self.select_all_text(ctx);
+        }
 
-                let hl_color = match self.color_mode {
-                    ColorMode::Dark => egui::Color32::from_rgba_unmultiplied(55, 130, 255, 55),
-                    _ => egui::Color32::from_rgba_unmultiplied(30, 100, 220, 65),
-                };
-                let painter = ui.painter();
-                for r in &line_rects {
-                    painter.rect_filled(*r, egui::CornerRadius::ZERO, hl_color);
+        self.paint_selection(ctx, ui, page_rect, pdf_w, pdf_h);
+    }
+
+    fn paint_selection(
+        &mut self,
+        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        page_rect: egui::Rect,
+        pdf_w: f32,
+        pdf_h: f32,
+    ) {
+        let (Some(a), Some(f)) = (self.sel_anchor, self.sel_focus) else {
+            return;
+        };
+        let chars = &self.text_chars;
+        let (lo, hi) = ordered(a, f);
+        let hi = hi.min(chars.len().saturating_sub(1));
+        if chars.is_empty() || lo > hi {
+            return;
+        }
+        let char_rect = |ch: &TextCharInfo| -> egui::Rect {
+            let lx = page_rect.left() + ch.left / pdf_w * page_rect.width();
+            let rx = page_rect.left() + ch.right / pdf_w * page_rect.width();
+            let ty = page_rect.bottom() - ch.top / pdf_h * page_rect.height();
+            let by = page_rect.bottom() - ch.bottom / pdf_h * page_rect.height();
+            egui::Rect::from_min_max(egui::pos2(lx, ty), egui::pos2(rx, by))
+        };
+        let mut line_rects: Vec<egui::Rect> = Vec::new();
+        let mut cur_rect: Option<egui::Rect> = None;
+        let mut cur_cy = f32::NAN;
+        const LINE_MERGE_PX: f32 = 5.0;
+        for ch in &chars[lo..=hi] {
+            let r = char_rect(ch);
+            if r.width() <= 0.0 || r.height() <= 0.0 {
+                continue;
+            }
+            let cy = r.center().y;
+            match cur_rect {
+                Some(rect) if (cy - cur_cy).abs() <= LINE_MERGE_PX => {
+                    cur_rect = Some(rect.union(r));
                 }
-
-                // Handles de seleção
-                let handle_color = egui::Color32::from_rgba_unmultiplied(55, 130, 255, 230);
-                let handle_r = 5.0_f32;
-                let stem_h = 12.0_f32;
-                if let (Some(first_r), Some(last_r)) = (line_rects.first(), line_rects.last()) {
-                    let start_pt = egui::pos2(first_r.left(), first_r.top());
-                    painter.line_segment(
-                        [start_pt, egui::pos2(start_pt.x, start_pt.y - stem_h)],
-                        egui::Stroke::new(2.0, handle_color),
-                    );
-                    painter.circle_filled(
-                        egui::pos2(start_pt.x, start_pt.y - stem_h - handle_r),
-                        handle_r,
-                        handle_color,
-                    );
-                    let sh_rect = egui::Rect::from_center_size(
-                        egui::pos2(start_pt.x, start_pt.y - stem_h - handle_r),
-                        egui::vec2(handle_r * 3.5, handle_r * 3.5),
-                    );
-                    let sh_resp = ui.interact(
-                        sh_rect,
-                        egui::Id::new("sel_handle_start"),
-                        egui::Sense::drag(),
-                    );
-                    if sh_resp.dragged() {
-                        if let Some(pos) = sh_resp.interact_pointer_pos() {
-                            self.sel_anchor = Some(nearest_idx(pos));
-                        }
-                    }
-                    if sh_resp.hovered() {
-                        ctx.set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-                    }
-
-                    let end_pt = egui::pos2(last_r.right(), last_r.bottom());
-                    painter.line_segment(
-                        [end_pt, egui::pos2(end_pt.x, end_pt.y + stem_h)],
-                        egui::Stroke::new(2.0, handle_color),
-                    );
-                    painter.circle_filled(
-                        egui::pos2(end_pt.x, end_pt.y + stem_h + handle_r),
-                        handle_r,
-                        handle_color,
-                    );
-                    let eh_rect = egui::Rect::from_center_size(
-                        egui::pos2(end_pt.x, end_pt.y + stem_h + handle_r),
-                        egui::vec2(handle_r * 3.5, handle_r * 3.5),
-                    );
-                    let eh_resp = ui.interact(
-                        eh_rect,
-                        egui::Id::new("sel_handle_end"),
-                        egui::Sense::drag(),
-                    );
-                    if eh_resp.dragged() {
-                        if let Some(pos) = eh_resp.interact_pointer_pos() {
-                            self.sel_focus = Some(nearest_idx(pos));
-                        }
-                    }
-                    if eh_resp.hovered() {
-                        ctx.set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
-                    }
+                previous => {
+                    line_rects.extend(previous);
+                    cur_rect = Some(r);
+                    cur_cy = cy;
                 }
             }
         }
+        line_rects.extend(cur_rect);
+
+        let hl_color = match self.color_mode {
+            ColorMode::Dark => egui::Color32::from_rgba_unmultiplied(55, 130, 255, 55),
+            _ => egui::Color32::from_rgba_unmultiplied(30, 100, 220, 65),
+        };
+        let painter = ui.painter().clone();
+        for r in &line_rects {
+            painter.rect_filled(*r, egui::CornerRadius::ZERO, hl_color);
+        }
+
+        // Alças de seleção para ajustar início e fim.
+        let (Some(first_r), Some(last_r)) = (line_rects.first(), line_rects.last()) else {
+            return;
+        };
+        let start = egui::pos2(first_r.left(), first_r.top());
+        let end = egui::pos2(last_r.right(), last_r.bottom());
+        if let Some(index) =
+            self.selection_handle(ctx, ui, &painter, start, -1.0, "sel_handle_start")
+        {
+            self.sel_anchor = Some(nearest_char(chars, index, page_rect, pdf_w, pdf_h));
+        }
+        if let Some(index) = self.selection_handle(ctx, ui, &painter, end, 1.0, "sel_handle_end") {
+            self.sel_focus = Some(nearest_char(
+                &self.text_chars,
+                index,
+                page_rect,
+                pdf_w,
+                pdf_h,
+            ));
+        }
     }
+
+    /// Desenha uma alça (haste + círculo) e devolve a posição do ponteiro
+    /// enquanto ela é arrastada.
+    fn selection_handle(
+        &self,
+        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        painter: &egui::Painter,
+        anchor: egui::Pos2,
+        direction: f32,
+        id: &str,
+    ) -> Option<egui::Pos2> {
+        let color = egui::Color32::from_rgba_unmultiplied(55, 130, 255, 230);
+        let radius = 5.0_f32;
+        let stem = 12.0_f32;
+        let knob = egui::pos2(anchor.x, anchor.y + direction * (stem + radius));
+        painter.line_segment(
+            [anchor, egui::pos2(anchor.x, anchor.y + direction * stem)],
+            egui::Stroke::new(2.0, color),
+        );
+        painter.circle_filled(knob, radius, color);
+        let hit = egui::Rect::from_center_size(knob, egui::vec2(radius * 3.5, radius * 3.5));
+        let resp = ui.interact(hit, egui::Id::new(id), egui::Sense::drag());
+        if resp.hovered() {
+            ctx.set_cursor_icon(egui::CursorIcon::ResizeHorizontal);
+        }
+        resp.dragged()
+            .then(|| resp.interact_pointer_pos())
+            .flatten()
+    }
+}
+
+fn nearest_char(
+    chars: &[TextCharInfo],
+    pos: egui::Pos2,
+    page_rect: egui::Rect,
+    pdf_w: f32,
+    pdf_h: f32,
+) -> usize {
+    let nx = (pos.x - page_rect.left()) / page_rect.width().max(1.0);
+    let ny = 1.0 - (pos.y - page_rect.top()) / page_rect.height().max(1.0);
+    let (px, py) = (nx * pdf_w, ny * pdf_h);
+    chars
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, c)| {
+            let cx = (c.left + c.right) * 0.5;
+            let cy = (c.bottom + c.top) * 0.5;
+            (((cx - px).abs() + (cy - py).abs() * 3.0) * 1000.0) as i64
+        })
+        .map(|(i, _)| i)
+        .unwrap_or(0)
 }

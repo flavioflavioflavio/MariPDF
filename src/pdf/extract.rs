@@ -53,24 +53,6 @@ pub struct BookmarkEntry {
     pub depth: usize,
 }
 
-// ── Texto bruto ───────────────────────────────────────────────────────────────
-
-/// Extrai o texto de uma página como String.
-/// Usado pela busca full-text (text_search.rs).
-pub fn extract_text(doc: &PdfDocument<'static>, page_index: usize) -> anyhow::Result<String> {
-    let page = doc
-        .pages()
-        .get(page_index as u16)
-        .map_err(|e| anyhow::anyhow!("Falha ao carregar página {page_index}: {e}"))?;
-
-    let text = page
-        .text()
-        .map_err(|e| anyhow::anyhow!("Falha ao extrair texto da página {page_index}: {e}"))?
-        .all();
-
-    Ok(text)
-}
-
 // ── Chars com bounding boxes ──────────────────────────────────────────────────
 
 /// Extrai todos os chars de uma página com seus bounding boxes em pontos PDF.
