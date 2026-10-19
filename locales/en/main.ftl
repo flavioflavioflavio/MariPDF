@@ -186,3 +186,21 @@ storage-what-settings = the settings
 storage-what-session = the reading history
 storage-what-window = the window position
 settings-assoc-failed = Could not change the .pdf association: { $error }
+
+## Atualização
+about-donate = ♥ Support MariPDF
+update-check = Check for updates
+update-check-again = Check again
+update-checking = Checking…
+update-up-to-date = ✓ You are on the latest version
+update-available = New version available: { $version }
+update-download-install = Download and install
+update-open-page = See the release on GitHub
+update-downloading = Downloading and verifying { $version }…
+update-verified = Installer downloaded and signature verified.
+update-install-now = Install now
+update-err-network = Could not check for updates (offline?).
+update-err-no-installer = This release has no installer to download.
+update-err-signature = Invalid update signature — download discarded.
+update-err-hash = Downloaded file does not match the signed list — discarded.
+update-err-io = Could not save or start the installer.

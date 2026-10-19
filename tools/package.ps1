@@ -48,5 +48,8 @@ $sums = Get-ChildItem $dist -Filter "MariPDF-$version-*.exe" | Sort-Object Name 
 # LF e sem BOM: formato do sha256sum, verificável em qualquer sistema.
 [IO.File]::WriteAllText((Join-Path (Resolve-Path $dist) "SHA256SUMS.txt"), ($sums -join "`n") + "`n")
 
+python tools/winget_manifest.py $version (Join-Path $dist "SHA256SUMS.txt")
+if ($LASTEXITCODE -ne 0) { throw "manifesto Winget falhou" }
+
 Get-ChildItem $dist | Format-Table Name, @{n = "MB"; e = { [math]::Round($_.Length / 1MB, 2) } } -AutoSize
 Get-Content (Join-Path $dist "SHA256SUMS.txt")

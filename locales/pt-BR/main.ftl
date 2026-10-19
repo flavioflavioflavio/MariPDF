@@ -186,3 +186,21 @@ storage-what-settings = as configurações
 storage-what-session = o histórico de leitura
 storage-what-window = a posição da janela
 settings-assoc-failed = Não foi possível alterar a associação .pdf: { $error }
+
+## Atualização
+about-donate = ♥ Apoiar o MariPDF
+update-check = Verificar atualizações
+update-check-again = Verificar de novo
+update-checking = Verificando…
+update-up-to-date = ✓ Você está na versão mais recente
+update-available = Nova versão disponível: { $version }
+update-download-install = Baixar e instalar
+update-open-page = Ver a versão no GitHub
+update-downloading = Baixando e verificando { $version }…
+update-verified = Instalador baixado e assinatura verificada.
+update-install-now = Instalar agora
+update-err-network = Não foi possível consultar as atualizações (sem conexão?).
+update-err-no-installer = Esta versão não tem instalador para baixar.
+update-err-signature = Assinatura da atualização inválida — download descartado.
+update-err-hash = O arquivo baixado não confere com a lista assinada — descartado.
+update-err-io = Não foi possível salvar ou iniciar o instalador.

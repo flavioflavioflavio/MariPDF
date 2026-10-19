@@ -6,3 +6,5 @@
 *.png binary
 *.ico binary
 *.exe binary
+# Fixtures são comparadas/assinadas byte a byte.
+tests/fixtures/** binary

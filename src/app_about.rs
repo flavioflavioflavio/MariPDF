@@ -9,12 +9,16 @@ use eframe::egui;
 const REPO_URL: &str = "https://github.com/flavioflavioflavio/MariPDF";
 const LINKEDIN_URL: &str = "https://www.linkedin.com/in/takemotoflavio/";
 const EVOMIND_URL: &str = "https://evomind.app/investors";
+/// Canal de doação (BF-610). Enquanto não houver um canal oficial configurado,
+/// o link não aparece — o README pede para não enviar valores a links antigos.
+const DONATION_URL: Option<&str> = None;
 
 const DIALOG_WIDTH: f32 = 440.0;
 
 #[derive(Default)]
 pub struct AboutState {
     pub open: bool,
+    update: crate::updater::UpdateState,
 }
 
 impl AboutState {
@@ -123,6 +127,23 @@ impl AboutState {
                         }
                     });
 
+                    if let Some(url) = DONATION_URL {
+                        ui.add_space(8.0);
+                        if ui
+                            .link(
+                                egui::RichText::new(t!("about-donate"))
+                                    .size(12.5)
+                                    .color(ACCENT_LIGHT),
+                            )
+                            .clicked()
+                        {
+                            let _ = open::that(url);
+                        }
+                    }
+
+                    ui.add_space(14.0);
+                    self.update_section(ctx, ui);
+
                     ui.add_space(16.0);
                     ui.label(
                         egui::RichText::new(t!("app-license"))
@@ -143,4 +164,93 @@ impl AboutState {
             self.open = false;
         }
     }
+}
+
+impl AboutState {
+    /// Verificação manual de atualização (BF-606): nada vai à rede sem clique.
+    fn update_section(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+        use crate::updater::{self, UpdateState};
+        self.update.poll();
+        let muted = |text: String| egui::RichText::new(text).size(12.0).color(TEXT_MUTED);
+        let mut action: Option<UpdateAction> = None;
+
+        match &self.update {
+            UpdateState::Idle => {
+                if ui.button(t!("update-check")).clicked() {
+                    action = Some(UpdateAction::Check);
+                }
+            }
+            UpdateState::Checking(_) => {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(muted(t!("update-checking")));
+                });
+            }
+            UpdateState::UpToDate => {
+                ui.label(muted(t!("update-up-to-date")));
+                if ui.small_button(t!("update-check-again")).clicked() {
+                    action = Some(UpdateAction::Check);
+                }
+            }
+            UpdateState::Available(release) => {
+                ui.label(
+                    egui::RichText::new(t!("update-available", version => release.tag_name))
+                        .size(13.0)
+                        .strong()
+                        .color(TEXT_PRIMARY),
+                );
+                ui.horizontal(|ui| {
+                    if updater::is_installed_copy()
+                        && release.setup_asset().is_some()
+                        && ui.button(t!("update-download-install")).clicked()
+                    {
+                        action = Some(UpdateAction::Download(release.clone()));
+                    }
+                    if ui.link(t!("update-open-page")).clicked() {
+                        let _ = open::that(&release.html_url);
+                    }
+                });
+            }
+            UpdateState::Downloading(release, _) => {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(muted(t!("update-downloading", version => release.tag_name)));
+                });
+            }
+            UpdateState::Ready(path) => {
+                ui.label(muted(t!("update-verified")));
+                if ui.button(t!("update-install-now")).clicked() {
+                    action = Some(UpdateAction::Install(path.clone()));
+                }
+            }
+            UpdateState::Failed(message) => {
+                ui.label(egui::RichText::new(message).size(12.0).color(ACCENT_LIGHT));
+                ui.horizontal(|ui| {
+                    if ui.small_button(t!("update-check-again")).clicked() {
+                        action = Some(UpdateAction::Check);
+                    }
+                    if ui.link(t!("update-open-page")).clicked() {
+                        let _ = open::that(updater::RELEASES_PAGE);
+                    }
+                });
+            }
+        }
+
+        match action {
+            Some(UpdateAction::Check) => self.update.start_check(ctx),
+            Some(UpdateAction::Download(release)) => self.update.start_download(release, ctx),
+            Some(UpdateAction::Install(path)) => match updater::launch_installer(&path) {
+                // O instalador fecha a cópia em execução; sair libera o .exe.
+                Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                Err(error) => self.update = UpdateState::Failed(error.to_string()),
+            },
+            None => {}
+        }
+    }
+}
+
+enum UpdateAction {
+    Check,
+    Download(crate::updater::Release),
+    Install(std::path::PathBuf),
 }

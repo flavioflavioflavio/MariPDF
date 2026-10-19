@@ -376,18 +376,18 @@ page rendering assíncrono com LOD simples.
 
 ### Entregas
 
-- [ ] BF-601 Definir identidade final: publisher, URLs, licença e canais de suporte.
-- [ ] BF-602 Gerar ícone `.ico` correto e validar recursos/version info do EXE.
-- [ ] BF-603 Criar pipeline para EXE portátil e MSI com instalação/desinstalação.
-- [ ] BF-604 Registrar `ProgID`, `OpenWithProgids`, capabilities e fluxo correto para
-  o usuário escolher o app padrão no Windows.
-- [ ] BF-605 Assinar EXE/MSI ou documentar conscientemente a estratégia inicial.
-- [ ] BF-606 Implementar update assinado/verificado, com rollback e rollout manual.
-- [ ] BF-607 Gerar SHA-256, SBOM e artefatos a partir de tag.
+- [x] BF-601 Definir identidade final: publisher, URLs, licença e canais de suporte. Ver `doc/10_distribuicao.md`.
+- [x] BF-602 Gerar ícone `.ico` correto e validar recursos/version info do EXE. `assets/icon.ico` (16–256 px) e version info no `build.rs`.
+- [x] BF-603 Criar pipeline para EXE portátil e MSI com instalação/desinstalação. Decisão: em vez de MSI, instalador Inno Setup **por usuário** (sem admin/UAC) + EXE portátil.
+- [x] BF-604 Registrar `ProgID`, `OpenWithProgids`, capabilities e fluxo correto para
+  o usuário escolher o app padrão no Windows. Registro moderno (Capabilities/RegisteredApplications) + abre Aplicativos padrão.
+- [x] BF-605 Assinar EXE/MSI ou documentar conscientemente a estratégia inicial. Estratégia documentada: sem Authenticode por ora; SHA256SUMS assinado (Ed25519); SignPath/Trusted Signing como próximo passo.
+- [x] BF-606 Implementar update assinado/verificado, com rollback e rollout manual. Manual (sem rede em segundo plano), assinatura Ed25519 + hash, rollback do Inno, downgrade bloqueado.
+- [x] BF-607 Gerar SHA-256, SBOM e artefatos a partir de tag. `release.yml` em tag: gates, smoke, portátil, instalador, SBOM CycloneDX, checksums, rascunho de release.
 - [ ] BF-608 Testar instalação limpa, upgrade, downgrade bloqueado, desinstalação e
-  portable em Windows 10/11.
-- [ ] BF-609 Preparar manifesto Winget depois de o MSI estar estável.
-- [ ] BF-610 Implementar doação apenas depois do core/release, sem modal agressivo.
+  portable em Windows 10/11. Windows 11: 13/13 em `tools/installer_test.ps1`; Windows 10 pendente na matriz RC.
+- [x] BF-609 Preparar manifesto Winget depois de o MSI estar estável. Manifestos gerados e validados (`winget validate`); envio manual após a 1ª estável.
+- [x] BF-610 Implementar doação apenas depois do core/release, sem modal agressivo. Link discreto no *Sobre*, oculto até existir um canal oficial (`DONATION_URL`).
 
 ### DoD
 

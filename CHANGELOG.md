@@ -40,6 +40,13 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Distribuição: EXE portátil e instalador **por usuário** (sem admin/UAC), com
+  ícone, metadados de versão, associação `.pdf` moderna (Capabilities +
+  Aplicativos padrão), upgrade que fecha o app aberto e downgrade bloqueado.
+- Atualização manual em *Sobre*: só consulta a rede ao clicar, baixa o
+  instalador e só executa com assinatura Ed25519 e hash válidos.
+- Release por tag gera portátil, instalador, SBOM CycloneDX, SHA256SUMS
+  assinado e manifestos Winget num rascunho de release.
 - Toolbar redesenhada em três zonas (documento, página centralizada e
   visualização), com um único estilo de botão, hover por baixo do ícone, grupos
   para página/zoom/modo, menu de zoom (100%, ajustar largura, ajustar página) e

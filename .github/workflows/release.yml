@@ -1,0 +1,92 @@
+name: Release
+
+# Gera artefatos reproduzíveis a partir de uma tag v* e cria um RASCUNHO de
+# release (nunca publica sozinho). Assinatura Ed25519 do SHA256SUMS.txt:
+#   • com o secret MARIPDF_SIGNING_KEY configurado, assina aqui;
+#   • sem ele, rode localmente `pwsh tools/release_sign.ps1 -Tag <tag>`, que
+#     assina com a chave em ~/.maripdf e anexa o .sig ao rascunho.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag existente para empacotar (ex.: v1.0.0-rc.1)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      HAS_SIGNING_KEY: ${{ secrets.MARIPDF_SIGNING_KEY != '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Tag confere com Cargo.toml
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
+          if ("v$version" -ne $env:TAG) { throw "Tag $env:TAG difere da versão v$version do Cargo.toml" }
+          "VERSION=$version" | Out-File -Append $env:GITHUB_ENV
+
+      - name: Gates
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets --all-features -- -D warnings
+          cargo test --all-targets
+
+      - name: Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Portable, instalador e checksums (inclui smoke test)
+        shell: pwsh
+        run: pwsh -NoProfile -File tools/package.ps1
+
+      - name: SBOM (CycloneDX)
+        shell: pwsh
+        run: |
+          cargo install cargo-cyclonedx --locked
+          cargo cyclonedx --format json --override-filename "MariPDF-$env:VERSION-sbom"
+          Move-Item "MariPDF-$env:VERSION-sbom.json" dist/
+          $line = "{0}  {1}" -f (Get-FileHash "dist/MariPDF-$env:VERSION-sbom.json" -Algorithm SHA256).Hash.ToLower(), "MariPDF-$env:VERSION-sbom.json"
+          [IO.File]::AppendAllText("dist/SHA256SUMS.txt", "$line`n")
+
+      - name: Assinar SHA256SUMS (se o secret existir)
+        if: ${{ env.HAS_SIGNING_KEY == 'true' }}
+        env:
+          MARIPDF_SIGNING_KEY: ${{ secrets.MARIPDF_SIGNING_KEY }}
+        shell: pwsh
+        run: |
+          python -m pip install --quiet cryptography
+          python tools/sign_release.py dist/SHA256SUMS.txt
+
+      - name: Rascunho de release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $pre = if ($env:VERSION -match "-") { "--prerelease" } else { "" }
+          $notes = "Rascunho gerado pelo CI. Revise as notas e publique manualmente.`n`nArtefatos: portátil, instalador por usuário (sem admin), SBOM e SHA256SUMS assinado (Ed25519)."
+          gh release create $env:TAG --draft $pre --title "MariPDF $env:VERSION" --notes $notes (Get-ChildItem dist -File | ForEach-Object { $_.FullName })
+
+      - name: Artefatos do workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: maripdf-${{ env.VERSION }}
+          path: dist/

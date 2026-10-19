@@ -31,6 +31,7 @@ mod settings_types;
 mod storage;
 mod text_selection;
 mod ui;
+mod updater;
 
 fn main() -> anyhow::Result<()> {
     bench::mark_process_start();
