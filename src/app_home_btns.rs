@@ -99,7 +99,7 @@ impl MariApp {
                                     .stroke(egui::Stroke::NONE)
                                     .min_size(egui::vec2(28.0, 28.0)),
                                 )
-                                .on_hover_text("Configurações");
+                                .on_hover_text(crate::t!("toolbar-settings-hint"));
                             ui.ctx().data_mut(|d| d.insert_temp(hid, r.hovered()));
                             if r.hovered() {
                                 ctx.set_cursor_icon(egui::CursorIcon::PointingHand);

@@ -22,7 +22,8 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   o tema do Windows no startup e qualquer troca pela toolbar ou Home é salva.
 - “Limpar histórico” pede confirmação, permite cancelar e informa sucesso ou
   falha da gravação.
-- Teste garante que PT-BR e EN expõem as mesmas chaves Fluent.
+- Testes garantem que PT-BR e EN expõem as mesmas chaves Fluent, que toda chave
+  usada no código existe e que widgets, tooltips e toasts não recebem texto fixo.
 - Busca destaca a ocorrência ativa sobre a página (Single e Continuous) e mostra
   o trecho de contexto com o termo marcado; no modo contínuo a navegação
   centraliza a linha da ocorrência, não só o topo da página.
@@ -44,6 +45,9 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   para página/zoom/modo, menu de zoom (100%, ajustar largura, ajustar página) e
   tooltips traduzidos com atalhos.
 - Modo Moldura passa a se chamar Modo Flutuante.
+- Home, status bar, painel lateral, sumário automático, toasts, erros de
+  abertura, diálogo de arquivo e rótulos das configurações passam pelo Fluent;
+  a UI em inglês cobre a mesma superfície do PT-BR.
 - PDFium é a engine oficial da v1.0; MuPDF permanece apenas como alternativa
   futura sujeita a benchmark e decisão de licença.
 - O roadmap vigente passa a ser `doc/08_roadmap_blazing_fast_v1.md`.

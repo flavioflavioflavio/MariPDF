@@ -2,6 +2,7 @@
 // Extraído de settings.rs para respeitar o hardcap de 250L.
 
 use crate::app_color_mode::ColorMode;
+use crate::t;
 use serde::{Deserialize, Serialize};
 
 // ── Escala de UI ───────────────────────────────────────────────────────────────
@@ -19,16 +20,16 @@ pub enum UiScale {
 }
 
 impl UiScale {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Normal => "Normal",
-            Self::Largo => "Largo",
-            Self::Xl => "XL",
-            Self::Xxl => "XXL",
-            Self::Enorme => "Enorme",
-            Self::Gigante => "Gigante",
-            Self::Maximo => "Máximo",
-        }
+    pub fn label(&self) -> String {
+        t!(match self {
+            Self::Normal => "scale-normal",
+            Self::Largo => "scale-large",
+            Self::Xl => "scale-xl",
+            Self::Xxl => "scale-xxl",
+            Self::Enorme => "scale-huge",
+            Self::Gigante => "scale-giant",
+            Self::Maximo => "scale-max",
+        })
     }
     pub fn pixels_per_point(&self) -> f32 {
         match self {
@@ -108,13 +109,13 @@ pub enum RenderQuality {
 }
 
 impl RenderQuality {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Fast => "Rápida",
-            Self::Balanced => "Balanceada",
-            Self::Sharp => "Nítida",
-            Self::Ultra => "Ultra",
-        }
+    pub fn label(&self) -> String {
+        t!(match self {
+            Self::Fast => "quality-fast",
+            Self::Balanced => "quality-balanced",
+            Self::Sharp => "quality-sharp",
+            Self::Ultra => "quality-ultra",
+        })
     }
     pub fn scale(&self) -> f32 {
         match self {
@@ -141,13 +142,13 @@ pub enum PageMargin {
 }
 
 impl PageMargin {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::None => "Nenhuma",
-            Self::Slim => "Estreita",
-            Self::Normal => "Normal",
-            Self::Wide => "Larga",
-        }
+    pub fn label(&self) -> String {
+        t!(match self {
+            Self::None => "margin-none",
+            Self::Slim => "margin-slim",
+            Self::Normal => "margin-normal",
+            Self::Wide => "margin-wide",
+        })
     }
     pub fn px(&self) -> f32 {
         match self {
@@ -173,12 +174,12 @@ pub enum DefaultPanel {
 }
 
 impl DefaultPanel {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::None => "Nenhum",
-            Self::Thumbnails => "Miniaturas",
-            Self::Toc => "Sumário",
-        }
+    pub fn label(&self) -> String {
+        t!(match self {
+            Self::None => "panel-none",
+            Self::Thumbnails => "panel-thumbnails",
+            Self::Toc => "panel-toc",
+        })
     }
     pub fn all() -> [Self; 3] {
         [Self::None, Self::Thumbnails, Self::Toc]
@@ -248,35 +249,57 @@ impl From<ColorMode> for ThemePreference {
 pub struct ColorPalette(pub u8);
 
 impl ColorPalette {
-    pub fn dark_name(i: u8) -> &'static str {
-        match i {
-            0 => "Carvão",
-            1 => "Meia-noite",
-            2 => "Violeta",
-            _ => "Floresta",
-        }
+    pub fn dark_name(i: u8) -> String {
+        palette_name("dark", i)
     }
-    pub fn light_name(i: u8) -> &'static str {
-        match i {
-            0 => "Névoa",
-            1 => "Ártico",
-            2 => "Papel",
-            _ => "Menta",
-        }
+    pub fn light_name(i: u8) -> String {
+        palette_name("light", i)
     }
-    pub fn sepia_name(i: u8) -> &'static str {
-        match i {
-            0 => "Pergaminho",
-            1 => "Âmbar",
-            2 => "Vintage",
-            _ => "Rosa Antigo",
-        }
+    pub fn sepia_name(i: u8) -> String {
+        palette_name("sepia", i)
     }
+}
+
+fn palette_name(mode: &str, i: u8) -> String {
+    t!(&format!("palette-{mode}-{}", i.min(3)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `t!` devolve a própria chave quando ela falta no bundle; nenhum rótulo
+    /// montado dinamicamente pode cair nesse fallback.
+    #[test]
+    fn dynamic_labels_resolve_in_both_languages() {
+        const KEY_PREFIXES: [&str; 6] = [
+            "scale-", "quality-", "margin-", "panel-", "palette-", "theme-",
+        ];
+        for language in crate::i18n::Language::all() {
+            crate::i18n::init(language);
+            let mut labels: Vec<String> = Vec::new();
+            labels.extend(UiScale::all().iter().map(UiScale::label));
+            labels.extend(RenderQuality::all().iter().map(RenderQuality::label));
+            labels.extend(PageMargin::all().iter().map(PageMargin::label));
+            labels.extend(DefaultPanel::all().iter().map(DefaultPanel::label));
+            labels.extend(
+                ThemePreference::all()
+                    .iter()
+                    .map(|t| crate::t!(t.label_key())),
+            );
+            for i in 0..4 {
+                labels.push(ColorPalette::dark_name(i));
+                labels.push(ColorPalette::light_name(i));
+                labels.push(ColorPalette::sepia_name(i));
+            }
+            let unresolved: Vec<_> = labels
+                .iter()
+                .filter(|label| KEY_PREFIXES.iter().any(|p| label.starts_with(p)))
+                .collect();
+            assert!(unresolved.is_empty(), "{language:?}: {unresolved:?}");
+        }
+        crate::i18n::init(crate::i18n::Language::default());
+    }
 
     #[test]
     fn render_quality_scales_are_ordered() {

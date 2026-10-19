@@ -222,7 +222,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         if let Some(ref text) = app.selected_text.clone() {
             let now = ctx.input(|i| i.time);
             ctx.copy_text(text.clone());
-            app.toast = Some(Toast::info("Texto copiado!", 2.0, now));
+            app.toast = Some(Toast::info(crate::t!("toast-text-copied"), 2.0, now));
         }
     }
 
@@ -351,14 +351,10 @@ fn apply_document_completion(app: &mut MariApp, ctx: &egui::Context, completion:
             if page_index == app.current_page {
                 let now = ctx.input(|input| input.time);
                 if text.trim().is_empty() {
-                    app.toast = Some(Toast::error("Página sem texto extraível", 2.5, now));
+                    app.toast = Some(Toast::error(crate::t!("toast-no-text"), 2.5, now));
                 } else {
                     app.selected_text = Some(text);
-                    app.toast = Some(Toast::info(
-                        "Texto selecionado — Ctrl+C para copiar",
-                        3.0,
-                        now,
-                    ));
+                    app.toast = Some(Toast::info(crate::t!("toast-text-selected"), 3.0, now));
                 }
             }
         }
@@ -378,7 +374,7 @@ fn apply_document_completion(app: &mut MariApp, ctx: &egui::Context, completion:
             );
             if matches!(completion.target, DocumentJobTarget::Text(_)) {
                 let now = ctx.input(|input| input.time);
-                app.toast = Some(Toast::error("Falha ao extrair texto", 2.5, now));
+                app.toast = Some(Toast::error(crate::t!("toast-text-fail"), 2.5, now));
             }
         }
         JobOutcome::Cancelled => {}

@@ -73,7 +73,7 @@ impl MariApp {
                     ctx.copy_text(clean.clone());
                     self.selected_text = Some(clean);
                     let now = ctx.input(|i| i.time);
-                    self.toast = Some(Toast::info("Texto copiado!", 2.0, now));
+                    self.toast = Some(Toast::info(crate::t!("toast-text-copied"), 2.0, now));
                 }
             }
         }

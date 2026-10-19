@@ -22,7 +22,7 @@ pub fn register_pdf_association() -> anyhow::Result<()> {
 
         // 2. Registra o ProgID com descrição
         let (prog_key, _) = hkcu.create_subkey(r"Software\Classes\MariPDF.Document")?;
-        prog_key.set_value("", &"Documento PDF")?;
+        prog_key.set_value("", &crate::t!("file-type-name"))?;
 
         // 3. Registra o ícone padrão
         let (icon_key, _) = hkcu.create_subkey(r"Software\Classes\MariPDF.Document\DefaultIcon")?;

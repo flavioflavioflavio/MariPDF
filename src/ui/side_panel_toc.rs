@@ -36,7 +36,7 @@ pub fn show_toc(
 
         ui.horizontal(|ui| {
             ui.label(
-                egui::RichText::new("⚙ Gerado automaticamente")
+                egui::RichText::new(crate::t!("toc-auto-generated"))
                     .size(9.5)
                     .color(color_muted),
             );
@@ -83,7 +83,7 @@ pub fn show_toc(
                                 .show(ui, |ui| {
                                     ui.set_min_width(ui.available_width());
                                     let label = egui::Label::new(
-                                        egui::RichText::new(format!("Página {}", p + 1))
+                                        egui::RichText::new(crate::t!("toc-page", page => p + 1))
                                             .size(12.0)
                                             .color(label_color),
                                     )
@@ -149,7 +149,7 @@ pub fn show_toc(
                                 if resp.hovered() {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                                 }
-                                resp.on_hover_text(format!("Página {}", page + 1));
+                                resp.on_hover_text(crate::t!("toc-page", page => page + 1));
                             }
                         });
                     });

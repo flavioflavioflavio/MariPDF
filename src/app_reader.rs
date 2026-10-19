@@ -27,8 +27,8 @@ impl MariApp {
         let filename = path
             .file_name()
             .and_then(|n| n.to_str())
-            .unwrap_or("Documento")
-            .to_string();
+            .map(str::to_string)
+            .unwrap_or_else(|| crate::t!("doc-untitled"));
         let page_count = self.page_count;
         let current_page = self.current_page;
         let zoom_pct = (self.viewer.zoom * 100.0) as u32;
@@ -153,7 +153,7 @@ impl MariApp {
                 .anchor(egui::Align2::CENTER_BOTTOM, egui::vec2(0.0, -12.0))
                 .show(ctx, |ui| {
                     ui.label(
-                        egui::RichText::new("F11 → sair da tela cheia")
+                        egui::RichText::new(crate::t!("reader-fullscreen-hint"))
                             .size(11.0)
                             .color(egui::Color32::from_rgba_premultiplied(200, 200, 220, 100)),
                     );
@@ -185,14 +185,14 @@ impl MariApp {
                     if self.viewer.is_loading {
                         ui.label(icons::ph(icons::SPINNER_GAP, 11.0, ACCENT_LIGHT));
                         ui.label(
-                            egui::RichText::new("Renderizando...")
+                            egui::RichText::new(crate::t!("status-rendering"))
                                 .size(11.0)
                                 .color(ACCENT_LIGHT),
                         );
                     } else {
                         ui.label(icons::ph(icons::CHECK, 11.0, color_mode.text_subtle()));
                         ui.label(
-                            egui::RichText::new("Pronto")
+                            egui::RichText::new(crate::t!("status-ready"))
                                 .size(11.0)
                                 .color(color_mode.text_subtle()),
                         );
@@ -211,10 +211,10 @@ impl MariApp {
                             .color(color_mode.text_subtle()),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let mode_str = match mode {
-                            ViewMode::SinglePage => "▣ Página única",
-                            ViewMode::Continuous => "☰ Contínuo",
-                        };
+                        let mode_str = crate::t!(match mode {
+                            ViewMode::SinglePage => "status-mode-single",
+                            ViewMode::Continuous => "status-mode-continuous",
+                        });
                         ui.label(
                             egui::RichText::new(mode_str)
                                 .size(11.0)
@@ -233,10 +233,10 @@ impl MariApp {
                         ui.separator();
                         ui.add_space(10.0);
                         ui.label(
-                            egui::RichText::new(format!(
-                                "Pág. {} / {}",
-                                current_page + 1,
-                                page_count
+                            egui::RichText::new(crate::t!(
+                                "status-page",
+                                current => current_page + 1,
+                                total => page_count,
                             ))
                             .size(11.0)
                             .color(color_mode.text_muted())
@@ -260,9 +260,9 @@ impl MariApp {
         }
 
         let sp_title = match self.side_panel {
-            SidePanelKind::Toc => "Índice",
-            SidePanelKind::Thumbs => "Páginas",
-            SidePanelKind::None => "",
+            SidePanelKind::Toc => crate::t!("side-toc-title"),
+            SidePanelKind::Thumbs => crate::t!("side-thumbs-title"),
+            SidePanelKind::None => String::new(),
         };
         let panel_bg = color_mode.surface_for(self.settings.palette.0);
         let panel_bord = color_mode.border();

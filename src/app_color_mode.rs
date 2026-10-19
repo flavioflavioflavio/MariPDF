@@ -67,12 +67,12 @@ impl ColorMode {
             Self::Sepia => egui::Color32::from_rgb(150, 115, 72),
         }
     }
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Dark => "🌙 Dark",
-            Self::Light => "☀ Light",
-            Self::Sepia => "📜 Sepia",
-        }
+    pub fn label(&self) -> String {
+        crate::t!(match self {
+            Self::Dark => "theme-dark",
+            Self::Light => "theme-light",
+            Self::Sepia => "theme-sepia",
+        })
     }
     pub fn next(&self) -> Self {
         match self {

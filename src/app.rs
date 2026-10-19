@@ -150,7 +150,7 @@ impl MariApp {
     pub fn open_file_dialog(&mut self) {
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("PDF", &["pdf"])
-            .set_title("Abrir PDF — MariPDF")
+            .set_title(crate::t!("dialog-open-title"))
             .pick_file()
         {
             self.pending_open = Some(path);
@@ -275,13 +275,13 @@ pub(crate) fn configure_visuals(ctx: &egui::Context) {
 pub(crate) fn error_to_user_message(e: &anyhow::Error) -> String {
     let s = e.to_string().to_lowercase();
     if s.contains("password") || s.contains("encrypted") || s.contains("senha") {
-        return "🔒 PDF protegido por senha — não suportado no momento".into();
+        return crate::t!("err-pdf-password");
     }
     if s.contains("corrupt") || s.contains("invalid") || s.contains("damaged") {
-        return "⚠ Arquivo PDF corrompido ou inválido".into();
+        return crate::t!("err-pdf-corrupt");
     }
     if s.contains("not found") || s.contains("no such file") {
-        return "❌ Arquivo não encontrado".into();
+        return crate::t!("err-pdf-not-found");
     }
-    format!("⚠ Erro ao abrir PDF: {e}")
+    crate::t!("err-pdf-open", error => e)
 }

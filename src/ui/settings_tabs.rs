@@ -29,7 +29,7 @@ pub(super) fn tab_appearance(
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for s in UiScale::all() {
             let sel = settings.scale == s;
-            if chip(ui, s.label(), sel, tok).clicked() {
+            if chip(ui, &s.label(), sel, tok).clicked() {
                 settings.scale = s;
                 ui.ctx().set_pixels_per_point(s.pixels_per_point());
                 settings.save();
@@ -62,7 +62,7 @@ pub(super) fn tab_appearance(
                 ColorMode::Sepia => ColorPalette::sepia_name(i),
             };
             let sel = settings.palette.0 == i;
-            if chip(ui, name, sel, tok).clicked() {
+            if chip(ui, &name, sel, tok).clicked() {
                 settings.palette = ColorPalette(i);
                 settings.save();
                 *needs_render_reload = true;
@@ -112,7 +112,7 @@ pub(super) fn tab_reading(
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for m in PageMargin::all() {
             let sel = settings.page_margin == m;
-            if chip(ui, m.label(), sel, tok).clicked() {
+            if chip(ui, &m.label(), sel, tok).clicked() {
                 settings.page_margin = m;
                 settings.save();
             }
@@ -125,7 +125,7 @@ pub(super) fn tab_reading(
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for q in RenderQuality::all() {
             let sel = settings.render_quality == q;
-            if chip(ui, q.label(), sel, tok).clicked() {
+            if chip(ui, &q.label(), sel, tok).clicked() {
                 settings.render_quality = q;
                 *needs_render_reload = true;
                 settings.save();
@@ -158,7 +158,7 @@ pub(super) fn tab_privacy(
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for p in DefaultPanel::all() {
             let sel = settings.default_panel == p;
-            if chip(ui, p.label(), sel, tok).clicked() {
+            if chip(ui, &p.label(), sel, tok).clicked() {
                 settings.default_panel = p;
                 settings.save();
             }

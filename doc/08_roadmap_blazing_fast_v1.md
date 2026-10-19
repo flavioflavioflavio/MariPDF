@@ -111,7 +111,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
     ser decidido e testado como contrato de UX.
 13. Persistência de janela salva largura aproximada e altura fixa; não salva
     posição real, maximização ou monitor.
-14. Há strings PT-BR hardcoded fora do Fluent, então a UI em inglês é parcial.
+14. [x] Havia strings PT-BR hardcoded fora do Fluent; a UI em inglês agora cobre
+    a mesma superfície, protegida por testes.
 
 ### Gaps de robustez, produto e distribuição
 
@@ -307,7 +308,7 @@ page rendering assíncrono com LOD simples.
 - [ ] BF-411 Fechar contrato de seleção/cópia e cobrir mouse + teclado.
 - [ ] BF-412 Persistir tamanho, posição, maximização e monitor com recuperação
   segura quando a topologia de monitores mudar.
-- [ ] BF-413 Completar i18n e remover strings de UI hardcoded.
+- [x] BF-413 Completar i18n e remover strings de UI hardcoded.
 - [ ] BF-414 Remover módulos stubs mortos ou conectá-los explicitamente.
 - [x] BF-415 Modo Flutuante (antes “Moldura”): exibir o PDF sem janela, contido num frame, no
   estilo PureRef. Escopo:

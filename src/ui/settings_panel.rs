@@ -111,7 +111,7 @@ pub fn show_settings_panel(
                                 )
                                 .on_hover_cursor(egui::CursorIcon::PointingHand)
                                 .on_hover_ui(|ui| {
-                                    ui.label("Fechar configurações");
+                                    ui.label(t!("settings-close-hint"));
                                 });
                             if resp.clicked() {
                                 close_req = true;
@@ -238,12 +238,18 @@ pub fn show_settings_panel(
                     ui.set_min_width(456.0);
                     ui.horizontal(|ui| {
                         ui.label(
-                            egui::RichText::new("MariPDF — Leitor ultra-leve")
+                            egui::RichText::new(format!("MariPDF — {}", t!("app-tagline")))
                                 .size(10.5)
                                 .color(tok.subtle),
                         );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let resp = action_btn(ui, "  Fechar  ", tok.accent, tok.on_acc, &tok);
+                            let resp = action_btn(
+                                ui,
+                                &format!("  {}  ", t!("btn-close")),
+                                tok.accent,
+                                tok.on_acc,
+                                &tok,
+                            );
                             if resp.clicked() {
                                 close_req = true;
                             }
