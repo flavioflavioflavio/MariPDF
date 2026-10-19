@@ -14,6 +14,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     // Fechar documento pendente
     if app.pending_close {
         app.pending_close = false;
+        app.exit_frame_mode(ctx);
         app.current_file = None;
         app.document_worker = None;
         app.engine = None;
@@ -81,7 +82,8 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     // ── Atalhos globais ───────────────────────────────────────────────────────
     let (mut go_next, mut go_prev, mut zoom_in, mut zoom_out) = (false, false, false, false);
     let (mut go_home, mut go_end, mut toggle_fs, mut fit_w) = (false, false, false, false);
-    let (mut fit_p, mut open_goto, mut toggle_mode) = (false, false, false);
+    let (mut fit_p, mut open_goto, mut toggle_mode, mut toggle_frame) =
+        (false, false, false, false);
     let (mut open_search, mut search_next, mut search_prev) = (false, false, false);
     let (mut escape, mut select_all, mut copy_text, mut open_about) = (false, false, false, false);
 
@@ -99,7 +101,8 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         fit_p = ctrl && i.key_pressed(egui::Key::Num0);
         open_goto = ctrl && i.key_pressed(egui::Key::G);
         toggle_mode = ctrl && shift && i.key_pressed(egui::Key::M);
-        open_search = ctrl && i.key_pressed(egui::Key::F);
+        open_search = ctrl && !shift && i.key_pressed(egui::Key::F);
+        toggle_frame = ctrl && shift && i.key_pressed(egui::Key::F);
         search_next = i.key_pressed(egui::Key::F3) && !shift;
         search_prev = i.key_pressed(egui::Key::F3) && shift;
         escape = i.key_pressed(egui::Key::Escape);
@@ -108,7 +111,15 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         open_about = ctrl && shift && i.key_pressed(egui::Key::I);
     });
 
-    if toggle_fs {
+    if toggle_frame && app.engine.is_some() {
+        app.toggle_frame_mode(ctx);
+    }
+    // Esc sai da Moldura quando nenhum overlay está aberto.
+    if escape && app.frame.active && !app.goto_open && !app.search_open {
+        app.exit_frame_mode(ctx);
+    }
+
+    if toggle_fs && !app.frame.active {
         app.fullscreen = !app.fullscreen;
         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(app.fullscreen));
     }
@@ -196,7 +207,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             let c = ctx.clone();
             app.go_to_page(&c, last);
         }
-        if toggle_mode {
+        if toggle_mode && !app.frame.active {
             let c = ctx.clone();
             app.do_toggle_mode(&c);
         }

@@ -95,3 +95,14 @@ toast-text-selected = Text selected — Ctrl+C to copy
 toast-text-copied = Text copied!
 toast-no-text = Page has no extractable text
 toast-text-fail = Failed to extract text
+
+# Modo Moldura
+frame-enter = Frame mode (Ctrl+Shift+F)
+frame-always-on-top = Always on top
+frame-next = Next page
+frame-prev = Previous page
+frame-goto = Go to page…
+frame-reset-view = Fit page
+frame-open = Open file…
+frame-exit = Exit frame (Esc)
+frame-close = Close MariPDF

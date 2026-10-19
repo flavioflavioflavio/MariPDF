@@ -19,7 +19,7 @@ pub(super) fn pdf_rect_to_screen(
 }
 
 /// Pinta a ocorrência ativa da busca se ela pertence à página desenhada.
-pub(super) fn paint_search_highlight(
+pub(crate) fn paint_search_highlight(
     ui: &egui::Ui,
     page_rect: egui::Rect,
     highlight: Option<&SearchHighlight>,

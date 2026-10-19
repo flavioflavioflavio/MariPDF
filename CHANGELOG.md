@@ -26,6 +26,11 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 - Busca destaca a ocorrência ativa sobre a página (Single e Continuous) e mostra
   o trecho de contexto com o termo marcado; no modo contínuo a navegação
   centraliza a linha da ocorrência, não só o topo da página.
+- Modo Moldura (Ctrl+Shift+F ou botão na toolbar): o PDF vira a própria janela,
+  sem decoração, travada na proporção da página. Arrastar move a janela, bordas
+  redimensionam, roda troca de página, Ctrl + roda dá zoom no cursor com pan,
+  duplo clique reenquadra e o botão direito abre o menu com Sempre no topo,
+  navegação, abrir arquivo e sair. Segue o tema do app e não persiste estado.
 - Stress manual parametrizado para abrir, renderizar e fechar um corpus real em
   concorrência dentro do mesmo processo.
 

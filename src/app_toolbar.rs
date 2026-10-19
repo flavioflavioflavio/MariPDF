@@ -5,6 +5,7 @@ use crate::app::MariApp;
 use crate::app_color_mode::ColorMode;
 use crate::app_reader::SidePanelKind;
 use crate::pdf::thumb_cache::ThumbCache;
+use crate::t;
 use crate::ui::icons;
 use crate::ui::viewer::ViewMode;
 use eframe::egui;
@@ -273,6 +274,21 @@ impl MariApp {
                             let c = ctx.clone();
                             self.do_toggle_mode(&c);
                         }
+                        // Modo Moldura
+                        let r_frame = frame_mode_button(
+                            ui,
+                            color_mode.statusbar_for(palette_idx),
+                            color_mode.border(),
+                            color_mode.text_muted(),
+                        )
+                        .on_hover_text(t!("frame-enter"));
+                        if r_frame.hovered() {
+                            ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
+                        }
+                        if r_frame.clicked() {
+                            let c = ctx.clone();
+                            self.enter_frame_mode(&c);
+                        }
                         ui.add_space(4.0);
                         ui.separator();
                         ui.add_space(4.0);
@@ -417,4 +433,30 @@ impl MariApp {
                 });
             });
     }
+}
+
+/// Botão com ícone desenhado de moldura (retângulo com página interna).
+fn frame_mode_button(
+    ui: &mut egui::Ui,
+    fill: egui::Color32,
+    border: egui::Color32,
+    icon: egui::Color32,
+) -> egui::Response {
+    let resp = ui.add(
+        egui::Button::new("")
+            .min_size(egui::vec2(28.0, 24.0))
+            .fill(fill)
+            .stroke(egui::Stroke::new(1.0, border))
+            .corner_radius(egui::CornerRadius::same(5)),
+    );
+    let outer = egui::Rect::from_center_size(resp.rect.center(), egui::vec2(14.0, 11.0));
+    let painter = ui.painter();
+    painter.rect_stroke(
+        outer,
+        egui::CornerRadius::same(2),
+        egui::Stroke::new(1.3, icon),
+        egui::StrokeKind::Inside,
+    );
+    painter.rect_filled(outer.shrink2(egui::vec2(4.0, 2.5)), 1.0, icon);
+    resp
 }

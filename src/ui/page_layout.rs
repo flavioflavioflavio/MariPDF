@@ -56,6 +56,11 @@ impl PageLayout {
         self.dirty = true;
     }
 
+    /// Tamanho em pontos PDF aprendido pelo bitmap já renderizado da página.
+    pub fn page_size_pts(&self, page: usize) -> Option<(f32, f32)> {
+        self.page_sizes_pts.get(page).copied().flatten()
+    }
+
     pub fn ensure_page_count(&mut self, page_count: usize) {
         if self.page_sizes_pts.len() == page_count {
             return;

@@ -232,6 +232,36 @@ impl PdfViewer {
 
     // ── Modo Single-Page ─────────────────────────────────────────────────────
 
+    /// Consome bitmaps prontos e mantém `texture` na página atual sem bloquear.
+    /// A última textura válida continua disponível enquanto a nova renderiza.
+    pub(crate) fn sync_single_texture(
+        &mut self,
+        ctx: &egui::Context,
+        current_page: usize,
+        page_count: usize,
+    ) {
+        if self.page_cache.drain_ready() {
+            ctx.request_repaint();
+        }
+
+        if self.loaded_page != Some(current_page) {
+            if let Some(mut page) = self.page_cache.get(current_page).cloned() {
+                if self.invert_colors {
+                    invert_rgba(&mut page.rgba);
+                }
+                self.load_page(ctx, &page, current_page);
+                self.is_loading = false;
+                self.last_error = None;
+            } else if let Some(error) = self.page_cache.take_failure(current_page) {
+                self.is_loading = false;
+                self.last_error = Some(error);
+            } else {
+                self.request_single_page(current_page, page_count);
+                ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            }
+        }
+    }
+
     fn show_single(
         &mut self,
         ui: &mut egui::Ui,
@@ -240,27 +270,7 @@ impl PdfViewer {
         page_tint: egui::Color32,
         page_border: egui::Color32,
     ) {
-        if self.page_cache.drain_ready() {
-            ui.ctx().request_repaint();
-        }
-
-        if self.loaded_page != Some(current_page) {
-            if let Some(mut page) = self.page_cache.get(current_page).cloned() {
-                if self.invert_colors {
-                    invert_rgba(&mut page.rgba);
-                }
-                self.load_page(ui.ctx(), &page, current_page);
-                self.is_loading = false;
-                self.last_error = None;
-            } else if let Some(error) = self.page_cache.take_failure(current_page) {
-                self.is_loading = false;
-                self.last_error = Some(error);
-            } else {
-                self.request_single_page(current_page, page_count);
-                ui.ctx()
-                    .request_repaint_after(std::time::Duration::from_millis(16));
-            }
-        }
+        self.sync_single_texture(ui.ctx(), current_page, page_count);
 
         // Lê AMBOS os deltas antes de qualquer widget consumir o evento:
         //   • scroll_delta     = valor bruto por frame (1 notch = ~50px, instantâneo)

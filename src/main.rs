@@ -8,6 +8,7 @@ mod app;
 mod app_about;
 mod app_color_mode;
 mod app_constants;
+mod app_frame;
 mod app_home;
 mod app_home_btns;
 mod app_nav;

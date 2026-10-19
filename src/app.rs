@@ -3,6 +3,7 @@
 //                    app_reader.rs, app_toolbar.rs, app_text_sel.rs, app_overlays.rs
 
 use crate::app_about::AboutState;
+use crate::app_frame::FrameMode;
 use crate::pdf::document_worker::DocumentWorker;
 use crate::pdf::engine::{get_pdfium, BookmarkEntry, PdfEngine, PdfLinkInfo, TextCharInfo};
 use crate::pdf::persistence::{FileSession, PersistenceManager};
@@ -88,6 +89,9 @@ pub struct MariApp {
 
     // About dialog
     pub about: AboutState,
+
+    // Modo Moldura (BF-415)
+    pub frame: FrameMode,
 }
 
 impl MariApp {
@@ -137,6 +141,7 @@ impl MariApp {
             settings,
             settings_open: false,
             about: AboutState::default(),
+            frame: FrameMode::default(),
         }
     }
 
@@ -236,7 +241,9 @@ impl eframe::App for MariApp {
         self.save_session();
         // Salva tamanho atual da janela
         // (available_width é a largura do painel central; usamos como aproximação)
-        PersistenceManager::save_window(self.available_width + 48.0, 768.0);
+        if !self.frame.active {
+            PersistenceManager::save_window(self.available_width + 48.0, 768.0);
+        }
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {

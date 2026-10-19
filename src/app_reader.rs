@@ -19,6 +19,10 @@ pub enum SidePanelKind {
 
 impl MariApp {
     pub(crate) fn ui_reader(&mut self, ctx: &egui::Context) {
+        if self.frame.active {
+            self.ui_frame(ctx);
+            return;
+        }
         let path = self.current_file.clone().unwrap();
         let filename = path
             .file_name()
