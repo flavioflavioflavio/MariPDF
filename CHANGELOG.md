@@ -3,9 +3,14 @@
 Mudanças relevantes do MariPDF são registradas neste arquivo.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) e o
-versionamento seguirá [Semantic Versioning](https://semver.org/).
+versionamento segue [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [1.0.0-rc.1] — 2026-10-19
+
+Primeira release candidate da v1.0. Fecha o roadmap Blazing Fast (BF-0 a BF-7);
+tiles por região ficam para a v1.1 (decisão medida em `doc/benchmarks/bf3-tiles-spike.md`).
 
 ### Added
 
@@ -128,11 +133,14 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Known limitations
 
-- Algumas configurações ainda não controlam integralmente o comportamento.
-- Não há instalador, auto-update ou release pública suportada.
-- O corpus de PDFs e os benchmarks controlados ainda estão sendo construídos.
+- Binários sem assinatura Authenticode: o SmartScreen avisa na primeira
+  execução (integridade garantida por SHA256SUMS assinado com Ed25519).
+- Instalador validado no Windows 11; Windows 10 ainda não passou pela matriz RC.
+- Tiles por região e zoom horizontal além da largura da janela ficam para a v1.1.
+- PDFium roda no mesmo processo (ADR-007): crash nativo do motor fecha o app.
+- Seleção de texto com destaque visual só no modo página única.
 
 ## [1.0.0] — planejada
 
-A release será criada somente quando o Definition of Done do roadmap BF estiver
-integralmente atendido.
+Publicada a partir da RC quando a matriz RC (incluindo Windows 10) estiver
+completa e não houver bloqueadores abertos.
