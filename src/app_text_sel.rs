@@ -139,7 +139,7 @@ impl MariApp {
                     let start_pt = egui::pos2(first_r.left(), first_r.top());
                     painter.line_segment(
                         [start_pt, egui::pos2(start_pt.x, start_pt.y - stem_h)],
-                        egui::Stroke::new(2.0, handle_color),
+                        egui::Stroke::new(2.0_f32, handle_color),
                     );
                     painter.circle_filled(
                         egui::pos2(start_pt.x, start_pt.y - stem_h - handle_r),
@@ -167,7 +167,7 @@ impl MariApp {
                     let end_pt = egui::pos2(last_r.right(), last_r.bottom());
                     painter.line_segment(
                         [end_pt, egui::pos2(end_pt.x, end_pt.y + stem_h)],
-                        egui::Stroke::new(2.0, handle_color),
+                        egui::Stroke::new(2.0_f32, handle_color),
                     );
                     painter.circle_filled(
                         egui::pos2(end_pt.x, end_pt.y + stem_h + handle_r),

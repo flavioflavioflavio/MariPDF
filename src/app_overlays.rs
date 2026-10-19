@@ -19,7 +19,7 @@ impl MariApp {
             .show(ctx, |ui| {
                 egui::Frame::new()
                     .fill(BG_SURFACE)
-                    .stroke(egui::Stroke::new(1.5, ACCENT_PRIMARY))
+                    .stroke(egui::Stroke::new(1.5_f32, ACCENT_PRIMARY))
                     .corner_radius(egui::CornerRadius::same(10))
                     .shadow(egui::Shadow {
                         color: egui::Color32::from_rgba_premultiplied(0, 0, 0, 120),
@@ -99,7 +99,7 @@ impl MariApp {
             .show(ctx, |ui| {
                 egui::Frame::new()
                     .fill(BG_SURFACE)
-                    .stroke(egui::Stroke::new(1.5, ACCENT_PRIMARY))
+                    .stroke(egui::Stroke::new(1.5_f32, ACCENT_PRIMARY))
                     .corner_radius(egui::CornerRadius::same(10))
                     .shadow(egui::Shadow {
                         color: egui::Color32::from_rgba_premultiplied(0, 0, 0, 140),

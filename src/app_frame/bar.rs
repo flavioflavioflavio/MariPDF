@@ -71,7 +71,7 @@ impl MariApp {
                 ui.multiply_opacity(alpha);
                 egui::Frame::new()
                     .fill(colors.fill)
-                    .stroke(egui::Stroke::new(1.0, colors.border))
+                    .stroke(egui::Stroke::new(1.0_f32, colors.border))
                     .corner_radius(egui::CornerRadius::same(14))
                     .inner_margin(egui::Margin::symmetric(4, 2))
                     .show(ui, |ui| {
@@ -244,7 +244,7 @@ fn separator(ui: &mut egui::Ui, colors: &BarColors) {
             egui::pos2(x, rect.top() + 6.0),
             egui::pos2(x, rect.bottom() - 6.0),
         ],
-        egui::Stroke::new(1.0, colors.border),
+        egui::Stroke::new(1.0_f32, colors.border),
     );
 }
 

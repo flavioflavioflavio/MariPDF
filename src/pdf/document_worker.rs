@@ -319,20 +319,31 @@ impl Drop for DocumentWorker {
 }
 
 impl DocumentWorkerHandle {
+    /// Reserva uma vaga na fila limitada; falha se a fila estiver cheia.
+    fn reserve_queue_slot(&self) -> bool {
+        let queued = &self.metrics.queued;
+        let mut current = queued.load(AtomicOrdering::Acquire);
+        while current < self.queue_capacity {
+            match queued.compare_exchange_weak(
+                current,
+                current + 1,
+                AtomicOrdering::AcqRel,
+                AtomicOrdering::Acquire,
+            ) {
+                Ok(_) => return true,
+                Err(actual) => current = actual,
+            }
+        }
+        false
+    }
+
     fn submit(
         &self,
         kind: JobKind,
         priority: JobPriority,
         result_tx: Sender<JobCompletion>,
     ) -> Option<u64> {
-        if self
-            .metrics
-            .queued
-            .fetch_update(AtomicOrdering::AcqRel, AtomicOrdering::Acquire, |queued| {
-                (queued < self.queue_capacity).then_some(queued + 1)
-            })
-            .is_err()
-        {
+        if !self.reserve_queue_slot() {
             return None;
         }
 

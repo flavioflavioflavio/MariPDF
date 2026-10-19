@@ -270,7 +270,7 @@ pub(crate) fn configure_visuals(ctx: &egui::Context) {
     v.panel_fill = BG_BASE;
     v.window_fill = BG_SURFACE;
     v.window_corner_radius = egui::CornerRadius::same(12);
-    v.window_stroke = egui::Stroke::new(1.0, BORDER_SUBTLE);
+    v.window_stroke = egui::Stroke::new(1.0_f32, BORDER_SUBTLE);
     v.override_text_color = Some(TEXT_PRIMARY);
     v.widgets.inactive.bg_fill = egui::Color32::from_rgb(65, 48, 128);
     v.widgets.hovered.bg_fill = ACCENT_PRIMARY;

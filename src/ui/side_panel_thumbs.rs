@@ -233,7 +233,7 @@ fn render_thumb_item(
             egui::pos2(img_rect.left() + 16.0, div_y),
             egui::pos2(img_rect.right() - 16.0, div_y),
         ],
-        egui::Stroke::new(1.0, div_color),
+        egui::Stroke::new(1.0_f32, div_color),
     );
 
     if resp.clicked() {

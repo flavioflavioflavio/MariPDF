@@ -443,7 +443,7 @@ fn zoom_menu(ui: &mut egui::Ui, tok: &Tok, zoom_pct: u32, actions: &mut Vec<Tool
 fn group(ui: &mut egui::Ui, tok: &Tok, add: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .fill(tok.group_fill)
-        .stroke(egui::Stroke::new(1.0, tok.border))
+        .stroke(egui::Stroke::new(1.0_f32, tok.border))
         .corner_radius(egui::CornerRadius::same(8))
         .inner_margin(egui::Margin::same(GROUP_PADDING))
         .show(ui, |ui| {
@@ -547,7 +547,7 @@ fn divider(ui: &mut egui::Ui, tok: &Tok) {
             egui::pos2(x, rect.top() + 6.0),
             egui::pos2(x, rect.bottom() - 6.0),
         ],
-        egui::Stroke::new(1.0, tok.border),
+        egui::Stroke::new(1.0_f32, tok.border),
     );
 }
 
