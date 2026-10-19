@@ -1,7 +1,7 @@
 # MariPDF — Roadmap Blazing Fast e v1.0 Redonda
 
 > Criado em: 2026-07-13  
-> Atualizado em: 2026-10-19
+> Atualizado em: 2026-10-19 (1.0.0-rc.1)
 > Baseado em: auditoria do código, documentação, build release, testes e Clippy  
 > Documento complementar ao roadmap histórico `04_roadmap.md`
 
@@ -406,12 +406,12 @@ page rendering assíncrono com LOD simples.
   alternativa futura, incluindo implicações de licença.
 - [x] BF-702 Reconciliar arquitetura, roadmap histórico, manifesto e CHANGELOG.
 - [x] BF-703 Remover placeholders do README/Cargo/Funding.
-- [ ] BF-704 Publicar benchmarks reais e máquina de referência.
+- [x] BF-704 Publicar benchmarks reais e máquina de referência. Ver `doc/benchmarks/` e a seção Desempenho do README.
 - [x] BF-705 Substituir claims comparativos não medidos por resultados reproduzíveis.
-- [ ] BF-706 Criar screenshots e GIF curto do fluxo real.
-- [ ] BF-707 Executar matriz RC em PDFs e versões Windows suportadas.
-- [ ] BF-708 Fazer soak test prolongado com navegação, zoom, busca e troca de docs.
-- [ ] BF-709 Congelar escopo, corrigir somente blockers e publicar RC.
+- [x] BF-706 Criar screenshots e GIF curto do fluxo real. `doc/screenshots/` (capturados pela própria janela, `showcase.rs`) + `navegacao.gif`.
+- [ ] BF-707 Executar matriz RC em PDFs e versões Windows suportadas. Windows 11 completo (`doc/benchmarks/rc-1.0.0-rc.1.md`); Windows 10 pendente.
+- [x] BF-708 Fazer soak test prolongado com navegação, zoom, busca e troca de docs. 20 min, 3.337 ações, 40 trocas de documento, 0 falhas, sem vazamento.
+- [x] BF-709 Congelar escopo, corrigir somente blockers e publicar RC. 1.0.0-rc.1: escopo congelado, bloqueadores da revisão corrigidos, rascunho de release gerado por tag.
 
 ### DoD da v1.0
 
