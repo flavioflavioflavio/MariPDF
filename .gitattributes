@@ -1,0 +1,8 @@
+# Binários nunca sofrem conversão de fim de linha (PDF usa offsets em bytes).
+*.pdf binary
+*.dll binary
+*.ttf binary
+*.woff2 binary
+*.png binary
+*.ico binary
+*.exe binary
