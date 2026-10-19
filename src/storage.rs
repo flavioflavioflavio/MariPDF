@@ -37,8 +37,17 @@ impl StoreKind {
     }
 }
 
+/// `MARIPDF_DATA_DIR` redireciona todo o estado (bench, smoke test, modo
+/// portátil isolado) sem tocar nas preferências reais do usuário.
+fn override_dir() -> Option<PathBuf> {
+    std::env::var_os("MARIPDF_DATA_DIR").map(PathBuf::from)
+}
+
 /// Preferências (roaming, acompanham o perfil do Windows).
 pub fn settings_path() -> PathBuf {
+    if let Some(dir) = override_dir() {
+        return dir.join("settings.toml");
+    }
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("MariPDF")
@@ -47,6 +56,9 @@ pub fn settings_path() -> PathBuf {
 
 /// Estado local da máquina: sessões, janela e logs.
 pub fn local_dir() -> PathBuf {
+    if let Some(dir) = override_dir() {
+        return dir;
+    }
     dirs::data_local_dir()
         .or_else(dirs::home_dir)
         .unwrap_or_else(|| PathBuf::from("."))

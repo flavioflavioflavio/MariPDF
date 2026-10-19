@@ -181,20 +181,20 @@ renderer.
 
 ### Entregas
 
-- [ ] BF-001 Criar corpus versionado por manifesto, sem incluir PDFs restritos:
+- [x] BF-001 Criar corpus versionado por manifesto, sem incluir PDFs restritos:
   pequeno textual, imagens/scans, 100 páginas, 1.000 páginas, bookmarks, muitos
-  links, fontes complexas, corrompido, criptografado e páginas de tamanhos mistos.
-- [ ] BF-002 Criar medidor de `startup → home`, `open → first_page_presented`,
-  render por página, navegação cached/uncached, zoom, busca, working set e pico.
-- [ ] BF-003 Registrar baseline em hardware e build identificados.
-- [ ] BF-004 Adicionar testes unitários para persistência, settings, LRU, i18n,
-  busca e conversões de coordenadas.
+  links, fontes complexas, corrompido, criptografado e páginas de tamanhos mistos. Gerador `tools/make_corpus.py` + manifesto `bench/corpus.toml` (10 PDFs determinísticos).
+- [x] BF-002 Criar medidor de `startup → home`, `open → first_page_presented`,
+  render por página, navegação cached/uncached, zoom, busca, working set e pico. Medidor embutido `MARIPDF_BENCH` + `tools/bench.ps1`/`bench_report.py`.
+- [x] BF-003 Registrar baseline em hardware e build identificados. Ver `doc/benchmarks/baseline-2026-10-19.md`.
+- [x] BF-004 Adicionar testes unitários para persistência, settings, LRU, i18n,
+  busca e conversões de coordenadas. Persistência, settings, LRU, i18n, busca, seleção e coordenadas cobertos.
 - [x] BF-005 Adicionar CI Windows com `cargo fmt --check`, `cargo check`, testes,
   Clippy acordado e build release.
 - [x] BF-006 Zerar warnings do build e definir política de lints pragmática.
-- [ ] BF-007 Criar smoke test que abre o app, abre um PDF conhecido e confirma
-  processo responsivo sem panic no log.
-- [ ] BF-008 Congelar os contratos funcionais atuais em uma matriz de testes.
+- [x] BF-007 Criar smoke test que abre o app, abre um PDF conhecido e confirma
+  processo responsivo sem panic no log. `tools/smoke.ps1`, também no CI.
+- [x] BF-008 Congelar os contratos funcionais atuais em uma matriz de testes. Ver `doc/09_matriz_contratos.md`.
 - [x] BF-009 Adicionar stress manual parametrizado por corpus real para abrir,
   renderizar e fechar vários documentos concorrentemente no mesmo processo.
 

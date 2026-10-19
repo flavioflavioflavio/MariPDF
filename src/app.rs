@@ -97,6 +97,9 @@ pub struct MariApp {
 
     // Posição/tamanho da janela (BF-412)
     pub window: WindowTracker,
+
+    // Medidor/smoke test embutido (BF-002/BF-007), só com MARIPDF_BENCH
+    pub bench: Option<crate::bench::BenchRun>,
 }
 
 impl MariApp {
@@ -148,6 +151,7 @@ impl MariApp {
             about: AboutState::default(),
             frame: FrameMode::default(),
             window: WindowTracker::default(),
+            bench: crate::bench::BenchRun::from_env(),
         }
     }
 
@@ -165,7 +169,12 @@ impl MariApp {
 
     pub(crate) fn open_file(&mut self, ctx: &egui::Context, path: PathBuf) {
         tracing::info!("Abrindo: {}", path.display());
-        match get_pdfium().and_then(|p| PdfEngine::open(&path, p)) {
+        let open_started = std::time::Instant::now();
+        let opened = get_pdfium().and_then(|p| PdfEngine::open(&path, p));
+        if let Some(bench) = self.bench.as_mut() {
+            bench.record_open(open_started.elapsed().as_secs_f64() * 1000.0);
+        }
+        match opened {
             Ok(engine) => {
                 // A troca so altera o documento atual depois que o novo PDF
                 // abriu com sucesso. Assim uma entrada invalida nao desmonta
@@ -254,10 +263,15 @@ impl eframe::App for MariApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        let track = self.tracks_window();
+        let started = std::time::Instant::now();
+        let track = self.tracks_window() && self.bench.is_none();
         self.window.on_frame(ctx, frame, track);
         configure_visuals(ctx);
         crate::app_update::run(self, ctx);
+        if self.bench.is_some() {
+            let frame_ms = started.elapsed().as_secs_f64() * 1000.0;
+            self.bench_step(ctx, frame_ms);
+        }
     }
 }
 
