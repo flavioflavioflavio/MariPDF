@@ -59,13 +59,6 @@ pub(super) fn upload_texture(
     ctx.load_texture(format!("pdf_{idx}"), image, egui::TextureOptions::LINEAR)
 }
 
-/// Calcula (display_w, display_h) respeitando max_w, mantendo aspect ratio.
-pub(super) fn fit_page(tex_size: egui::Vec2, max_w: f32) -> (f32, f32) {
-    let w = tex_size.x.min(max_w.max(100.0));
-    let h = tex_size.y * (w / tex_size.x);
-    (w, h)
-}
-
 /// Desenha uma página com sombra, tint e borda tema-aware.
 /// Grava o rect alocado em `viewer` para hit-test de links pelo caller.
 pub(super) fn draw_page_tex(

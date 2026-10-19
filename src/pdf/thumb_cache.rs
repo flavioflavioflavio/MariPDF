@@ -131,26 +131,12 @@ impl ThumbCache {
         got_any
     }
 
-    /// Verifica se uma página está cacheada.
-    #[allow(dead_code)]
-    pub fn contains(&self, page: usize) -> bool {
-        self.entries.contains_key(&page)
-    }
-
     /// Retorna (width, height) do thumb em cache sem atualizar o LRU.
     /// Usado para calcular a proporção real da página no layout.
     pub fn get_cached_dimensions(&self, page: usize) -> Option<(u32, u32)> {
         self.entries
             .get(&page)
             .map(|e| (e.page.width, e.page.height))
-    }
-
-    /// Limpa tudo (usado ao fechar documento).
-    #[allow(dead_code)]
-    pub fn clear(&mut self) {
-        self.entries.clear();
-        self.inflight.clear();
-        self.lru_order.clear();
     }
 
     // ── LRU eviction ─────────────────────────────────────────────────────────

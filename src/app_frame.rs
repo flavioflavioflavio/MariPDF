@@ -195,7 +195,6 @@ impl MariApp {
         let color_mode = self.color_mode;
         let palette = self.settings.palette.0;
         self.viewer.invert_colors = matches!(color_mode, crate::app::ColorMode::Dark);
-        self.viewer.render_scale = self.settings.render_quality.scale();
         self.viewer.search_highlight = self.active_search_highlight();
         self.viewer
             .sync_single_texture(ctx, self.current_page, self.page_count);
@@ -625,9 +624,12 @@ fn snapped_inner_size(size: egui::Vec2, aspect: f32, border: f32, keep: KeepAxis
     egui::vec2(width.round(), height.round())
 }
 
-/// Zoom de render que gera um bitmap nítido para a altura exibida.
+/// Zoom do viewer cuja escala de exibição bate com a altura mostrada; o
+/// bitmap resultante sai nítido para essa altura na densidade da tela.
 fn frame_render_zoom(display_height: f32, frame_zoom: f32, page_height_pts: f32) -> f32 {
-    (display_height * frame_zoom / page_height_pts.max(1.0)).clamp(MIN_ZOOM, MAX_ZOOM)
+    let points_per_pdf_point = display_height * frame_zoom / page_height_pts.max(1.0);
+    (points_per_pdf_point / crate::ui::page_scale::UI_POINTS_PER_PDF_POINT)
+        .clamp(MIN_ZOOM, MAX_ZOOM)
 }
 
 #[cfg(test)]
@@ -770,8 +772,10 @@ mod tests {
 
     #[test]
     fn render_zoom_tracks_displayed_height() {
-        assert_eq!(frame_render_zoom(842.0, 1.0, 842.0), 1.0);
-        assert_eq!(frame_render_zoom(421.0, 2.0, 842.0), 1.0);
+        use crate::ui::page_scale::UI_POINTS_PER_PDF_POINT as K;
+        // Mostrar a página na altura do 100% equivale a zoom 1.
+        assert!((frame_render_zoom(842.0 * K, 1.0, 842.0) - 1.0).abs() < 1e-5);
+        assert!((frame_render_zoom(421.0 * K, 2.0, 842.0) - 1.0).abs() < 1e-5);
         assert_eq!(frame_render_zoom(10_000.0, 8.0, 842.0), MAX_ZOOM);
     }
 }

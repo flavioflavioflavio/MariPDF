@@ -7,7 +7,6 @@ const DEFAULT_PAGE_HEIGHT: f32 = 842.0;
 pub(crate) struct LayoutParams {
     pub available_width: f32,
     pub zoom: f32,
-    pub render_scale: f32,
     pub margin: f32,
 }
 
@@ -15,7 +14,6 @@ impl LayoutParams {
     fn approximately_equals(self, other: Self) -> bool {
         (self.available_width - other.available_width).abs() < 0.5
             && (self.zoom - other.zoom).abs() < 0.001
-            && (self.render_scale - other.render_scale).abs() < 0.001
             && (self.margin - other.margin).abs() < 0.1
     }
 }
@@ -117,7 +115,7 @@ impl PageLayout {
         for page in 0..self.page_sizes_pts.len() {
             let (page_width, page_height) =
                 self.page_sizes_pts[page].unwrap_or((DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT));
-            let natural_width = page_width * params.zoom * params.render_scale;
+            let natural_width = page_width * crate::ui::page_scale::display_scale(params.zoom);
             let display_width = natural_width.min(usable_width);
             let display_height = page_height * display_width / page_width.max(1.0);
 

@@ -29,7 +29,6 @@ pub enum DocumentJobTarget {
     Bookmarks,
     Links(usize),
     Chars(usize),
-    Text(usize),
     Render {
         page_index: usize,
         scale_bits: u32,
@@ -46,7 +45,6 @@ enum JobKind {
     Bookmarks,
     Links(usize),
     Chars(usize),
-    Text(usize),
     Render {
         page_index: usize,
         scale: f32,
@@ -67,7 +65,6 @@ impl JobKind {
             Self::Bookmarks => DocumentJobTarget::Bookmarks,
             Self::Links(page) => DocumentJobTarget::Links(*page),
             Self::Chars(page) => DocumentJobTarget::Chars(*page),
-            Self::Text(page) => DocumentJobTarget::Text(*page),
             Self::Render { page_index, scale } => DocumentJobTarget::Render {
                 page_index: *page_index,
                 scale_bits: scale.to_bits(),
@@ -130,10 +127,6 @@ pub enum DocumentJobOutput {
     Chars {
         page_index: usize,
         chars: Vec<TextCharInfo>,
-    },
-    Text {
-        page_index: usize,
-        text: String,
     },
     Render {
         page_index: usize,
@@ -257,10 +250,6 @@ impl DocumentWorker {
 
     pub fn request_chars(&mut self, page_index: usize) -> bool {
         self.submit(JobKind::Chars(page_index), JobPriority::Visible)
-    }
-
-    pub fn request_text(&mut self, page_index: usize) -> bool {
-        self.submit(JobKind::Text(page_index), JobPriority::Immediate)
     }
 
     fn submit(&mut self, kind: JobKind, priority: JobPriority) -> bool {
@@ -495,10 +484,6 @@ fn execute_job(engine: &PdfEngine, kind: JobKind) -> anyhow::Result<JobOutcome> 
             page_index,
             chars: engine.extract_chars_with_bounds(page_index)?,
         },
-        JobKind::Text(page_index) => DocumentJobOutput::Text {
-            page_index,
-            text: engine.extract_text(page_index)?,
-        },
         JobKind::Render { page_index, scale } => DocumentJobOutput::Render {
             page_index,
             scale,
@@ -608,7 +593,6 @@ mod tests {
         assert!(worker.request_bookmarks());
         assert!(worker.request_links(0));
         assert!(worker.request_chars(0));
-        assert!(worker.request_text(0));
         assert!(!worker.request_links(0), "job duplicado deve ser recusado");
         assert!(worker.handle.request_render(
             0,
@@ -625,22 +609,22 @@ mod tests {
 
         let deadline = Instant::now() + Duration::from_secs(10);
         let mut terminal = Vec::new();
-        while terminal.len() < 7 && Instant::now() < deadline {
+        while terminal.len() < 6 && Instant::now() < deadline {
             terminal.extend(worker.drain_results());
             std::thread::sleep(Duration::from_millis(10));
         }
 
-        assert_eq!(terminal.len(), 7);
+        assert_eq!(terminal.len(), 6);
         assert!(terminal
             .iter()
             .all(|result| matches!(result.outcome, JobOutcome::Ready(_))));
         let snapshot = worker.metrics();
         assert_eq!(snapshot.running, 0);
-        assert_eq!(snapshot.completed, 7);
+        assert_eq!(snapshot.completed, 6);
         assert_eq!(snapshot.failed, 0);
         assert_eq!(
             wakes.load(AtomicOrdering::Acquire),
-            7,
+            6,
             "um wake por job terminal"
         );
     }

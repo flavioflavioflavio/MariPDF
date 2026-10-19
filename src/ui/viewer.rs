@@ -15,7 +15,7 @@ use eframe::egui;
 
 pub use crate::ui::viewer_helpers::invert_rgba;
 use crate::ui::viewer_helpers::{
-    draw_page_tex, fit_page, paint_search_highlight, show_spinner, upload_texture,
+    draw_page_tex, paint_search_highlight, show_spinner, upload_texture,
 };
 
 // ── Modo de visualização ─────────────────────────────────────────────────────
@@ -62,6 +62,8 @@ pub struct PdfViewer {
     pub(crate) pending_scroll_page: Option<usize>,
     /// Navegação programática para um ponto dentro da página (busca).
     pub(crate) pending_scroll_anchor: Option<LayoutAnchor>,
+    /// Salto animado em andamento (Scroll Suave ligado).
+    pub(crate) scroll_tween: Option<crate::ui::scroll_motion::ScrollTween>,
     /// Âncora mantida ao recalcular alturas/zoom.
     pub(crate) continuous_anchor: Option<LayoutAnchor>,
     pub(crate) continuous_viewport_height: f32,
@@ -86,8 +88,10 @@ pub struct PdfViewer {
     pub is_loading: bool,
     /// Se true, inverte as cores RGB do bitmap (dark mode PDF)
     pub invert_colors: bool,
-    /// Multiplicador de rasterização derivado da preferência de qualidade.
+    /// Pixels de bitmap por ponto de UI: densidade da tela × qualidade.
     pub render_scale: f32,
+    /// Escala (px por ponto PDF) do bitmap da textura single-page atual.
+    pub(crate) texture_scale: f32,
     /// Margem visual configurada entre página e viewport.
     pub page_margin: f32,
     /// Define se deltas suavizados do egui são usados para zoom/scroll.
@@ -111,6 +115,7 @@ impl PdfViewer {
             visible_page: None,
             pending_scroll_page: None,
             pending_scroll_anchor: None,
+            scroll_tween: None,
             continuous_anchor: None,
             continuous_viewport_height: 0.0,
             continuous_scroll_offset: None,
@@ -122,7 +127,8 @@ impl PdfViewer {
             scroll_accum: 0.0,
             is_loading: false,
             invert_colors: false,
-            render_scale: 1.5,
+            render_scale: 1.0,
+            texture_scale: 1.0,
             page_margin: 20.0,
             smooth_scroll: true,
             last_error: None,
@@ -151,6 +157,7 @@ impl PdfViewer {
         self.visible_page = None;
         self.pending_scroll_page = None;
         self.pending_scroll_anchor = None;
+        self.scroll_tween = None;
         self.search_highlight = None;
         self.continuous_anchor = None;
         self.continuous_viewport_height = 0.0;
@@ -168,13 +175,10 @@ impl PdfViewer {
     // ── API para Single-Page ─────────────────────────────────────────────────
 
     pub fn load_page(&mut self, ctx: &egui::Context, page: &RenderedPage, idx: usize) {
-        self.page_layout.observe_bitmap(
-            idx,
-            page.width,
-            page.height,
-            self.zoom * self.render_scale,
-        );
+        self.page_layout
+            .observe_bitmap(idx, page.width, page.height, page.scale);
         self.texture = Some(upload_texture(ctx, page, idx));
+        self.texture_scale = page.scale;
         self.loaded_page = Some(idx);
     }
 
@@ -195,8 +199,13 @@ impl PdfViewer {
         self.visible_page
     }
 
+    /// Pixels por ponto PDF pedidos ao renderer no zoom atual.
+    pub(crate) fn requested_raster_scale(&self) -> f32 {
+        crate::ui::page_scale::raster_scale(self.zoom, self.render_scale)
+    }
+
     pub fn request_single_page(&mut self, page_index: usize, page_count: usize) {
-        let scale = self.zoom * self.render_scale;
+        let scale = self.requested_raster_scale();
         self.page_cache
             .prefetch(page_index, scale, JobPriority::Immediate);
         if page_index + 1 < page_count {
@@ -316,9 +325,15 @@ impl PdfViewer {
         let available = ui.available_size();
 
         if let Some(ref tex) = self.texture {
-            let tex_size = tex.size_vec2();
-            let (w, h) = fit_page(tex_size, available.x - self.page_margin * 2.0);
-            let page_size = egui::vec2(w, h);
+            // Tamanho na tela vem do zoom; a textura (talvez de outro zoom,
+            // enquanto o novo render chega) só define a nitidez.
+            let page_pts = tex.size_vec2() / self.texture_scale.max(f32::EPSILON);
+            let page_size = crate::ui::page_scale::display_size(
+                page_pts,
+                self.zoom,
+                available.x - self.page_margin * 2.0,
+            );
+            let h = page_size.y;
 
             // ── Sem ScrollArea: página centrada no viewport ──────────────
             // Se a página for maior que o viewport (zoom alto),

@@ -45,6 +45,13 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   para página/zoom/modo, menu de zoom (100%, ajustar largura, ajustar página) e
   tooltips traduzidos com atalhos.
 - Modo Moldura passa a se chamar Modo Flutuante.
+- Seleção de texto: arrastar só seleciona; Ctrl+C ou o menu do botão direito
+  copiam. Duplo/triplo clique selecionam palavra/linha, Shift+clique estende,
+  Ctrl+A seleciona a página e Esc limpa.
+- Scroll Suave passa a valer de fato no modo contínuo: ligado anima saltos de
+  página; desligado aplica a roda instantaneamente.
+- Qualidade de render agora é relativa ao pixel físico (0,75× a 2×) e só muda a
+  nitidez; 100% de zoom equivale ao tamanho físico do documento.
 - A janela reabre com a posição, o tamanho e a maximização reais da sessão
   anterior (GetWindowPlacement, pixels físicos), gravados com debounce e
   escrita atômica; posições fora dos monitores atuais são trazidas para dentro
@@ -78,10 +85,15 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
+- Stubs vazios (`ui/search`, `ui/donation`, `ui/recent_files`, `updater`,
+  `toast.rs`), `.ftl` órfãos e o job `Text`, substituído pela camada de chars.
 - `src/color_mode.rs`, cópia morta de `app_color_mode.rs` fora da árvore de módulos.
 
 ### Fixed
 
+- A qualidade de render alterava o tamanho da página na tela e telas HiDPI
+  recebiam bitmaps ampliados; zoom alto em Ultra podia exceder o limite de
+  textura da GPU.
 - Ícones Phosphor apontavam para glifos errados (ex.: sumário exibia uma
   lâmpada); a tabela foi regenerada a partir do CSS oficial do Phosphor 2.1.
 - A troca de arquivo só substitui o documento atual após a nova abertura passar;

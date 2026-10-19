@@ -109,8 +109,7 @@ fn extract_pdfium_dll() -> anyhow::Result<std::path::PathBuf> {
 /// Representa um documento PDF aberto e pronto para renderizar.
 pub struct PdfEngine {
     /// Referência ao singleton do pdfium (mantida para garantir que a DLL
-    /// não seja descarregada enquanto o doc ainda existe).
-    #[allow(dead_code)]
+    /// não seja descarregada enquanto o doc ainda existe; também serializa o drop).
     pdfium: Arc<Mutex<Pdfium>>,
     doc: Option<PdfDocument<'static>>,
     page_count: usize,
@@ -202,6 +201,9 @@ impl PdfEngine {
 
             let width_pts = page.width().value;
             let height_pts = page.height().value;
+            // Zoom alto × qualidade pode passar do limite de textura da GPU;
+            // a página mantém o tamanho na tela e só perde nitidez.
+            let scale = crate::ui::page_scale::capped_raster_scale(width_pts, height_pts, scale);
 
             // Converte pontos (72dpi) para pixels com o fator de escala
             let width_px = (width_pts * scale) as u32;
@@ -223,16 +225,12 @@ impl PdfEngine {
             let rgba = bitmap.as_rgba_bytes();
 
             Ok(RenderedPage {
+                scale,
                 width: width_px,
                 height: height_px,
                 rgba,
             })
         })
-    }
-
-    /// Extrai o texto de uma página como String.
-    pub fn extract_text(&self, page_index: usize) -> anyhow::Result<String> {
-        self.with_document(|doc| engine_extract::extract_text(doc, page_index))
     }
 
     /// Extrai todos os chars de uma página com seus bounding boxes em pontos PDF.
@@ -277,6 +275,8 @@ impl Drop for PdfEngine {
 /// Página renderizada: bitmap RGBA pronto para egui::ColorImage
 #[derive(Clone)]
 pub struct RenderedPage {
+    /// Pixels por ponto PDF efetivamente usados (após o limite de textura).
+    pub scale: f32,
     pub width: u32,
     pub height: u32,
     pub rgba: Vec<u8>,
@@ -384,7 +384,7 @@ mod tests {
                         let text_path = path.clone();
                         let extractor = std::thread::spawn(move || {
                             text_engine
-                                .extract_text(0)
+                                .extract_search_page(0)
                                 .unwrap_or_else(|error| panic!("{}: {error}", text_path.display()));
                         });
 

@@ -68,7 +68,7 @@ settings-language = Language
 settings-page-margin = Page Margin
 settings-render-quality = Render Quality
 settings-smooth-scroll = Smooth Scroll
-settings-smooth-scroll-desc = Animation when navigating pages
+settings-smooth-scroll-desc = Animate scrolling and page jumps
 
 ## Settings — Privacy
 settings-default-panel = Default Side Panel
@@ -98,7 +98,6 @@ err-pdf-not-found = ❌ File not found
 toast-text-selected = Text selected — Ctrl+C to copy
 toast-text-copied = Text copied!
 toast-no-text = Page has no extractable text
-toast-text-fail = Failed to extract text
 
 # Modo Flutuante
 frame-enter = Float mode (Ctrl+Shift+F)
@@ -166,4 +165,8 @@ palette-sepia-0 = Parchment
 palette-sepia-1 = Amber
 palette-sepia-2 = Vintage
 palette-sepia-3 = Old Rose
+
+## Seleção de texto
+sel-copy = Copy (Ctrl+C)
+sel-select-all = Select all (Ctrl+A)
 page-render-failed = Could not display page { $page }

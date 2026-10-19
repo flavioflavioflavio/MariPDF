@@ -19,6 +19,7 @@ pub enum SidePanelKind {
 
 impl MariApp {
     pub(crate) fn ui_reader(&mut self, ctx: &egui::Context) {
+        self.sync_raster_density(ctx);
         if self.frame.active {
             self.ui_frame(ctx);
             return;
@@ -101,7 +102,6 @@ impl MariApp {
                     let tint = self.color_mode.page_tint_for(self.settings.palette.0);
                     let border = self.color_mode.page_border();
                     self.viewer.invert_colors = matches!(self.color_mode, ColorMode::Dark);
-                    self.viewer.render_scale = self.settings.render_quality.scale();
                     self.viewer.page_margin = self.settings.page_margin.px();
                     self.viewer.smooth_scroll = self.settings.smooth_scroll;
                     self.viewer.search_highlight = self.active_search_highlight();

@@ -4,7 +4,6 @@ fn params() -> LayoutParams {
     LayoutParams {
         available_width: 1_000.0,
         zoom: 1.0,
-        render_scale: 1.0,
         margin: 20.0,
     }
 }

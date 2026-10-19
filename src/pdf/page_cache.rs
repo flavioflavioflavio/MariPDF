@@ -78,8 +78,8 @@ impl LruPageCache {
         self.entries.get(page_index)
     }
 
-    /// Insere um bitmap diretamente (uso sync / Single-Page).
-    #[allow(dead_code)]
+    /// Insere um bitmap diretamente, sem passar pelo scheduler (testes).
+    #[cfg(test)]
     pub fn insert_sync(&mut self, page_index: usize, page: RenderedPage) {
         let bytes = page.rgba.len();
         self.entries.insert(page_index, page, bytes);
@@ -194,12 +194,12 @@ impl LruPageCache {
         self.failures.clear();
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn contains(&self, page_index: usize) -> bool {
         self.entries.contains(page_index)
     }
 
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.entries.len()
     }

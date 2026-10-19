@@ -110,6 +110,7 @@ where
         self.entries.contains_key(&key)
     }
 
+    #[cfg(test)]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
