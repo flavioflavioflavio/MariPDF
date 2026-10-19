@@ -109,8 +109,7 @@ fn extract_pdfium_dll() -> anyhow::Result<std::path::PathBuf> {
 /// Representa um documento PDF aberto e pronto para renderizar.
 pub struct PdfEngine {
     /// Referência ao singleton do pdfium (mantida para garantir que a DLL
-    /// não seja descarregada enquanto o doc ainda existe).
-    #[allow(dead_code)]
+    /// não seja descarregada enquanto o doc ainda existe; também serializa o drop).
     pdfium: Arc<Mutex<Pdfium>>,
     doc: Option<PdfDocument<'static>>,
     page_count: usize,

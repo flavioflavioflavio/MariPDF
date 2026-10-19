@@ -34,8 +34,6 @@ pub struct AppSettings {
     #[serde(default)]
     pub track_history: bool,
     #[serde(default)]
-    pub recent_files: Vec<PathBuf>,
-    #[serde(default)]
     pub default_panel: DefaultPanel,
     #[serde(default)]
     pub palette: ColorPalette,
@@ -54,7 +52,6 @@ impl Default for AppSettings {
             page_margin: PageMargin::default(),
             smooth_scroll: true,
             track_history: true,
-            recent_files: Vec::new(),
             default_panel: DefaultPanel::default(),
             palette: ColorPalette::default(),
             language: Language::default(),
