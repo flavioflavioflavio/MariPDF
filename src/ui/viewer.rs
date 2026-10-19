@@ -14,7 +14,9 @@ use crate::ui::texture_cache::GpuTextureCache;
 use eframe::egui;
 
 pub use crate::ui::viewer_helpers::invert_rgba;
-use crate::ui::viewer_helpers::{draw_page_tex, fit_page, show_spinner, upload_texture};
+use crate::ui::viewer_helpers::{
+    draw_page_tex, fit_page, paint_search_highlight, show_spinner, upload_texture,
+};
 
 // ── Modo de visualização ─────────────────────────────────────────────────────
 
@@ -24,6 +26,17 @@ pub enum ViewMode {
     SinglePage,
     /// Todas as páginas em sequência; scroll normal
     Continuous,
+}
+
+// ── Destaque de busca ────────────────────────────────────────────────────────
+
+/// Ocorrência de busca ativa, em coordenadas PDF, desenhada sobre a página.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SearchHighlight {
+    pub page_index: usize,
+    pub page_size: (f32, f32),
+    /// `[left, bottom, right, top]` em pontos PDF.
+    pub rects: Vec<[f32; 4]>,
 }
 
 // ── Viewer ───────────────────────────────────────────────────────────────────
@@ -47,6 +60,8 @@ pub struct PdfViewer {
     pub(crate) visible_page: Option<usize>,
     /// Navegação programática pendente no modo contínuo.
     pub(crate) pending_scroll_page: Option<usize>,
+    /// Navegação programática para um ponto dentro da página (busca).
+    pub(crate) pending_scroll_anchor: Option<LayoutAnchor>,
     /// Âncora mantida ao recalcular alturas/zoom.
     pub(crate) continuous_anchor: Option<LayoutAnchor>,
     pub(crate) continuous_viewport_height: f32,
@@ -60,6 +75,8 @@ pub struct PdfViewer {
     /// Retângulo da última página renderizada em coordenadas de tela.
     /// Usado pelo app.rs para hit-test de links e cursor contextual.
     pub last_page_rect: egui::Rect,
+    /// Ocorrência de busca ativa; definida pelo app a cada frame.
+    pub search_highlight: Option<SearchHighlight>,
 
     // ── Parâmetros compartilhados ──
     pub zoom: f32,
@@ -90,12 +107,14 @@ impl PdfViewer {
             page_layout: PageLayout::new(),
             visible_page: None,
             pending_scroll_page: None,
+            pending_scroll_anchor: None,
             continuous_anchor: None,
             continuous_viewport_height: 0.0,
             continuous_scroll_offset: None,
             zoom_delta: 0.0,
             page_delta: 0,
             last_page_rect: egui::Rect::NOTHING,
+            search_highlight: None,
             zoom: 1.0,
             scroll_accum: 0.0,
             is_loading: false,
@@ -124,6 +143,8 @@ impl PdfViewer {
         self.page_layout.clear();
         self.visible_page = None;
         self.pending_scroll_page = None;
+        self.pending_scroll_anchor = None;
+        self.search_highlight = None;
         self.continuous_anchor = None;
         self.continuous_viewport_height = 0.0;
         self.continuous_scroll_offset = None;
@@ -152,6 +173,15 @@ impl PdfViewer {
 
     pub fn request_continuous_page(&mut self, page: usize) {
         self.pending_scroll_page = Some(page);
+    }
+
+    /// Centraliza no viewport contínuo o ponto `page_fraction` (0 = topo) da página.
+    pub fn reveal_continuous(&mut self, page: usize, page_fraction: f32) {
+        self.pending_scroll_page = None;
+        self.pending_scroll_anchor = Some(LayoutAnchor {
+            page,
+            page_fraction: page_fraction.clamp(0.0, 1.0),
+        });
     }
 
     pub fn dominant_continuous_page(&self) -> Option<usize> {
@@ -283,6 +313,12 @@ impl PdfViewer {
                 ui.vertical_centered(|ui| {
                     ui.add_space((available.y - h).max(0.0) / 2.0);
                     draw_page_tex(&mut page_rect, ui, tex, page_size, page_tint, page_border);
+                    paint_search_highlight(
+                        ui,
+                        page_rect,
+                        self.search_highlight.as_ref(),
+                        self.loaded_page,
+                    );
                     ui.add_space(8.0);
                     ui.label(
                         egui::RichText::new(format!(
@@ -314,6 +350,12 @@ impl PdfViewer {
                                 page_size,
                                 page_tint,
                                 page_border,
+                            );
+                            paint_search_highlight(
+                                ui,
+                                page_rect,
+                                self.search_highlight.as_ref(),
+                                self.loaded_page,
                             );
                         });
                         ui.add_space(self.page_margin);

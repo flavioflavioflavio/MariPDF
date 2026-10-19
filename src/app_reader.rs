@@ -100,6 +100,7 @@ impl MariApp {
                     self.viewer.render_scale = self.settings.render_quality.scale();
                     self.viewer.page_margin = self.settings.page_margin.px();
                     self.viewer.smooth_scroll = self.settings.smooth_scroll;
+                    self.viewer.search_highlight = self.active_search_highlight();
                     self.viewer.show(ui, cp, pc, tint, border);
 
                     if self.viewer.mode == ViewMode::Continuous {

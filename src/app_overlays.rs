@@ -2,7 +2,9 @@
 // Extraído de app.rs (L1971-2138). Funções chamadas diretamente em app::MariApp.
 
 use crate::app::{MariApp, ACCENT_PRIMARY, BG_SURFACE, TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE};
+use crate::pdf::text_search::SearchHit;
 use crate::t;
+use crate::ui::viewer::{SearchHighlight, ViewMode};
 use eframe::egui;
 
 impl MariApp {
@@ -76,17 +78,14 @@ impl MariApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
         if first_hits_arrived {
-            if let Some(hit) = self.search.current() {
-                let page = hit.page_index;
-                let cloned_ctx = ctx.clone();
-                self.go_to_page(&cloned_ctx, page);
-            }
+            self.reveal_current_hit(ctx);
         }
 
         let total_hits = self.search.hits.len();
         let current_idx = self.search.current_hit;
         let is_running = self.search.is_running;
         let query_snap = self.search.query.clone();
+        let current_hit = self.search.current().cloned();
 
         let mut new_query = query_snap.clone();
         let mut do_search = false;
@@ -118,7 +117,7 @@ impl MariApp {
                             let edit_resp = ui.add(
                                 egui::TextEdit::singleline(&mut new_query)
                                     .desired_width(180.0)
-                                    .hint_text("Buscar no PDF…")
+                                    .hint_text(t!("overlay-search-placeholder"))
                                     .font(egui::TextStyle::Body),
                             );
                             if self.search_focused {
@@ -171,6 +170,10 @@ impl MariApp {
                                 do_close = true;
                             }
                         });
+                        if let Some(hit) = &current_hit {
+                            ui.add_space(4.0);
+                            ui.label(context_snippet(hit));
+                        }
                         ui.add_space(2.0);
                         ui.label(
                             egui::RichText::new(t!("overlay-search-hint"))
@@ -196,16 +199,91 @@ impl MariApp {
         }
 
         if (go_next || go_prev) && !self.search.hits.is_empty() {
-            if let Some(hit) = self.search.current() {
-                let pg = hit.page_index;
-                let c = ctx.clone();
-                self.go_to_page(&c, pg);
-            }
+            self.reveal_current_hit(ctx);
         }
 
         if do_close {
             self.search_open = false;
             self.search.clear();
         }
+    }
+}
+
+impl MariApp {
+    /// Ocorrência que o viewer deve destacar neste frame.
+    pub(crate) fn active_search_highlight(&self) -> Option<SearchHighlight> {
+        if !self.search_open {
+            return None;
+        }
+        let hit = self.search.current()?;
+        Some(SearchHighlight {
+            page_index: hit.page_index,
+            page_size: hit.page_size,
+            rects: hit.rects.clone(),
+        })
+    }
+
+    /// Navega até a ocorrência atual; no modo contínuo centraliza a própria linha.
+    fn reveal_current_hit(&mut self, ctx: &egui::Context) {
+        let Some(hit) = self.search.current() else {
+            return;
+        };
+        let page = hit.page_index;
+        let fraction = hit_page_fraction(hit);
+        self.go_to_page(ctx, page);
+        if self.viewer.mode == ViewMode::Continuous {
+            if let Some(fraction) = fraction {
+                self.viewer.reveal_continuous(page, fraction);
+            }
+        }
+    }
+}
+
+/// Posição vertical (0 = topo) do primeiro retângulo da ocorrência na página.
+fn hit_page_fraction(hit: &SearchHit) -> Option<f32> {
+    let [_, bottom, _, top] = *hit.rects.first()?;
+    let (_, height) = hit.page_size;
+    (height > 0.0).then(|| 1.0 - (top + bottom) * 0.5 / height)
+}
+
+/// Trecho de contexto com a ocorrência em destaque.
+fn context_snippet(hit: &SearchHit) -> egui::text::LayoutJob {
+    let font = egui::FontId::proportional(11.0);
+    let plain = egui::TextFormat {
+        font_id: font.clone(),
+        color: TEXT_MUTED,
+        ..Default::default()
+    };
+    let strong = egui::TextFormat {
+        font_id: font,
+        color: TEXT_PRIMARY,
+        background: ACCENT_PRIMARY.gamma_multiply(0.45),
+        ..Default::default()
+    };
+    let text = &hit.context;
+    let mut job = egui::text::LayoutJob::default();
+    job.wrap.max_width = 320.0;
+    job.wrap.max_rows = 2;
+    job.append(&text[..hit.match_start], 0.0, plain.clone());
+    job.append(&text[hit.match_start..hit.match_end], 0.0, strong);
+    job.append(&text[hit.match_end..], 0.0, plain);
+    job
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hit_fraction_points_at_the_line_center() {
+        let hit = SearchHit {
+            page_index: 0,
+            context: String::new(),
+            match_start: 0,
+            match_end: 0,
+            rects: vec![[0.0, 590.0, 50.0, 610.0]],
+            page_size: (600.0, 800.0),
+        };
+        assert_eq!(hit_page_fraction(&hit), Some(0.25));
     }
 }

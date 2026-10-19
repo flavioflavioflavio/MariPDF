@@ -1,6 +1,8 @@
 // pdf/document_worker.rs — Scheduler global de trabalho PDF do documento.
 
-use crate::pdf::engine::{BookmarkEntry, PdfEngine, PdfLinkInfo, RenderedPage, TextCharInfo};
+use crate::pdf::engine::{
+    BookmarkEntry, PdfEngine, PdfLinkInfo, RenderedPage, SearchPage, TextCharInfo,
+};
 use std::{
     cmp::Ordering,
     collections::{BinaryHeap, HashMap},
@@ -145,7 +147,7 @@ pub enum DocumentJobOutput {
     SearchText {
         page_index: usize,
         search_generation: u64,
-        text: String,
+        page: SearchPage,
     },
 }
 
@@ -499,7 +501,7 @@ fn execute_job(engine: &PdfEngine, kind: JobKind) -> anyhow::Result<JobOutcome> 
         } => DocumentJobOutput::SearchText {
             page_index,
             search_generation,
-            text: engine.extract_text(page_index)?,
+            page: engine.extract_search_page(page_index)?,
         },
     };
     Ok(JobOutcome::Ready(output))

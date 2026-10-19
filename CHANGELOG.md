@@ -23,6 +23,9 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 - “Limpar histórico” pede confirmação, permite cancelar e informa sucesso ou
   falha da gravação.
 - Teste garante que PT-BR e EN expõem as mesmas chaves Fluent.
+- Busca destaca a ocorrência ativa sobre a página (Single e Continuous) e mostra
+  o trecho de contexto com o termo marcado; no modo contínuo a navegação
+  centraliza a linha da ocorrência, não só o topo da página.
 - Stress manual parametrizado para abrir, renderizar e fechar um corpus real em
   concorrência dentro do mesmo processo.
 
@@ -45,6 +48,8 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   mesma fila limitada, eliminando I/O, parsing e concorrência descoordenada.
 - O render solicita RGBA diretamente ao PDFium e elimina uma segunda alocação e
   varredura do bitmap; microbenchmark local do handoff mediu redução de 63,5%.
+- A busca recebe texto e geometria do PDFium em uma única passada, ignora
+  maiúsculas/minúsculas e casa frases que atravessam quebras de linha.
 - Todos os trabalhos PDF usam um `DocumentWorker` priorizado, bounded, deduplicado
   quando necessário e cancelável por geração.
 - Jobs documentais expõem estados terminais e métricas de fila, duração, sucesso,

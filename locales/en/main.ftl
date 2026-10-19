@@ -39,6 +39,7 @@ home-search-placeholder = Search recents…
 ## Overlays
 overlay-goto-label = Go to page:
 overlay-goto-hint = Enter → confirm  •  Esc → close
+overlay-search-placeholder = Search in PDF…
 overlay-search-no-results = No results
 overlay-search-hint = Enter → next  •  Shift+Enter → prev  •  Esc → close
 

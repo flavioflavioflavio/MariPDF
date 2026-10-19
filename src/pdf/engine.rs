@@ -23,7 +23,7 @@ use std::{
 use crate::pdf::extract as engine_extract;
 
 /// Re-exporta tipos de extract.rs para manter compatibilidade com todos os sites de uso.
-pub use crate::pdf::extract::{BookmarkEntry, PdfLinkInfo, TextCharInfo};
+pub use crate::pdf::extract::{BookmarkEntry, PdfLinkInfo, SearchChar, SearchPage, TextCharInfo};
 
 /// DLL do pdfium embutida no executável em compile-time.
 /// Em runtime, é extraída para %TEMP%\maripdf\ e carregada de lá.
@@ -241,6 +241,11 @@ impl PdfEngine {
         page_index: usize,
     ) -> anyhow::Result<Vec<TextCharInfo>> {
         self.with_document(|doc| engine_extract::extract_chars_with_bounds(doc, page_index))
+    }
+
+    /// Extrai a camada de texto com geometria usada pela busca.
+    pub fn extract_search_page(&self, page_index: usize) -> anyhow::Result<SearchPage> {
+        self.with_document(|doc| engine_extract::extract_search_page(doc, page_index))
     }
 
     /// Extrai todos os links URI de uma página.

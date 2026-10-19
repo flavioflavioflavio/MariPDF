@@ -105,7 +105,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
    status, navegação e persistência.
 10. [x] Links só eram acionados quando existia exatamente um na página; o clique
     agora é convertido para coordenadas PDF e testado contra cada retângulo.
-11. Busca navega até a página, mas não destaca a ocorrência encontrada.
+11. [x] Busca navegava até a página sem destacar a ocorrência; agora destaca a
+    ocorrência ativa e mostra o trecho de contexto.
 12. A seleção por arraste copia imediatamente ao soltar, comportamento que deve
     ser decidido e testado como contrato de UX.
 13. Persistência de janela salva largura aproximada e altura fixa; não salva
@@ -302,7 +303,7 @@ page rendering assíncrono com LOD simples.
 - [x] BF-408 Persistir modo de cor ou oferecer explicitamente “seguir sistema”.
 - [x] BF-409 Implementar hit-test correto para todos os links da página, com
   conversão tela ↔ PDF coberta por testes de múltiplos retângulos.
-- [ ] BF-410 Destacar ocorrência ativa da busca e expor trecho de contexto.
+- [x] BF-410 Destacar ocorrência ativa da busca e expor trecho de contexto.
 - [ ] BF-411 Fechar contrato de seleção/cópia e cobrir mouse + teclado.
 - [ ] BF-412 Persistir tamanho, posição, maximização e monitor com recuperação
   segura quando a topologia de monitores mudar.

@@ -17,6 +17,23 @@ pub struct TextCharInfo {
     pub top: f32,
 }
 
+/// Caractere da camada de texto usado pela busca. Mantém também os chars sem
+/// bounding box (espaços e quebras gerados), para o texto ficar contínuo.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SearchChar {
+    pub ch: char,
+    /// `[left, bottom, right, top]` em pontos PDF.
+    pub bounds: Option<[f32; 4]>,
+}
+
+/// Camada de texto de uma página pronta para busca.
+#[derive(Clone, Debug, Default)]
+pub struct SearchPage {
+    pub chars: Vec<SearchChar>,
+    pub width_pts: f32,
+    pub height_pts: f32,
+}
+
 /// Informação sobre um link URI encontrado numa página PDF.
 /// Coordenadas em pontos PDF (sistema pdfium: origem = canto inferior esquerdo).
 #[derive(Debug, Clone)]
@@ -98,6 +115,46 @@ pub fn extract_chars_with_bounds(
     }
 
     Ok(result)
+}
+
+// ── Camada de texto para busca ────────────────────────────────────────────────
+
+/// Extrai texto e geometria da página em uma única passada pelo PDFium.
+pub fn extract_search_page(
+    doc: &PdfDocument<'static>,
+    page_index: usize,
+) -> anyhow::Result<SearchPage> {
+    let page = doc
+        .pages()
+        .get(page_index as u16)
+        .map_err(|e| anyhow::anyhow!("Falha ao carregar página {page_index}: {e}"))?;
+
+    let text_page = page
+        .text()
+        .map_err(|e| anyhow::anyhow!("Falha ao obter texto da página {page_index}: {e}"))?;
+
+    let chars = text_page
+        .chars()
+        .iter()
+        .filter_map(|ch| {
+            let c = ch.unicode_char()?;
+            let bounds = ch.tight_bounds().ok().map(|r| {
+                [
+                    r.left().value,
+                    r.bottom().value,
+                    r.right().value,
+                    r.top().value,
+                ]
+            });
+            Some(SearchChar { ch: c, bounds })
+        })
+        .collect();
+
+    Ok(SearchPage {
+        chars,
+        width_pts: page.width().value,
+        height_pts: page.height().value,
+    })
 }
 
 // ── Links URI ─────────────────────────────────────────────────────────────────

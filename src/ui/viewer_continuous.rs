@@ -6,7 +6,9 @@ use crate::pdf::document_worker::JobPriority;
 use crate::ui::page_layout::LayoutParams;
 use crate::ui::prefetch::PrefetchPlan;
 use crate::ui::viewer::PdfViewer;
-use crate::ui::viewer_helpers::{draw_page_tex, fit_page, invert_rgba, upload_texture};
+use crate::ui::viewer_helpers::{
+    draw_page_tex, fit_page, invert_rgba, paint_search_highlight, upload_texture,
+};
 use eframe::egui;
 
 impl PdfViewer {
@@ -52,7 +54,12 @@ impl PdfViewer {
             render_scale: self.render_scale,
             margin: self.page_margin,
         });
-        let forced_offset = if let Some(page) = self.pending_scroll_page.take() {
+        let forced_offset = if let Some(anchor) = self.pending_scroll_anchor.take() {
+            Some(
+                self.page_layout
+                    .scroll_offset_for_anchor(anchor, self.continuous_viewport_height),
+            )
+        } else if let Some(page) = self.pending_scroll_page.take() {
             Some(self.page_layout.scroll_offset_for_page(page))
         } else if layout_changed {
             self.continuous_anchor.map(|anchor| {
@@ -175,6 +182,12 @@ impl PdfViewer {
                                 egui::vec2(w, h),
                                 page_tint,
                                 page_border,
+                            );
+                            paint_search_highlight(
+                                ui,
+                                page_rect,
+                                self.search_highlight.as_ref(),
+                                Some(idx),
                             );
                             if self.last_page_rect == egui::Rect::NOTHING {
                                 self.last_page_rect = page_rect;
