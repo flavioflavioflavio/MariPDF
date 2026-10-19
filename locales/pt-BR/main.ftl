@@ -15,30 +15,35 @@ about-desc = Leitor de PDF ultra-leve para Windows.
 about-version = Versão { $version }
 
 ## Toolbar
-toolbar-back-hint = Voltar (fecha PDF)
-toolbar-toc-hint = Índice / TOC
-toolbar-thumbs-hint = Miniaturas de página
+toolbar-back-hint = Voltar (fecha o PDF)
+toolbar-toc-hint = Sumário
+toolbar-thumbs-hint = Miniaturas
 toolbar-settings-hint = Configurações
 toolbar-about-hint = Sobre o MariPDF
-toolbar-color-hint = Alternar modo de cor
+toolbar-color-hint = Alternar tema (Dark · Light · Sépia)
 toolbar-mode-single = Página única (Ctrl+Shift+M)
 toolbar-mode-continuous = Contínuo (Ctrl+Shift+M)
-toolbar-fit-page-hint = Fit Page (Ctrl+0)
-toolbar-fit-width-hint = Fit Width (W)
+toolbar-fit-page-hint = Ajustar à página (Ctrl+0)
+toolbar-fit-width-hint = Ajustar à largura (W)
 toolbar-goto-hint = Ir para página (Ctrl+G)
-toolbar-prev-hint = Anterior
-toolbar-next-hint = Próxima
+toolbar-prev-hint = Página anterior (←)
+toolbar-next-hint = Próxima página (→)
+toolbar-zoom-100 = Tamanho real (100%)
+toolbar-zoom-menu-hint = Opções de zoom
+toolbar-zoom-out-hint = Afastar (Ctrl+−)
+toolbar-zoom-in-hint = Aproximar (Ctrl++)
 
 ## Home
 home-recents = RECENTES
 home-no-file = Nenhum arquivo recente
-home-drop-hint = Arraste um PDF aqui
+home-drop-hint = ou arraste um PDF para qualquer lugar
 home-open-btn = Abrir PDF…
 home-search-placeholder = Buscar nos recentes…
 
 ## Overlays
 overlay-goto-label = Ir para página:
 overlay-goto-hint = Enter → confirmar  •  Esc → fechar
+overlay-search-placeholder = Buscar no PDF…
 overlay-search-no-results = Sem resultados
 overlay-search-hint = Enter → próx  •  Shift+Enter → ant  •  Esc → fechar
 
@@ -53,6 +58,10 @@ settings-ui-scale = Tamanho da Interface
 settings-font = Fonte da Interface
 settings-palette = Paleta de Cores
 settings-color-mode = Modo de Cor
+theme-system = Sistema
+theme-dark = Dark
+theme-light = Light
+theme-sepia = Sépia
 settings-language = Idioma
 
 ## Settings — Leitura
@@ -68,6 +77,11 @@ settings-track-history-desc = Salvar histórico de PDFs abertos
 settings-clear-history = Limpar Histórico
 settings-clear-history-desc = Remove todos os PDFs da lista de recentes
 settings-clear-btn = Limpar
+settings-clear-history-confirm = Tem certeza? Esta ação não pode ser desfeita
+settings-clear-history-done = Histórico limpo
+settings-clear-history-failed = Não foi possível limpar o histórico
+settings-clear-confirm-btn = Confirmar
+settings-cancel-btn = Cancelar
 
 ## Settings — Integração Windows
 settings-windows = Integração com Windows
@@ -85,3 +99,71 @@ toast-text-selected = Texto selecionado — Ctrl+C para copiar
 toast-text-copied = Texto copiado!
 toast-no-text = Página sem texto extraível
 toast-text-fail = Falha ao extrair texto
+
+# Modo Flutuante
+frame-enter = Modo Flutuante (Ctrl+Shift+F)
+frame-always-on-top = Sempre no topo
+frame-next = Próxima página
+frame-prev = Página anterior
+frame-goto = Ir para página…
+frame-reset-view = Enquadrar página
+frame-open = Abrir arquivo…
+frame-exit = Sair do Modo Flutuante (Esc)
+frame-close = Fechar MariPDF
+frame-bar-open = Controles do Modo Flutuante
+frame-bar-close = Recolher controles
+frame-zoom-in = Aproximar (Ctrl + roda)
+frame-zoom-out = Afastar (Ctrl + roda)
+frame-zoom-fit = Enquadrar página (duplo clique)
+frame-pan-on = Mão ligada: arrastar move a página
+frame-pan-off = Mão desligada: arrastar move a janela
+
+## Leitor, Home e rótulos de configurações
+dialog-open-title = Abrir PDF — MariPDF
+err-pdf-open = ⚠ Erro ao abrir PDF: { $error }
+home-drop-release = ▼  Solte o PDF aqui
+home-shortcuts = v{ $version }  ·  Ctrl+F: Buscar  ·  Ctrl+G: Ir à página  ·  W: Ajustar largura  ·  F11: Tela cheia
+doc-untitled = Documento
+reader-fullscreen-hint = F11 → sair da tela cheia
+status-rendering = Renderizando…
+status-ready = Pronto
+status-mode-single = ▣ Página única
+status-mode-continuous = ☰ Contínuo
+status-page = Pág. { $current } / { $total }
+side-toc-title = Sumário
+side-thumbs-title = Páginas
+toc-auto-generated = ⚙ Gerado automaticamente
+toc-page = Página { $page }
+settings-close-hint = Fechar configurações
+file-type-name = Documento PDF
+scale-normal = Normal
+scale-large = Largo
+scale-xl = XL
+scale-xxl = XXL
+scale-huge = Enorme
+scale-giant = Gigante
+scale-max = Máximo
+quality-fast = Rápida
+quality-balanced = Balanceada
+quality-sharp = Nítida
+quality-ultra = Ultra
+margin-none = Nenhuma
+margin-slim = Estreita
+margin-normal = Normal
+margin-wide = Larga
+panel-none = Nenhum
+panel-thumbnails = Miniaturas
+panel-toc = Sumário
+palette-dark-0 = Carvão
+palette-dark-1 = Meia-noite
+palette-dark-2 = Violeta
+palette-dark-3 = Floresta
+palette-light-0 = Névoa
+palette-light-1 = Ártico
+palette-light-2 = Papel
+palette-light-3 = Menta
+palette-sepia-0 = Pergaminho
+palette-sepia-1 = Âmbar
+palette-sepia-2 = Vintage
+palette-sepia-3 = Rosa Antigo
+page-render-failed = Não foi possível exibir a página { $page }

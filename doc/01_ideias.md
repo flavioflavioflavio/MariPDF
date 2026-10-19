@@ -16,9 +16,9 @@ Enquanto o SumatraPDF é tecnicamente excelente mas visualmente está em 2008, o
 
 ## 🌟 Diferenciais
 
-1. **Abertura < 200ms** — abre antes do usuário perceber que clicou
+1. **Abertura percebida como instantânea** — meta calibrada por benchmark BF-0
 2. **UI linda** — não parece software de 2005
-3. **Memória mínima** — meta de < 30MB RAM em idle
+3. **Memória controlada** — cache com orçamento explícito e benchmark reproduzível
 4. **Zero frescura** — sem telemetria, sem conta, sem cloud, sem popup
 5. **Open Source + Donationware** — gratuito para sempre, honesto
 

@@ -2,6 +2,11 @@
 
 > Sessão iniciada em: 2026-03-22
 
+> **Nota de revisão (2026-07-13):** este arquivo preserva as decisões da sessão
+> original. A implementação adotou PDFium, mantido oficialmente para a v1.0 pelo
+> [ADR-002 revisado](adr/ADR-002_engine_pdf.md). Metas numéricas abaixo são
+> hipóteses históricas até validação pelo roadmap BF-0.
+
 ---
 
 ## Contexto
@@ -20,14 +25,14 @@ Sessão de consultoria técnica e de produto para definição do **MariPDF** —
 | Categoria | Leitor PDF (sem edição) | Escopo claro, mantém leveza |
 | Grande feature | Abertura instantânea + levez | Diferencial principal |
 | Modelo de negócio | Donationware open source | Filosofia clássica, honesta |
-| Licença | GPLv3 | Compatível com MuPDF, garante OS |
+| Licença | GPL-3.0-or-later | Open source; dependências mantêm suas licenças |
 
 ### Técnica
 
 | Decisão | Escolha |
 |---|---|
 | Linguagem | **Rust** |
-| Engine PDF | **MuPDF** via FFI |
+| Engine PDF | **PDFium** via `pdfium-render` — revisão oficial de 2026-07-13 |
 | UI Framework | **egui** (immediate mode) |
 | Renderização | **wgpu** (GPU) |
 | Janela | **winit** |
@@ -67,7 +72,7 @@ Sessão de consultoria técnica e de produto para definição do **MariPDF** —
 - **Linear App** — micro-animações premium
 - **Arc Browser** — UI que some quando não precisa
 - **Phosphor Icons** — https://icon-sets.iconify.design/ph
-- **MuPDF** — engine PDF open source (Artifex)
+- **PDFium** — engine implementada e mantida para a v1.0
 - **egui** — https://github.com/emilk/egui
 
 ---
@@ -76,9 +81,9 @@ Sessão de consultoria técnica e de produto para definição do **MariPDF** —
 
 | Métrica | Alvo |
 |---|---|
-| Abertura (PDF 10MB) | < 200ms |
-| RAM em idle | < 30MB |
-| Tamanho do installer | < 10MB |
+| Abertura | Calibrar e validar no baseline BF-0 |
+| RAM | Medir e limitar por orçamento explícito |
+| Tamanho do installer | Medir a partir do artefato real |
 | Scroll | 60 FPS estável |
 
 ---
@@ -88,7 +93,7 @@ Sessão de consultoria técnica e de produto para definição do **MariPDF** —
 1. ✅ Definir wireframes detalhados das telas (home + leitura) — concluído em 03_design_system.md
 2. Criar repositório GitHub com estrutura base (checar [Checklist Pré-Publish](../README.md))
 3. Setup do projeto Rust (`Cargo.toml`, estrutura de pastas conforme [02_arquitetura.md](02_arquitetura.md))
-4. Spike técnico: egui + wgpu + MuPDF rodando juntos (ver [ADR-003](adr/ADR-003_ui_framework.md))
+4. ✅ Spike técnico egui + wgpu + PDFium concluído na implementação atual
 5. Implementar Fase 0 do roadmap (ver [04_roadmap.md](04_roadmap.md))
 
 ---
@@ -106,7 +111,7 @@ Sessão de consultoria técnica e de produto para definição do **MariPDF** —
 | [06_storage_persistencia.md](06_storage_persistencia.md) | Schema TOML e API do módulo storage |
 | [07_tratamento_de_erros.md](07_tratamento_de_erros.md) | Catálogo de erros e respostas de UI |
 | [adr/ADR-001](adr/ADR-001_stack_tecnica.md) | Stack Rust vs C++ vs Electron |
-| [adr/ADR-002](adr/ADR-002_engine_pdf.md) | Engine PDF: MuPDF vs pdfium vs poppler |
+| [adr/ADR-002](adr/ADR-002_engine_pdf.md) | Engine PDF oficial da v1.0: PDFium |
 | [adr/ADR-003](adr/ADR-003_ui_framework.md) | UI: egui vs iced vs Tauri vs Slint |
 | [adr/ADR-004](adr/ADR-004_i18n.md) | i18n: Mozilla Fluent vs gettext vs rust-i18n |
 | [adr/ADR-005](adr/ADR-005_auto_update.md) | Auto-update: self_update + staged update Windows |

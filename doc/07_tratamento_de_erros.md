@@ -124,7 +124,7 @@ O app mantém log de erros técnicos em:
 
 **Formato:**
 ```
-2026-03-22T14:05:33Z [ERROR] pdf::engine: MuPDF error rendering page 42: out of memory
+2026-03-22T14:05:33Z [ERROR] pdf::engine: PDFium error rendering page 42: out of memory
 2026-03-22T14:05:34Z [WARN]  storage::config: Failed to write config.toml: permission denied
 ```
 

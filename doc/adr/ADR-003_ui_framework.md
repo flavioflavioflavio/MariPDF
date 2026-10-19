@@ -39,7 +39,7 @@ O MariPDF precisa de um UI framework que permita renderizar PDFs em GPU (para su
 - ❌ Depende do WebView2 do Windows (~100MB instalado separado)
 - ❌ IPC entre Rust e JS adiciona latência para operações de scroll/render
 - ❌ Renderização do PDF via wgpu ficaria fora do contexto da WebView — integração complexa
-- ❌ Contradiz a meta de binário ~8MB portátil
+- ❌ Adiciona um runtime web e IPC que não fazem parte da arquitetura escolhida
 
 ### Opção D — Slint
 - ✅ DSL declarativa para UI — design muito legível
@@ -73,10 +73,10 @@ A única opção que combina: 100% Rust, GPU-nativo via wgpu, controle total do 
 
 ### Modelo de Renderização PDF em egui
 
-As páginas PDF serão renderizadas pelo MuPDF como bitmaps e carregadas como **texturas wgpu** dentro do painter do egui. O fluxo:
+As páginas PDF são renderizadas pelo PDFium como bitmaps e carregadas como **texturas wgpu** dentro do painter do egui. O fluxo:
 
 ```
-MuPDF renderiza página → bitmap RGBA
+PDFium renderiza página → bitmap BGRA → conversão RGBA
      ↓
 upload para GPU como wgpu::Texture
      ↓

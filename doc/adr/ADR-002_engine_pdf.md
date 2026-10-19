@@ -1,96 +1,79 @@
-# ADR-002 — Engine PDF
+# ADR-002 — Engine PDF da v1.0
 
-> **Status:** Aceita
-> **Data:** 2026-03-22
-> **Autores:** Flavio
-
----
+> **Status:** Aceita — revisada
+> **Decisão atual:** PDFium
+> **Data original:** 2026-03-22
+> **Revisão:** 2026-07-13
 
 ## Contexto
 
-O MariPDF precisa de uma engine capaz de renderizar PDFs com alta fidelidade, suporte a fontes CJK, formulários, links e busca de texto. A engine é o coração do app — a escolha impacta diretamente qualidade de renderização, tamanho do binário, licença e manutenção.
+A decisão original favorecia MuPDF com base em estimativas de tamanho e qualidade.
+Durante a implementação, o projeto integrou PDFium por meio de `pdfium-render`,
+embarcou `pdfium.dll` no executável e construiu sobre essa API render, texto,
+links, bookmarks e miniaturas.
 
----
+O código real, os custos de migração e as metas de v1.0 exigiram uma revisão
+explícita deste ADR.
 
-## Opções Consideradas
+## Opções reavaliadas
 
-### Opção A — MuPDF (Artifex) ✅
-- ✅ Melhor qualidade de renderização disponível (usada no Adobe Acrobat Reader historicamente)
-- ✅ Suporte completo: texto, imagens, formulários, links, anotações, CJK
-- ✅ Bindings Rust disponíveis (`mupdf-rs`)
-- ✅ Usada no SumatraPDF — prova de conceito de leveza
-- ✅ Busca de texto nativa e eficiente
-- ❌ Licença AGPLv3 — exige atenção (veja seção Consequências)
-- ❌ FFI com C — requer blocos `unsafe` em Rust
-- ❌ Compilação cross-platform exige MSVC no Windows
+### PDFium via `pdfium-render`
 
-### Opção B — pdfium (Google)
-- ✅ Mantida ativamente pelo Google (usada no Chrome)
-- ✅ Bindings Rust disponíveis (`pdfium-render`)
-- ✅ Licença BSD — mais permissiva
-- ❌ Distribuída como `.dll` pré-compilada — não compila no binário estático
-- ❌ Adiciona ~20MB de `.dll` na distribuição (quebra a meta de ~8MB)
-- ❌ Dependência em runtime externo — contradiz o modelo portátil
+- já está integrado no produto;
+- cobre os recursos atuais da v1.0;
+- possui licença permissiva compatível com o projeto;
+- é carregado uma vez e pode ser usado por workers com documentos próprios,
+  desde que todas as chamadas nativas sejam serializadas;
+- permite concentrar a v1.0 no scheduler, virtualização e correção funcional;
+- exige distribuir/carregar uma DLL e manter sua atualização sob controle.
 
-### Opção C — poppler
-- ✅ Muito usado no Linux/GTK
-- ✅ Licença GPL v2+
-- ❌ Focado em Linux — suporte Windows é segunda classe
-- ❌ Qualidade de renderização inferior ao MuPDF
-- ❌ Sem bindings Rust maduros para Windows
+### MuPDF
 
-### Opção D — pdf.js (Mozilla) via WebView
-- ✅ Maturíssimo, mantido pela Mozilla
-- ✅ Renderização excelente
-- ❌ Requer WebView/Chromium — ~100MB extra
-- ❌ Contradiz completamente o manifesto de leveza
+- continua sendo uma engine tecnicamente relevante;
+- exigiria nova integração, nova matriz de compatibilidade e migração dos recursos;
+- introduziria decisão de AGPL versus licença comercial;
+- não resolve, sozinho, os bloqueios atuais da thread da UI e virtualização.
 
----
+### Poppler/pdf.js
+
+Não oferecem ganho suficiente para justificar uma terceira integração antes da
+v1.0. Permanecem fora do escopo.
 
 ## Decisão
 
-**Escolhemos: Opção A — MuPDF**
+**PDFium é a engine oficial do MariPDF v1.0.**
 
-A única engine que entrega fidelidade de renderização máxima, compila estaticamente no binário, tem integração Rust viável e é comprovada em produção (SumatraPDF). O trade-off de licença é gerenciável (veja abaixo).
+Não haverá migração de engine durante o roadmap BF. O trabalho deve criar uma
+fronteira interna clara entre UI/scheduler e engine, sem construir uma abstração
+genérica maior do que o produto necessita.
 
----
+## Condições para reabrir esta decisão
+
+Uma proposta de troca precisa apresentar:
+
+1. corpus idêntico e benchmark A/B de startup, primeira página, zoom, busca, RAM e
+   tamanho distribuído;
+2. paridade funcional demonstrada;
+3. spike Windows compilável e distribuível;
+4. threat model e impacto de manutenção;
+5. decisão de licença aprovada;
+6. plano de migração e rollback.
+
+Sem esses seis itens, a discussão permanece exploratória e não altera a v1.0.
 
 ## Consequências
 
-### ⚠️ Licença — Ponto Crítico
+- `Cargo.toml`, arquitetura, README e CHANGELOG devem declarar PDFium.
+- A licença do MariPDF permanece GPL-3.0-or-later; não há composição com MuPDF.
+- A DLL embarcada deve ter versão, origem e atualização rastreáveis.
+- O singleton deve ter inicialização atômica e um lock global deve cobrir abertura,
+  uso e fechamento dos documentos, pois PDFium não aceita chamadas concorrentes.
+- O principal investimento de performance será o scheduler assíncrono, cache por
+  memória, virtualização e, se medido, tiles/LOD.
 
-MuPDF é **AGPLv3**. O projeto MariPDF é **GPLv3**. Isso tem uma implicação importante:
+## Referências internas
 
-- Quando o código MuPDF e o código MariPDF são **compilados juntos** (via FFI estática), o binário resultante fica sujeito à **AGPLv3** — a licença mais restritiva prevalece
-- Para um **app desktop**, AGPLv3 é equivalente a GPLv3 na prática: o usuário recebe o binário, tem acesso ao código-fonte, pode modificar e redistribuir
-- A única diferença do AGPL é a cláusula de "uso em servidor" — irrelevante para um reader de desktop
-
-**Ação necessária:**
-- O `README.md` e o cabeçalho de licença devem mencionar que o binário final é AGPLv3 (pela incorporação do MuPDF)
-- A licença do **código-fonte** do MariPDF permanece GPLv3
-- Adicionar nota no `LICENSE` explicando a composição
-
-### ⚠️ JavaScript em PDFs
-
-MuPDF tem suporte a JavaScript embutido em PDFs (via seu interpretador JS). Para um reader sem edição, isso é um **vetor de risco**.
-
-**Mitigação:**
-- Desabilitar o interpretador JS do MuPDF na compilação via flag `#define FZ_ENABLE_JS 0`
-- Documentar isso explicitamente como feature de segurança
-- Adicionar nota no README: "JavaScript em PDFs é desabilitado por design"
-
-### Estrutura dos blocos `unsafe`
-
-Todo código que faz FFI com MuPDF fica isolado em `src/pdf/engine.rs`. Cada bloco `unsafe` terá comentário obrigatório explicando:
-1. Por que o `unsafe` é necessário
-2. Quais invariantes garantem que é seguro
-
----
-
-## Referências
-
-- [MuPDF — documentação oficial](https://mupdf.com/docs/)
-- [mupdf-rs — bindings Rust](https://github.com/messense/mupdf-rs)
-- [SumatraPDF source — referência de integração MuPDF](https://github.com/sumatrapdfreader/sumatrapdf)
-- [AGPLv3 — texto completo](https://www.gnu.org/licenses/agpl-3.0.html)
-- [Compatibilidade AGPLv3 + GPLv3](https://www.gnu.org/licenses/license-compatibility.html)
+- `src/pdf/engine.rs`
+- `Cargo.toml`
+- `doc/02_arquitetura.md`
+- `doc/08_roadmap_blazing_fast_v1.md`

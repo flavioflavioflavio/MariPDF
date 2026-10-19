@@ -1,6 +1,6 @@
 # ADR-001 — Stack Técnica Principal
 
-> **Status:** Aceita
+> **Status:** Aceita — revisada em 2026-07-13
 > **Data:** 2026-03-22
 > **Autores:** Flavio
 
@@ -31,16 +31,15 @@ Precisamos definir a stack completa para o MariPDF. O produto tem como grande fe
 - ❌ UI Win32 raw = UX de 2005
 - ❌ Desenvolvimento muito lento
 
-### Opção C — Rust + egui + wgpu + MuPDF via FFI ✅
+### Opção C — Rust + egui + wgpu + engine PDF nativa ✅
 - ✅ Performance comparável ao C++
 - ✅ Segurança de memória garantida pelo compilador
 - ✅ egui permite UI moderna e animada em GPU
 - ✅ Binário estático, sem runtime externo
 - ✅ Ecossistema de crates maduro (tokio, rayon, fluent...)
-- ✅ Binário final estimado: ~8MB
-- ✅ RAM idle estimada: ~25MB
+- ✅ Binário nativo sem runtime web externo
 - ❌ Curva de aprendizado do Rust
-- ❌ FFI com MuPDF (C) exige cuidado
+- ⚠️ Integração com engine nativa exige lifecycle e concorrência cuidadosos
 
 ---
 
@@ -56,32 +55,29 @@ A única opção que cumpre simultaneamente o manifesto de leveza, a meta de abe
 
 | Camada | Crate / Lib | Versão alvo |
 |---|---|---|
-| Engine PDF | `mupdf` (FFI) | latest |
-| UI framework | `egui` | latest |
-| Render backend | `wgpu` | latest |
-| Windowing | `winit` | latest |
-| Async runtime | `tokio` | latest |
-| Paralelismo | `rayon` | latest |
-| i18n | `fluent` + `sys-locale` | latest |
-| Auto-update | `self_update` | latest |
-| HTTP | `reqwest` | latest |
-| Distribuição | `cargo-wix` (MSI) | latest |
+| Engine PDF | PDFium via `pdfium-render` | definida no `Cargo.toml` |
+| UI framework | `egui`/`eframe` | definida no `Cargo.toml` |
+| Render backend | `wgpu` | definida no `Cargo.toml` |
+| Windowing | `winit` via eframe | definida no `Cargo.toml` |
+| Concorrência | workers + canais | scheduler BF-1 |
+| i18n | Mozilla Fluent | definida no `Cargo.toml` |
+| Distribuição | EXE + MSI planejado | roadmap BF-6 |
 
 ---
 
 ## Consequências
 
 - Todo o desenvolvimento será em Rust — novos contribuidores precisam conhecer a linguagem
-- A integração MuPDF via FFI precisa de atenção especial em `unsafe` blocks
+- A integração PDFium fica isolada em `src/pdf/engine.rs`
 - egui (immediate mode) muda o paradigma de UI em relação a frameworks declarativos — isso é positivo para performance, mas diferente do comum
-- O binário final será compilado estaticamente — sem dependências de runtime no Windows do usuário
+- A DLL do PDFium é embarcada no EXE e extraída para diretório temporário em runtime
 
 ---
 
 ## Referências
 
 - [egui](https://github.com/emilk/egui)
-- [MuPDF](https://mupdf.com/)
-- [self_update](https://github.com/jaemk/self_update)
+- [PDFium](https://pdfium.googlesource.com/pdfium/)
+- [pdfium-render](https://github.com/ajrcarey/pdfium-render)
 - [Mozilla Fluent](https://projectfluent.org/)
 - [SumatraPDF source](https://github.com/sumatrapdfreader/sumatrapdf) — referência de arquitetura

@@ -90,4 +90,4 @@ e isso nos deixa livres para tomar as decisões certas.
 
 **Versão do manifesto:** 1.0 — 2026-03-22
 **Licença:** GPLv3
-**Repositório:** github.com/[seu-usuario]/MariPDF
+**Repositório:** https://github.com/flavioflavioflavio/MariPDF

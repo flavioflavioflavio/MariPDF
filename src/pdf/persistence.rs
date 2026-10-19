@@ -3,9 +3,9 @@
 // Salva: última página, zoom, modo de visualização
 // Local: %APPDATA%\maripdf\session.toml
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use serde::{Deserialize, Serialize};
 
 const APP_DIR: &str = "maripdf";
 const SESSION_FILE: &str = "session.toml";
@@ -28,15 +28,12 @@ struct SessionStore {
     files: HashMap<String, FileSession>,
 }
 
-/// Tamanho e posição da janela persistidos entre sessões.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Posição, tamanho e maximização da janela entre sessões. Arquivos do formato
+/// antigo (só largura/altura aproximadas) são ignorados e caem no padrão.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WindowSession {
-    pub width:  f32,
-    pub height: f32,
-}
-
-impl Default for WindowSession {
-    fn default() -> Self { Self { width: 1024.0, height: 768.0 } }
+    #[serde(default)]
+    pub placement: Option<crate::platform::window_placement::Placement>,
 }
 
 pub struct PersistenceManager {
@@ -70,14 +67,20 @@ impl PersistenceManager {
     /// Retorna até `max` arquivos recentes ordenados por último acesso (mais recente primeiro).
     /// Filtra arquivos que não existem mais no disco.
     pub fn recent_files(&self, max: usize) -> Vec<(PathBuf, FileSession)> {
-        let mut list: Vec<(PathBuf, FileSession)> = self.store.files
+        let mut list: Vec<(PathBuf, FileSession)> = self
+            .store
+            .files
             .iter()
             .filter_map(|(path_str, session)| {
                 let path = PathBuf::from(path_str);
-                if path.exists() { Some((path, session.clone())) } else { None }
+                if path.exists() {
+                    Some((path, session.clone()))
+                } else {
+                    None
+                }
             })
             .collect();
-        list.sort_by(|a, b| b.1.last_opened.cmp(&a.1.last_opened));
+        list.sort_by_key(|(_, session)| std::cmp::Reverse(session.last_opened));
         list.truncate(max);
         list
     }
@@ -91,9 +94,17 @@ impl PersistenceManager {
         }
     }
 
+    /// Remove todo o histórico da memória e persiste o estado vazio.
+    pub fn clear_all(&mut self) -> anyhow::Result<()> {
+        self.store.files.clear();
+        try_save(&self.path, &self.store).inspect_err(|e| {
+            tracing::warn!("Falha ao limpar histórico: {e}");
+        })
+    }
+
     // ── Janela ────────────────────────────────────────────────────────────────
 
-    /// Carrega as dimensões da janela da sessão anterior.
+    /// Carrega o estado da janela da sessão anterior.
     pub fn load_window() -> WindowSession {
         let path = window_path();
         std::fs::read_to_string(&path)
@@ -102,12 +113,21 @@ impl PersistenceManager {
             .unwrap_or_default()
     }
 
-    /// Persiste as dimensões atuais da janela.
-    pub fn save_window(w: f32, h: f32) {
+    /// Persiste o estado da janela com escrita atômica (temp → rename).
+    pub fn save_window(
+        placement: crate::platform::window_placement::Placement,
+    ) -> anyhow::Result<()> {
         let path = window_path();
-        let session = WindowSession { width: w.max(640.0), height: h.max(480.0) };
-        if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
-        if let Ok(text) = toml::to_string_pretty(&session) { let _ = std::fs::write(&path, text); }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let session = WindowSession {
+            placement: Some(placement),
+        };
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, toml::to_string_pretty(&session)?)?;
+        std::fs::rename(&tmp, &path)?;
+        Ok(())
     }
 }
 
@@ -137,4 +157,78 @@ fn try_save(path: &Path, store: &SessionStore) -> anyhow::Result<()> {
     let text = toml::to_string_pretty(store)?;
     std::fs::write(path, text)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn session_store_round_trips_through_toml() {
+        let unique = format!(
+            "maripdf-persistence-{}-{}.toml",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock after Unix epoch")
+                .as_nanos()
+        );
+        let path = std::env::temp_dir().join(unique);
+        let pdf = PathBuf::from(r"C:\docs\sample.pdf");
+        let mut store = SessionStore::default();
+        store.files.insert(
+            pdf.to_string_lossy().to_string(),
+            FileSession {
+                last_page: 42,
+                zoom: 1.75,
+                last_opened: 123,
+            },
+        );
+
+        try_save(&path, &store).expect("save test session");
+        let loaded = try_load(&path).expect("load test session");
+        let session = loaded
+            .files
+            .get(&pdf.to_string_lossy().to_string())
+            .expect("stored PDF session");
+
+        assert_eq!(session.last_page, 42);
+        assert_eq!(session.zoom, 1.75);
+        assert_eq!(session.last_opened, 123);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn clear_all_persists_an_empty_history() {
+        let path = std::env::temp_dir().join(format!(
+            "maripdf-clear-{}-{}.toml",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock after Unix epoch")
+                .as_nanos()
+        ));
+        let mut manager = PersistenceManager {
+            path: path.clone(),
+            store: SessionStore::default(),
+        };
+        manager.save(
+            Path::new(r"C:\docs.pdf"),
+            FileSession {
+                last_page: 1,
+                zoom: 1.0,
+                last_opened: 1,
+            },
+        );
+        assert_eq!(manager.store.files.len(), 1);
+
+        manager.clear_all().expect("clear history");
+
+        assert!(manager.store.files.is_empty());
+        let reloaded = try_load(&path).expect("reload cleared history");
+        assert!(reloaded.files.is_empty());
+
+        let _ = std::fs::remove_file(path);
+    }
 }

@@ -2,124 +2,268 @@
 // Extraído de viewer.rs para respeitar o hardcap de 250L.
 // Responsabilidade: show_continuous() com prefetch, skeleton e virtual scrolling.
 
-use eframe::egui;
-use crate::pdf::engine::PdfEngine;
-use crate::ui::viewer_helpers::{upload_texture, fit_page, draw_page_tex, invert_rgba};
+use crate::pdf::document_worker::JobPriority;
+use crate::ui::page_layout::LayoutParams;
+use crate::ui::prefetch::PrefetchPlan;
 use crate::ui::viewer::PdfViewer;
-
-/// Quantas páginas adjacentes pré-renderizar no modo Contínuo
-const PREFETCH_AHEAD:  usize = 3;
-const PREFETCH_BEHIND: usize = 1;
-const PAGE_GAP: f32 = 20.0;
+use crate::ui::viewer_helpers::{
+    draw_page_tex, fit_page, invert_rgba, paint_search_highlight, upload_texture,
+};
+use eframe::egui;
 
 impl PdfViewer {
-    /// Renderiza todas as páginas em scroll contínuo com prefetch assíncrono.
+    /// Renderiza somente a janela visível do scroll contínuo, com prefetch
+    /// assíncrono. Páginas fora do viewport ocupam apenas espaço virtual.
     pub(super) fn show_continuous(
         &mut self,
-        ui:          &mut egui::Ui,
-        engine:      &PdfEngine,
-        page_count:  usize,
-        page_tint:   egui::Color32,
+        ui: &mut egui::Ui,
+        page_count: usize,
+        page_tint: egui::Color32,
         page_border: egui::Color32,
     ) {
+        if page_count == 0 {
+            return;
+        }
+
         // Ctrl+Scroll → zoom
-        let ctrl    = ui.input(|i| i.modifiers.ctrl);
-        let scroll_y = ui.input(|i| i.smooth_scroll_delta.y);
+        let ctrl = ui.input(|i| i.modifiers.ctrl);
+        let scroll_y = ui.input(|i| {
+            if self.smooth_scroll {
+                i.smooth_scroll_delta.y
+            } else {
+                i.raw_scroll_delta.y
+            }
+        });
         if ctrl && scroll_y != 0.0 {
             self.zoom_delta = scroll_y.signum() * 0.15;
         }
 
-        let scale       = self.zoom * 1.5;
+        let scale = self.zoom * self.render_scale;
         let available_w = ui.available_width();
-        let ctx         = ui.ctx().clone();
+        let ctx = ui.ctx().clone();
 
-        // Drena bitmaps prontos da thread de background
+        // Drena bitmaps prontos do scheduler global
         if self.page_cache.drain_ready() {
             ctx.request_repaint();
         }
 
-        // Converte RenderedPage disponibilizados pelo cache em TextureHandle
-        for idx in 0..page_count {
-            if !self.tex_cache.contains_key(&idx) {
-                if let Some(bitmap) = self.page_cache.get(idx) {
-                    if self.invert_colors {
-                        let mut inverted = (*bitmap).clone();
-                        invert_rgba(&mut inverted.rgba);
-                        let tex = upload_texture(&ctx, &inverted, idx);
-                        self.tex_cache.insert(idx, tex);
-                    } else {
-                        let tex = upload_texture(&ctx, bitmap, idx);
-                        self.tex_cache.insert(idx, tex);
-                    }
-                }
-            }
+        self.page_layout.ensure_page_count(page_count);
+        let layout_changed = self.page_layout.rebuild(LayoutParams {
+            available_width: available_w,
+            zoom: self.zoom,
+            render_scale: self.render_scale,
+            margin: self.page_margin,
+        });
+        let forced_offset = if let Some(anchor) = self.pending_scroll_anchor.take() {
+            Some(
+                self.page_layout
+                    .scroll_offset_for_anchor(anchor, self.continuous_viewport_height),
+            )
+        } else if let Some(page) = self.pending_scroll_page.take() {
+            Some(self.page_layout.scroll_offset_for_page(page))
+        } else if layout_changed {
+            self.continuous_anchor.map(|anchor| {
+                self.page_layout
+                    .scroll_offset_for_anchor(anchor, self.continuous_viewport_height)
+            })
+        } else {
+            None
+        };
+        let total_h = self.page_layout.total_height();
+        self.last_page_rect = egui::Rect::NOTHING;
+        self.is_loading = false;
+
+        let mut scroll_area = egui::ScrollArea::vertical()
+            .id_salt("continuous_scroll")
+            .auto_shrink(false);
+        if let Some(offset) = forced_offset {
+            scroll_area = scroll_area.vertical_scroll_offset(offset);
         }
 
-        egui::ScrollArea::vertical()
-            .id_salt("continuous_scroll")
-            .auto_shrink(false)
-            .show(ui, |ui| {
-                ui.add_space(PAGE_GAP);
+        scroll_area.show_viewport(ui, |ui, viewport| {
+            ui.set_min_height(total_h);
 
-                let est_page_h  = self.estimate_page_height(available_w);
-                let scroll_top  = ui.min_rect().top();
-                let vp_h        = ctx.screen_rect().height();
+            let (first_visible, last_visible) = self
+                .page_layout
+                .visible_range(viewport.min.y, viewport.max.y);
+            self.visible_page = Some(
+                self.page_layout
+                    .dominant_page(viewport.min.y, viewport.max.y),
+            );
+            self.continuous_anchor = Some(self.page_layout.anchor_at(viewport.center().y));
+            self.continuous_viewport_height = viewport.height();
+            let scroll_delta = self
+                .continuous_scroll_offset
+                .map_or(0.0, |previous| viewport.min.y - previous);
+            self.continuous_scroll_offset = Some(viewport.min.y);
+            let prefetch = PrefetchPlan::new(
+                first_visible,
+                last_visible,
+                page_count,
+                scroll_delta,
+                viewport.height(),
+            );
 
-                let first_visible = ((scroll_top.abs() / (est_page_h + PAGE_GAP)) as usize)
-                    .saturating_sub(PREFETCH_BEHIND + 1);
-                let last_visible = (first_visible
-                    + (vp_h / (est_page_h + PAGE_GAP)).ceil() as usize
-                    + PREFETCH_AHEAD + PREFETCH_BEHIND + 2)
-                    .min(page_count.saturating_sub(1));
+            // Evicta texturas fora da janela estendida do viewport
+            self.tex_cache.retain_range(prefetch.first, prefetch.last);
+            self.page_cache.evict_range(prefetch.first, prefetch.last);
 
-                // Evicta texturas fora da janela estendida do viewport
-                let cache_first = first_visible.saturating_sub(PREFETCH_BEHIND);
-                let cache_last  = last_visible;
-                self.tex_cache.retain(|&idx, _| idx >= cache_first && idx <= cache_last);
-                self.page_cache.evict_range(cache_first, cache_last);
+            prefetch.schedule(|page| {
+                let priority = if (first_visible..=last_visible).contains(&page) {
+                    JobPriority::Immediate
+                } else {
+                    JobPriority::Visible
+                };
+                if !self.page_errors.contains_key(&page) {
+                    self.page_cache.prefetch(page, scale, priority);
+                }
+            });
 
-                // Solicita pré-render das páginas vizinhas
-                for idx in first_visible..=last_visible {
-                    if idx < page_count {
-                        self.page_cache.prefetch(idx, scale);
+            for idx in first_visible..=last_visible {
+                // Upload para GPU só quando a página chega ao viewport.
+                if !self.tex_cache.contains(idx) {
+                    if let Some(bitmap) = self.page_cache.get(idx) {
+                        let tex = if self.invert_colors {
+                            let mut inverted = (*bitmap).clone();
+                            invert_rgba(&mut inverted.rgba);
+                            upload_texture(&ctx, &inverted, idx)
+                        } else {
+                            upload_texture(&ctx, bitmap, idx)
+                        };
+                        let learned_size = self.page_layout.observe_bitmap(
+                            idx,
+                            bitmap.width,
+                            bitmap.height,
+                            scale,
+                        );
+                        self.tex_cache.insert(idx, tex, bitmap.width, bitmap.height);
+                        if learned_size {
+                            ctx.request_repaint();
+                        }
+                        let cpu = self.page_cache.metrics();
+                        let gpu = self.tex_cache.metrics();
+                        tracing::debug!(
+                            cpu_bytes = cpu.resident_bytes,
+                            cpu_budget = cpu.budget_bytes,
+                            cpu_hits = cpu.hits,
+                            cpu_misses = cpu.misses,
+                            cpu_evictions = cpu.evictions,
+                            gpu_bytes = gpu.resident_bytes,
+                            gpu_budget = gpu.budget_bytes,
+                            gpu_hits = gpu.hits,
+                            gpu_misses = gpu.misses,
+                            gpu_evictions = gpu.evictions,
+                            "viewer cache metrics"
+                        );
+                    } else if let Some(error) = self.page_cache.take_failure(idx) {
+                        tracing::warn!("continuous: página {} falhou: {error}", idx + 1);
+                        self.page_errors.insert(idx, error);
                     }
                 }
 
-                for idx in 0..page_count {
-                    let is_visible = idx >= first_visible && idx <= last_visible;
-
-                    // Fallback síncrono se visível mas ainda não chegou do background
-                    if is_visible && !self.tex_cache.contains_key(&idx) && self.pdf_path.is_none() {
-                        if let Ok(mut rendered) = engine.render_page(idx, scale) {
-                            if self.invert_colors { invert_rgba(&mut rendered.rgba); }
-                            let tex = upload_texture(ui.ctx(), &rendered, idx);
-                            self.tex_cache.insert(idx, tex);
-                        }
-                    }
-
+                let page_height = self.page_layout.page_height(idx);
+                let y_top = ui.max_rect().top() + self.page_layout.page_top(idx);
+                let slot_rect = egui::Rect::from_min_size(
+                    egui::pos2(ui.max_rect().left(), y_top),
+                    egui::vec2(available_w, page_height),
+                );
+                ui.allocate_new_ui(egui::UiBuilder::new().max_rect(slot_rect), |ui| {
                     ui.vertical_centered(|ui| {
-                        if let Some(tex) = self.tex_cache.get(&idx) {
-                            let (w, h) = fit_page(tex.size_vec2(), available_w - 48.0);
+                        if let Some(tex) = self.tex_cache.get(idx) {
+                            let (mut w, mut h) =
+                                fit_page(tex.size_vec2(), available_w - self.page_margin * 2.0);
+                            if h > page_height {
+                                let ratio = page_height / h;
+                                w *= ratio;
+                                h = page_height;
+                            }
                             let mut page_rect = egui::Rect::NOTHING;
-                            draw_page_tex(&mut page_rect, ui, tex, egui::vec2(w, h), page_tint, page_border);
+                            draw_page_tex(
+                                &mut page_rect,
+                                ui,
+                                tex,
+                                egui::vec2(w, h),
+                                page_tint,
+                                page_border,
+                            );
+                            paint_search_highlight(
+                                ui,
+                                page_rect,
+                                self.search_highlight.as_ref(),
+                                Some(idx),
+                            );
                             if self.last_page_rect == egui::Rect::NOTHING {
                                 self.last_page_rect = page_rect;
                             }
+                        } else if let Some(error) = self.page_errors.get(&idx) {
+                            draw_page_error(
+                                ui,
+                                page_height,
+                                available_w,
+                                self.page_margin,
+                                idx,
+                                error,
+                            );
                         } else {
-                            draw_skeleton(ui, est_page_h, available_w, idx, is_visible);
+                            self.is_loading = true;
+                            draw_skeleton(
+                                ui,
+                                page_height,
+                                available_w,
+                                self.page_margin,
+                                idx,
+                                true,
+                            );
                         }
                     });
-
-                    if idx + 1 < page_count { ui.add_space(PAGE_GAP); }
-                }
-                ui.add_space(PAGE_GAP);
-            });
+                });
+            }
+        });
     }
 }
 
+/// Placeholder de uma página que não renderizou; o resto do documento segue
+/// navegável.
+fn draw_page_error(
+    ui: &mut egui::Ui,
+    height: f32,
+    available_w: f32,
+    page_margin: f32,
+    idx: usize,
+    error: &str,
+) {
+    let width = (available_w - page_margin * 2.0).min(800.0);
+    let (_, rect) = ui.allocate_space(egui::vec2(width, height));
+    let danger = egui::Color32::from_rgb(220, 90, 80);
+    ui.painter().rect(
+        rect,
+        egui::CornerRadius::same(6),
+        egui::Color32::from_rgba_unmultiplied(220, 90, 80, 18),
+        egui::Stroke::new(1.0_f32, danger.gamma_multiply(0.6)),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        format!(
+            "⚠ {}\n{error}",
+            crate::t!("page-render-failed", page => idx + 1)
+        ),
+        egui::FontId::proportional(13.0),
+        danger,
+    );
+}
+
 /// Skeleton animado (shimmer) exibido enquanto a página ainda não renderizou.
-fn draw_skeleton(ui: &mut egui::Ui, ph: f32, available_w: f32, idx: usize, is_visible: bool) {
-    let pw = (available_w - 48.0).min(800.0);
+fn draw_skeleton(
+    ui: &mut egui::Ui,
+    ph: f32,
+    available_w: f32,
+    page_margin: f32,
+    idx: usize,
+    is_visible: bool,
+) {
+    let pw = (available_w - page_margin * 2.0).min(800.0);
     let (_, rect) = ui.allocate_space(egui::vec2(pw, ph));
 
     let t = ui.ctx().input(|i| i.time);
@@ -133,22 +277,26 @@ fn draw_skeleton(ui: &mut egui::Ui, ph: f32, available_w: f32, idx: usize, is_vi
         (50.0 * alpha) as u8,
         255,
     );
-    ui.painter().rect_filled(rect, egui::CornerRadius::same(6), base);
+    ui.painter()
+        .rect_filled(rect, egui::CornerRadius::same(6), base);
 
     // Shimmer: 3 linhas fictícias de texto
     let stripe_color = egui::Color32::from_rgba_premultiplied(
-        (60.0 * alpha) as u8, (60.0 * alpha) as u8,
-        (80.0 * alpha) as u8, 255,
+        (60.0 * alpha) as u8,
+        (60.0 * alpha) as u8,
+        (80.0 * alpha) as u8,
+        255,
     );
     for i in 0..3 {
         let y = rect.top() + 32.0 + (i as f32) * 18.0;
         let width = pw * if i == 2 { 0.5 } else { 0.72 };
-        let sr = egui::Rect::from_min_size(
-            egui::pos2(rect.left() + 20.0, y),
-            egui::vec2(width, 10.0),
-        );
-        ui.painter().rect_filled(sr, egui::CornerRadius::same(4), stripe_color);
+        let sr =
+            egui::Rect::from_min_size(egui::pos2(rect.left() + 20.0, y), egui::vec2(width, 10.0));
+        ui.painter()
+            .rect_filled(sr, egui::CornerRadius::same(4), stripe_color);
     }
 
-    if is_visible { ui.ctx().request_repaint(); }
+    if is_visible {
+        ui.ctx().request_repaint();
+    }
 }

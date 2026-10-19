@@ -1,18 +1,20 @@
 // pdf/thumb_cache.rs — Cache LRU de thumbnails de páginas PDF
 //
 // Design:
-//   • Thread de background dedicada ("maripdf-thumbs") — não bloqueia UI
+//   • Scheduler global priorizado — não bloqueia a UI nem duplica o documento
 //   • LRU com capacidade 40 thumbs (~8 MB total a 120px de altura)
 //   • Lazy: só renderiza as páginas visíveis + 2 de buffer
 //   • drain_ready() → main thread drena bitmaps prontos e repinta
 
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    path::PathBuf,
-    sync::mpsc::{self, Receiver, SyncSender},
+    sync::mpsc::{self, Receiver, Sender},
 };
 
-use crate::pdf::engine::{get_pdfium, PdfEngine, RenderedPage};
+use crate::pdf::document_worker::{
+    DocumentJobOutput, DocumentJobTarget, DocumentWorkerHandle, JobCompletion, JobOutcome,
+};
+use crate::pdf::engine::RenderedPage;
 
 /// Altura alvo dos thumbnails em pixels (largura proporcional à página)
 pub const THUMB_HEIGHT: u32 = 140;
@@ -20,61 +22,43 @@ pub const THUMB_HEIGHT: u32 = 140;
 /// Capacidade máxima do cache LRU de thumbnails
 pub const THUMB_CAPACITY: usize = 40;
 
-// ── Mensagens inter-thread ────────────────────────────────────────────────────
-
-struct ThumbRequest {
-    page_index: usize,
-}
-
-struct ThumbResult {
-    page_index: usize,
-    page:       RenderedPage,
-}
-
 // ── ThumbCache ────────────────────────────────────────────────────────────────
 
 /// Entrada do cache: bitmap + ordem de acesso LRU
 struct CacheEntry {
-    page:      RenderedPage,
+    page: RenderedPage,
     lru_stamp: u64,
 }
 
-/// Cache LRU de thumbnails com renderização async em background thread.
+/// Cache LRU de thumbnails alimentado pelo scheduler global do documento.
 pub struct ThumbCache {
-    entries:    HashMap<usize, CacheEntry>,
-    lru_order:  VecDeque<usize>,  // fila de eviction auxiliar
-    capacity:   usize,
-    clock:      u64,
+    entries: HashMap<usize, CacheEntry>,
+    lru_order: VecDeque<usize>, // fila de eviction auxiliar
+    capacity: usize,
+    clock: u64,
 
-    tx:         SyncSender<ThumbRequest>,
-    rx:         Receiver<ThumbResult>,
-    inflight:   HashSet<usize>,
+    scheduler: DocumentWorkerHandle,
+    result_tx: Sender<JobCompletion>,
+    result_rx: Receiver<JobCompletion>,
+    inflight: HashSet<usize>,
 
     pub page_count: usize,
 }
 
 impl ThumbCache {
-    /// Cria o cache e inicia a thread de background.
-    pub fn new(pdf_path: PathBuf, page_count: usize) -> Self {
-        let (req_tx, req_rx) = mpsc::sync_channel::<ThumbRequest>(8);
-        let (res_tx, res_rx) = mpsc::sync_channel::<ThumbResult>(8);
-
-        let path = pdf_path.clone();
-        std::thread::Builder::new()
-            .name("maripdf-thumbs".into())
-            .spawn(move || {
-                thumb_render_loop(path, req_rx, res_tx);
-            })
-            .expect("Falha ao criar thread maripdf-thumbs");
+    /// Cria o cache ligado ao scheduler global do documento.
+    pub fn new(page_count: usize, scheduler: DocumentWorkerHandle) -> Self {
+        let (result_tx, result_rx) = mpsc::channel();
 
         Self {
-            entries:    HashMap::with_capacity(THUMB_CAPACITY),
-            lru_order:  VecDeque::with_capacity(THUMB_CAPACITY),
-            capacity:   THUMB_CAPACITY,
-            clock:      0,
-            tx:         req_tx,
-            rx:         res_rx,
-            inflight:   HashSet::new(),
+            entries: HashMap::with_capacity(THUMB_CAPACITY),
+            lru_order: VecDeque::with_capacity(THUMB_CAPACITY),
+            capacity: THUMB_CAPACITY,
+            clock: 0,
+            scheduler,
+            result_tx,
+            result_rx,
+            inflight: HashSet::new(),
             page_count,
         }
     }
@@ -95,27 +79,54 @@ impl ThumbCache {
     /// Solicita renderização de uma página (não bloqueia).
     /// Ignora se já está em cache ou em andamento.
     pub fn request(&mut self, page: usize) {
-        if self.entries.contains_key(&page) { return; }
-        if self.inflight.contains(&page)    { return; }
-        if self.tx.try_send(ThumbRequest { page_index: page }).is_ok() {
+        if self.entries.contains_key(&page) {
+            return;
+        }
+        if self.inflight.contains(&page) {
+            return;
+        }
+        if self
+            .scheduler
+            .request_thumbnail(page, THUMB_HEIGHT, self.result_tx.clone())
+        {
             self.inflight.insert(page);
         }
     }
 
-    /// Drena bitmaps prontos da thread de background.
+    /// Drena bitmaps prontos do scheduler global.
     /// Retorna `true` se ao menos um chegou (sinaliza repaint ao caller).
     pub fn drain_ready(&mut self) -> bool {
         let mut got_any = false;
-        while let Ok(result) = self.rx.try_recv() {
-            self.evict_if_full();
-            self.clock += 1;
-            self.entries.insert(result.page_index, CacheEntry {
-                page:      result.page,
-                lru_stamp: self.clock,
-            });
-            self.lru_order.push_back(result.page_index);
-            self.inflight.remove(&result.page_index);
-            got_any = true;
+        while let Ok(completion) = self.result_rx.try_recv() {
+            let DocumentJobTarget::Thumbnail(page_index) = completion.target else {
+                continue;
+            };
+            self.inflight.remove(&page_index);
+            match completion.outcome {
+                JobOutcome::Ready(DocumentJobOutput::Thumbnail {
+                    page_index: output_page,
+                    page,
+                }) if output_page == page_index => {
+                    self.evict_if_full();
+                    self.clock += 1;
+                    self.entries.insert(
+                        page_index,
+                        CacheEntry {
+                            page,
+                            lru_stamp: self.clock,
+                        },
+                    );
+                    self.lru_order.push_back(page_index);
+                    got_any = true;
+                }
+                JobOutcome::Failed(error) => {
+                    tracing::warn!("thumbs: página {page_index}: {error}");
+                }
+                JobOutcome::Cancelled => {}
+                JobOutcome::Ready(_) => {
+                    tracing::warn!("thumbs: resultado de tipo inesperado");
+                }
+            }
         }
         got_any
     }
@@ -129,7 +140,9 @@ impl ThumbCache {
     /// Retorna (width, height) do thumb em cache sem atualizar o LRU.
     /// Usado para calcular a proporção real da página no layout.
     pub fn get_cached_dimensions(&self, page: usize) -> Option<(u32, u32)> {
-        self.entries.get(&page).map(|e| (e.page.width, e.page.height))
+        self.entries
+            .get(&page)
+            .map(|e| (e.page.width, e.page.height))
     }
 
     /// Limpa tudo (usado ao fechar documento).
@@ -143,66 +156,13 @@ impl ThumbCache {
     // ── LRU eviction ─────────────────────────────────────────────────────────
 
     fn evict_if_full(&mut self) {
-        if self.entries.len() < self.capacity { return; }
+        if self.entries.len() < self.capacity {
+            return;
+        }
         // Expulsa o thumb com menor lru_stamp
-        if let Some((&oldest, _)) = self.entries
-            .iter()
-            .min_by_key(|(_, e)| e.lru_stamp)
-        {
+        if let Some((&oldest, _)) = self.entries.iter().min_by_key(|(_, e)| e.lru_stamp) {
             self.entries.remove(&oldest);
             self.lru_order.retain(|&x| x != oldest);
         }
     }
-}
-
-// ── Thread de background ──────────────────────────────────────────────────────
-
-fn thumb_render_loop(
-    path: PathBuf,
-    rx:   Receiver<ThumbRequest>,
-    tx:   SyncSender<ThumbResult>,
-) {
-    let pdfium = match get_pdfium() {
-        Ok(p)  => p,
-        Err(e) => {
-            tracing::error!("thumbs: falha ao carregar pdfium: {e}");
-            return;
-        }
-    };
-    let engine = match PdfEngine::open(&path, pdfium) {
-        Ok(e)  => e,
-        Err(e) => {
-            tracing::error!("thumbs: falha ao abrir PDF: {e}");
-            return;
-        }
-    };
-
-    for req in rx {
-        // Calcula escala para atingir THUMB_HEIGHT
-        let (_, height_pts) = engine.page_size_pts(req.page_index);
-        let scale = if height_pts > 0.0 {
-            THUMB_HEIGHT as f32 / height_pts
-        } else {
-            0.2
-        };
-
-        match engine.render_page(req.page_index, scale) {
-            Ok(page) => {
-                match tx.try_send(ThumbResult { page_index: req.page_index, page }) {
-                    Ok(_) => {}
-                    Err(mpsc::TrySendError::Disconnected(_)) => {
-                        tracing::info!("thumbs: receiver desconectado, encerrando");
-                        return;
-                    }
-                    Err(mpsc::TrySendError::Full(_)) => {
-                        tracing::trace!("thumbs: canal cheio, thumb descartado");
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::warn!("thumbs: página {}: {e}", req.page_index);
-            }
-        }
-    }
-    tracing::info!("thumbs: thread encerrada");
 }

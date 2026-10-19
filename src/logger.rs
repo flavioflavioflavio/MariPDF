@@ -7,6 +7,20 @@
 
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
+fn configured_filter() -> EnvFilter {
+    let mut filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    // Alguns drivers Vulkan repetem estes avisos a cada present. Mantê-los no
+    // log gera I/O contínuo sem ação possível para o usuário do MariPDF.
+    for directive in ["wgpu_hal=error", "wgpu_core=error", "epaint=error"] {
+        filter = filter.add_directive(
+            directive
+                .parse()
+                .expect("diretiva estática de logging válida"),
+        );
+    }
+    filter
+}
+
 /// Inicializa o sistema de logging.
 /// Retorna o `WorkerGuard` do appender — manter vivo até o fim do processo.
 pub fn init() -> Option<tracing_appender::non_blocking::WorkerGuard> {
@@ -31,8 +45,7 @@ pub fn init() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = configured_filter();
 
     tracing_subscriber::registry()
         .with(filter)
@@ -47,8 +60,7 @@ pub fn init() -> Option<tracing_appender::non_blocking::WorkerGuard> {
 
 /// Fallback: só stdout (quando não consegue criar o diretório de log)
 fn init_stdout_only() -> Option<tracing_appender::non_blocking::WorkerGuard> {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter = configured_filter();
     tracing_subscriber::registry()
         .with(filter)
         .with(fmt::layer().with_writer(std::io::stdout).with_ansi(true))

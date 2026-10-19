@@ -2,29 +2,34 @@
 // Extraído de settings_panel.rs para respeitar o hardcap de 250L.
 // Cada função renderiza o conteúdo de uma aba específica.
 
-use eframe::egui;
 use crate::app::ColorMode;
-use crate::settings::{AppSettings, UiScale, FontChoice, RenderQuality, PageMargin, DefaultPanel, ColorPalette, Language};
-use crate::ui::settings_widgets::{Tokens, sec, divider, chip, action_btn, toggle_row};
+use crate::pdf::persistence::PersistenceManager;
+use crate::settings::{
+    AppSettings, ColorPalette, DefaultPanel, FontChoice, Language, PageMargin, RenderQuality,
+    ThemePreference, UiScale,
+};
 use crate::t;
+use crate::ui::settings_widgets::{action_btn, chip, divider, sec, toggle_row, Tokens};
+use eframe::egui;
 
 // ── Tab: Aparência ─────────────────────────────────────────────────────────────
 
 pub(super) fn tab_appearance(
-    ui:    &mut egui::Ui,
-    settings:  &mut AppSettings,
+    ui: &mut egui::Ui,
+    settings: &mut AppSettings,
     color_mode: &mut ColorMode,
-    cm:         ColorMode,
-    needs_font_reload:   &mut bool,
+    system_prefers_dark: bool,
+    needs_font_reload: &mut bool,
     needs_render_reload: &mut bool,
-    tok:   &Tokens,
+    tok: &Tokens,
 ) {
+    let cm = *color_mode;
     sec(ui, t!("settings-ui-scale"), tok.subtle);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for s in UiScale::all() {
             let sel = settings.scale == s;
-            if chip(ui, s.label(), sel, tok).clicked() {
+            if chip(ui, &s.label(), sel, tok).clicked() {
                 settings.scale = s;
                 ui.ctx().set_pixels_per_point(s.pixels_per_point());
                 settings.save();
@@ -52,12 +57,12 @@ pub(super) fn tab_appearance(
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for i in 0u8..4 {
             let name = match cm {
-                ColorMode::Dark  => ColorPalette::dark_name(i),
+                ColorMode::Dark => ColorPalette::dark_name(i),
                 ColorMode::Light => ColorPalette::light_name(i),
                 ColorMode::Sepia => ColorPalette::sepia_name(i),
             };
             let sel = settings.palette.0 == i;
-            if chip(ui, name, sel, tok).clicked() {
+            if chip(ui, &name, sel, tok).clicked() {
                 settings.palette = ColorPalette(i);
                 settings.save();
                 *needs_render_reload = true;
@@ -69,10 +74,12 @@ pub(super) fn tab_appearance(
     sec(ui, t!("settings-color-mode"), tok.subtle);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
-        for (label, mode) in [("Dark", ColorMode::Dark), ("Light", ColorMode::Light), ("Sépia", ColorMode::Sepia)] {
-            let sel = *color_mode == mode;
-            if chip(ui, label, sel, tok).clicked() {
-                *color_mode = mode;
+        for theme in ThemePreference::all() {
+            let sel = settings.theme == theme;
+            if chip(ui, &t!(theme.label_key()), sel, tok).clicked() {
+                settings.theme = theme;
+                *color_mode = theme.resolve(system_prefers_dark);
+                settings.save();
             }
         }
     });
@@ -95,17 +102,17 @@ pub(super) fn tab_appearance(
 // ── Tab: Leitura ───────────────────────────────────────────────────────────────
 
 pub(super) fn tab_reading(
-    ui:       &mut egui::Ui,
+    ui: &mut egui::Ui,
     settings: &mut AppSettings,
     needs_render_reload: &mut bool,
-    tok:      &Tokens,
+    tok: &Tokens,
 ) {
     sec(ui, t!("settings-page-margin"), tok.subtle);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for m in PageMargin::all() {
             let sel = settings.page_margin == m;
-            if chip(ui, m.label(), sel, tok).clicked() {
+            if chip(ui, &m.label(), sel, tok).clicked() {
                 settings.page_margin = m;
                 settings.save();
             }
@@ -118,7 +125,7 @@ pub(super) fn tab_reading(
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for q in RenderQuality::all() {
             let sel = settings.render_quality == q;
-            if chip(ui, q.label(), sel, tok).clicked() {
+            if chip(ui, &q.label(), sel, tok).clicked() {
                 settings.render_quality = q;
                 *needs_render_reload = true;
                 settings.save();
@@ -127,8 +134,13 @@ pub(super) fn tab_reading(
     });
 
     ui.add_space(24.0);
-    if toggle_row(ui, t!("settings-smooth-scroll"), t!("settings-smooth-scroll-desc"),
-                  &mut settings.smooth_scroll, tok) {
+    if toggle_row(
+        ui,
+        t!("settings-smooth-scroll"),
+        t!("settings-smooth-scroll-desc"),
+        &mut settings.smooth_scroll,
+        tok,
+    ) {
         settings.save();
     }
 }
@@ -136,16 +148,17 @@ pub(super) fn tab_reading(
 // ── Tab: Privacidade ───────────────────────────────────────────────────────────
 
 pub(super) fn tab_privacy(
-    ui:       &mut egui::Ui,
+    ui: &mut egui::Ui,
     settings: &mut AppSettings,
-    tok:      &Tokens,
+    persistence: &mut PersistenceManager,
+    tok: &Tokens,
 ) {
     sec(ui, t!("settings-default-panel"), tok.subtle);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
         for p in DefaultPanel::all() {
             let sel = settings.default_panel == p;
-            if chip(ui, p.label(), sel, tok).clicked() {
+            if chip(ui, &p.label(), sel, tok).clicked() {
                 settings.default_panel = p;
                 settings.save();
             }
@@ -153,8 +166,13 @@ pub(super) fn tab_privacy(
     });
 
     ui.add_space(24.0);
-    if toggle_row(ui, t!("settings-track-history"), t!("settings-track-history-desc"),
-                  &mut settings.track_history, tok) {
+    if toggle_row(
+        ui,
+        t!("settings-track-history"),
+        t!("settings-track-history-desc"),
+        &mut settings.track_history,
+        tok,
+    ) {
         settings.save();
     }
 
@@ -162,16 +180,7 @@ pub(super) fn tab_privacy(
     divider(ui, tok.bord, tok.dw);
     ui.add_space(16.0);
 
-    ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.label(egui::RichText::new(t!("settings-clear-history")).size(13.0).color(tok.text));
-            ui.label(egui::RichText::new(t!("settings-clear-history-desc")).size(11.0).color(tok.muted));
-        });
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let resp = action_btn(ui, &format!("  {}  ", t!("settings-clear-btn")), tok.danger, tok.on_acc, tok);
-            if resp.clicked() { /* limpar histórico */ }
-        });
-    });
+    clear_history_row(ui, persistence, tok);
 
     // ── Integração Windows ─────────────────────────────────────────────────
     ui.add_space(20.0);
@@ -183,25 +192,127 @@ pub(super) fn tab_privacy(
     let is_assoc = crate::platform::file_assoc::is_pdf_associated();
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
-            ui.label(egui::RichText::new(t!("settings-assoc-title")).size(13.0).color(tok.text));
+            ui.label(
+                egui::RichText::new(t!("settings-assoc-title"))
+                    .size(13.0)
+                    .color(tok.text),
+            );
             if is_assoc {
-                ui.label(egui::RichText::new(t!("settings-assoc-active")).size(11.0).color(tok.accent));
+                ui.label(
+                    egui::RichText::new(t!("settings-assoc-active"))
+                        .size(11.0)
+                        .color(tok.accent),
+                );
             } else {
-                ui.label(egui::RichText::new(t!("settings-assoc-inactive")).size(11.0).color(tok.muted));
+                ui.label(
+                    egui::RichText::new(t!("settings-assoc-inactive"))
+                        .size(11.0)
+                        .color(tok.muted),
+                );
             }
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if is_assoc {
-                let resp = action_btn(ui, &format!("  {}  ", t!("settings-assoc-remove-btn")), tok.danger, tok.on_acc, tok);
+                let resp = action_btn(
+                    ui,
+                    &format!("  {}  ", t!("settings-assoc-remove-btn")),
+                    tok.danger,
+                    tok.on_acc,
+                    tok,
+                );
                 if resp.clicked() {
                     let _ = crate::platform::file_assoc::unregister_pdf_association();
                 }
             } else {
-                let resp = action_btn(ui, &format!("  {}  ", t!("settings-assoc-set-btn")), tok.accent, tok.on_acc, tok);
+                let resp = action_btn(
+                    ui,
+                    &format!("  {}  ", t!("settings-assoc-set-btn")),
+                    tok.accent,
+                    tok.on_acc,
+                    tok,
+                );
                 if resp.clicked() {
                     let _ = crate::platform::file_assoc::register_pdf_association();
                 }
             }
         });
     });
+}
+
+// ── Limpar histórico: confirmação em duas etapas + feedback ───────────────────
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+enum ClearHistoryState {
+    #[default]
+    Idle,
+    Confirming,
+    Done(f64),
+    Failed(f64),
+}
+
+const CLEAR_FEEDBACK_SECS: f64 = 3.0;
+
+fn clear_history_row(ui: &mut egui::Ui, persistence: &mut PersistenceManager, tok: &Tokens) {
+    let state_id = egui::Id::new("settings_clear_history_state");
+    let now = ui.input(|i| i.time);
+    let mut state: ClearHistoryState = ui.data(|d| d.get_temp(state_id).unwrap_or_default());
+    if let ClearHistoryState::Done(at) | ClearHistoryState::Failed(at) = state {
+        if now - at >= CLEAR_FEEDBACK_SECS {
+            state = ClearHistoryState::Idle;
+        } else {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_secs_f64(CLEAR_FEEDBACK_SECS));
+        }
+    }
+
+    let (desc, desc_color) = match state {
+        ClearHistoryState::Idle => (t!("settings-clear-history-desc"), tok.muted),
+        ClearHistoryState::Confirming => (t!("settings-clear-history-confirm"), tok.danger),
+        ClearHistoryState::Done(_) => (t!("settings-clear-history-done"), tok.accent),
+        ClearHistoryState::Failed(_) => (t!("settings-clear-history-failed"), tok.danger),
+    };
+
+    ui.horizontal(|ui| {
+        ui.vertical(|ui| {
+            ui.label(
+                egui::RichText::new(t!("settings-clear-history"))
+                    .size(13.0)
+                    .color(tok.text),
+            );
+            ui.label(egui::RichText::new(desc).size(11.0).color(desc_color));
+        });
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let confirming = state == ClearHistoryState::Confirming;
+            let label = if confirming {
+                t!("settings-clear-confirm-btn")
+            } else {
+                t!("settings-clear-btn")
+            };
+            let resp = action_btn(ui, &format!("  {label}  "), tok.danger, tok.on_acc, tok);
+            if resp.clicked() {
+                state = if confirming {
+                    match persistence.clear_all() {
+                        Ok(()) => ClearHistoryState::Done(now),
+                        Err(_) => ClearHistoryState::Failed(now),
+                    }
+                } else {
+                    ClearHistoryState::Confirming
+                };
+            }
+            if confirming {
+                let cancel = action_btn(
+                    ui,
+                    &format!("  {}  ", t!("settings-cancel-btn")),
+                    tok.stat,
+                    tok.text,
+                    tok,
+                );
+                if cancel.clicked() {
+                    state = ClearHistoryState::Idle;
+                }
+            }
+        });
+    });
+
+    ui.data_mut(|d| d.insert_temp(state_id, state));
 }

@@ -1,0 +1,19 @@
+MariPDF is licensed under the GNU General Public License, version 3.0 or later
+(GPL-3.0-or-later).
+
+Copyright (C) MariPDF contributors.
+
+You may redistribute and/or modify this software under the terms of the GNU
+General Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version.
+
+This software is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.
+
+The complete license text is available at:
+https://www.gnu.org/licenses/gpl-3.0.txt
+
+Third-party components, including PDFium, retain their own copyright notices
+and licenses. Release artifacts must include the corresponding third-party
+notices before the public v1.0 release.

@@ -31,8 +31,8 @@ Em caso de conflito, a decisão final é do mantenedor principal.
 
 | Tipo | Onde |
 |---|---|
-| 🐛 Bug report | [Issues](../../issues) — use o template |
-| 💬 Feature request | [Discussions](../../discussions) |
+| 🐛 Bug report | [Issues](https://github.com/flavioflavioflavio/MariPDF/issues) |
+| 💬 Feature request | [Discussions](https://github.com/flavioflavioflavio/MariPDF/discussions) |
 | 🌍 Nova tradução (`.ftl`) | PR com arquivo em `locales/` |
 | 🧪 Testes | Código em `src/**/tests/` |
 | 🔧 Bug fix / feature | Fork + PR (veja abaixo) |
@@ -51,12 +51,12 @@ Em caso de conflito, a decisão final é do mantenedor principal.
 | MSVC Build Tools | VS 2022 | [visualstudio.com](https://visualstudio.microsoft.com/visual-cpp-build-tools/) |
 | Git | qualquer recente | [git-scm.com](https://git-scm.com) |
 
-> O **MSVC toolchain** é obrigatório no Windows para compilar as dependências C (MuPDF via FFI).
+> O **MSVC toolchain** é obrigatório no Windows para compilar e linkar o aplicativo e suas dependências nativas.
 
 ### Clonar e buildar
 
 ```bash
-git clone https://github.com/[seu-usuario]/MariPDF
+git clone https://github.com/flavioflavioflavio/MariPDF.git
 cd MariPDF
 
 # Build de desenvolvimento (mais rápido, sem otimizações)
@@ -95,31 +95,28 @@ MariPDF/
 │   │   ├── donation.rs      # Dialog de doação
 │   │   └── recent_files.rs  # Tela inicial com recentes
 │   ├── pdf/
-│   │   ├── engine.rs        # Wrapper seguro sobre MuPDF (FFI)
+│   │   ├── engine.rs        # Integração com PDFium
 │   │   ├── page_cache.rs    # Cache LRU de páginas renderizadas
 │   │   └── text_search.rs   # Busca full-text
 │   ├── i18n/
 │   │   ├── mod.rs           # FluentBundle, hot-swap de locale
 │   │   └── loader.rs        # Download on-demand + cache local
 │   └── updater/
-│       └── mod.rs           # Auto-update via GitHub Releases
+│       └── mod.rs           # Stub; implementação planejada no roadmap BF-6
 ├── locales/
 │   ├── en.ftl               # Inglês (bundled no binário)
 │   └── pt-BR.ftl            # Português BR (bundled no binário)
 ├── doc/                     # Documentação do projeto
 │   └── adr/                 # Architecture Decision Records
-├── .github/
-│   ├── FUNDING.yml
-│   └── workflows/
-│       └── release.yml      # CI/CD de release
+├── .github/                 # CI e templates adicionados no roadmap BF-0
 ├── build.rs                 # Embed ícone e versão no binário
 └── Cargo.toml
 ```
 
 **Regras de arquitetura:**
-- Um arquivo = uma responsabilidade (~100–150 linhas máximo)
+- Um arquivo = uma responsabilidade; prefira módulos legíveis a limites artificiais
 - Lógica de negócio fica em `pdf/` e `i18n/` — **nunca** em `ui/`
-- `unsafe` blocks só em `pdf/engine.rs` — documentar cada um
+- `unsafe` blocks devem ficar isolados e documentar as invariantes de segurança
 - Sem `unwrap()` em código de produção — use `?` ou trate o erro
 
 ---
@@ -127,14 +124,14 @@ MariPDF/
 ## 🔄 Fluxo de Desenvolvimento
 
 ```
-main (branch protegida)
+master (branch principal atual; proteção planejada)
   └── feat/nome-da-feature   ← seu PR vai aqui
   └── fix/numero-da-issue
   └── docs/o-que-muda
 ```
 
 1. **Fork** o repositório
-2. **Crie** uma branch a partir de `main`: `git checkout -b feat/minha-feature`
+2. **Crie** uma branch a partir da branch principal: `git checkout -b feat/minha-feature`
 3. **Faça** commits pequenos e descritivos (veja Convenções de Commit)
 4. **Rode** `cargo test` e `cargo clippy` antes de fazer push
 5. **Abra** o PR contra `main`
@@ -161,7 +158,7 @@ const MAX_CACHED_PAGES: usize = 10;
 
 /// Returns the rendered bitmap for `page_number`, fetching from cache if available.
 pub fn get_page(&mut self, page_number: usize) -> Result<PageBitmap, PdfError> {
-    // We check cache first to avoid re-rendering — MuPDF render is ~15ms per page
+    // Consultar o cache evita rasterizar novamente uma página já disponível.
     if let Some(cached) = self.cache.get(&page_number) {
         return Ok(cached.clone());
     }
@@ -226,8 +223,10 @@ i18n(pt-BR): add missing toast strings
 - ≤ 400 linhas alteradas → revisão rápida
 - \> 800 linhas → provavelmente deve ser dividido
 
-### Template de PR
-O repositório tem template automático em `.github/PULL_REQUEST_TEMPLATE.md`.
+### Descrição do PR
+
+Enquanto não houver template automático, inclua objetivo, escopo, validações
+executadas e evidência antes/depois quando a mudança afetar performance ou UI.
 
 ---
 
@@ -248,6 +247,7 @@ No report, inclua:
 
 ## ❤️ Agradecimento
 
-Todo contribuidor que tiver PR mergeado vai aparecer no arquivo `CONTRIBUTORS.md` (criado automaticamente via GitHub Actions).
+Contribuições aceitas permanecem registradas no histórico Git e nos créditos de
+release. Uma automação adicional de contribuidores poderá ser criada no futuro.
 
 Se o projeto te ajudou, considere uma [doação voluntária](doc/05_donationware.md) — isso mantém o projeto vivo.
