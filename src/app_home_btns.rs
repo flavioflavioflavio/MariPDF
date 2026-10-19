@@ -37,7 +37,7 @@ impl MariApp {
             .show(ctx, |ui| {
                 egui::Frame::new()
                     .fill(btn_surf)
-                    .stroke(egui::Stroke::new(1.4, btn_bord))
+                    .stroke(egui::Stroke::new(1.4_f32, btn_bord))
                     .corner_radius(egui::CornerRadius::same(10))
                     .inner_margin(egui::Margin::same(4))
                     .show(ui, |ui| {
@@ -78,7 +78,7 @@ impl MariApp {
                             egui::Color32::TRANSPARENT
                         })
                         .stroke(egui::Stroke::new(
-                            1.1,
+                            1.1_f32,
                             if hov {
                                 cm_snap.border()
                             } else {

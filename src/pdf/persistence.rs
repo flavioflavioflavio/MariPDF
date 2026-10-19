@@ -80,7 +80,7 @@ impl PersistenceManager {
                 }
             })
             .collect();
-        list.sort_by(|a, b| b.1.last_opened.cmp(&a.1.last_opened));
+        list.sort_by_key(|(_, session)| std::cmp::Reverse(session.last_opened));
         list.truncate(max);
         list
     }

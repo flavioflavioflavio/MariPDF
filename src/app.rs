@@ -172,7 +172,11 @@ impl MariApp {
                 // a sessao que o usuario ainda esta lendo.
                 self.save_session();
                 let engine = Arc::new(engine);
-                let mut document_worker = DocumentWorker::new(Arc::clone(&engine));
+                let repaint = ctx.clone();
+                let mut document_worker = DocumentWorker::with_waker(
+                    Arc::clone(&engine),
+                    Some(Arc::new(move || repaint.request_repaint())),
+                );
                 document_worker.request_bookmarks();
                 let scheduler = document_worker.handle();
                 let page_count = engine.page_count();
@@ -271,7 +275,7 @@ pub(crate) fn configure_visuals(ctx: &egui::Context) {
     v.panel_fill = BG_BASE;
     v.window_fill = BG_SURFACE;
     v.window_corner_radius = egui::CornerRadius::same(12);
-    v.window_stroke = egui::Stroke::new(1.0, BORDER_SUBTLE);
+    v.window_stroke = egui::Stroke::new(1.0_f32, BORDER_SUBTLE);
     v.override_text_color = Some(TEXT_PRIMARY);
     v.widgets.inactive.bg_fill = egui::Color32::from_rgb(65, 48, 128);
     v.widgets.hovered.bg_fill = ACCENT_PRIMARY;

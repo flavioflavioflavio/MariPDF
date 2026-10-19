@@ -169,3 +169,4 @@ palette-sepia-3 = Old Rose
 ## Seleção de texto
 sel-copy = Copy (Ctrl+C)
 sel-select-all = Select all (Ctrl+A)
+page-render-failed = Could not display page { $page }

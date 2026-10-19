@@ -34,7 +34,7 @@ impl MariApp {
                     .show(ctx, |ui| {
                         egui::Frame::new()
                             .fill(bg)
-                            .stroke(egui::Stroke::new(1.0, stroke_c))
+                            .stroke(egui::Stroke::new(1.0_f32, stroke_c))
                             .corner_radius(egui::CornerRadius::same(10))
                             .inner_margin(egui::Margin::symmetric(14, 10))
                             .show(ui, |ui| {

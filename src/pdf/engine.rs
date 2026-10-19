@@ -287,7 +287,9 @@ mod tests {
     use super::{get_pdfium, PdfEngine};
 
     fn legacy_bgra_to_rgba(bgra: &[u8]) -> Vec<u8> {
-        bgra.chunks_exact(4)
+        bgra.as_chunks::<4>()
+            .0
+            .iter()
             .flat_map(|pixel| [pixel[2], pixel[1], pixel[0], pixel[3]])
             .collect()
     }

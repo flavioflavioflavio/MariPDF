@@ -100,7 +100,9 @@ impl PdfViewer {
                 } else {
                     JobPriority::Visible
                 };
-                self.page_cache.prefetch(page, scale, priority);
+                if !self.page_errors.contains_key(&page) {
+                    self.page_cache.prefetch(page, scale, priority);
+                }
             });
 
             for idx in first_visible..=last_visible {
@@ -140,7 +142,8 @@ impl PdfViewer {
                             "viewer cache metrics"
                         );
                     } else if let Some(error) = self.page_cache.take_failure(idx) {
-                        self.last_error = Some(error);
+                        tracing::warn!("continuous: página {} falhou: {error}", idx + 1);
+                        self.page_errors.insert(idx, error);
                     }
                 }
 
@@ -175,6 +178,15 @@ impl PdfViewer {
                             if self.last_page_rect == egui::Rect::NOTHING {
                                 self.last_page_rect = page_rect;
                             }
+                        } else if let Some(error) = self.page_errors.get(&idx) {
+                            draw_page_error(
+                                ui,
+                                page_height,
+                                available_w,
+                                self.page_margin,
+                                idx,
+                                error,
+                            );
                         } else {
                             self.is_loading = true;
                             draw_skeleton(
@@ -191,6 +203,38 @@ impl PdfViewer {
             }
         });
     }
+}
+
+/// Placeholder de uma página que não renderizou; o resto do documento segue
+/// navegável.
+fn draw_page_error(
+    ui: &mut egui::Ui,
+    height: f32,
+    available_w: f32,
+    page_margin: f32,
+    idx: usize,
+    error: &str,
+) {
+    let width = (available_w - page_margin * 2.0).min(800.0);
+    let (_, rect) = ui.allocate_space(egui::vec2(width, height));
+    let danger = egui::Color32::from_rgb(220, 90, 80);
+    ui.painter().rect(
+        rect,
+        egui::CornerRadius::same(6),
+        egui::Color32::from_rgba_unmultiplied(220, 90, 80, 18),
+        egui::Stroke::new(1.0_f32, danger.gamma_multiply(0.6)),
+        egui::StrokeKind::Inside,
+    );
+    ui.painter().text(
+        rect.center(),
+        egui::Align2::CENTER_CENTER,
+        format!(
+            "⚠ {}\n{error}",
+            crate::t!("page-render-failed", page => idx + 1)
+        ),
+        egui::FontId::proportional(13.0),
+        danger,
+    );
 }
 
 /// Skeleton animado (shimmer) exibido enquanto a página ainda não renderizou.

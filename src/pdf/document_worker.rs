@@ -176,6 +176,10 @@ struct SharedMetrics {
     cancelled: AtomicUsize,
 }
 
+/// Acorda o loop da UI quando um job termina; sem ele, um resultado que chega
+/// com a janela ociosa só seria aplicado no próximo evento de entrada.
+pub type Waker = Arc<dyn Fn() + Send + Sync>;
+
 /// Worker único para render, miniaturas, busca e metadados do documento atual.
 ///
 /// A fila é bounded, deduplica jobs equivalentes e entrega exatamente um estado
@@ -198,7 +202,12 @@ pub struct DocumentWorkerHandle {
 }
 
 impl DocumentWorker {
+    #[cfg(test)]
     pub fn new(engine: Arc<PdfEngine>) -> Self {
+        Self::with_waker(engine, None)
+    }
+
+    pub fn with_waker(engine: Arc<PdfEngine>, waker: Option<Waker>) -> Self {
         let (request_tx, request_rx) = mpsc::sync_channel(REQUEST_CAPACITY);
         let (result_tx, result_rx) = mpsc::channel();
         let generation = Arc::new(AtomicU64::new(1));
@@ -215,7 +224,7 @@ impl DocumentWorker {
         std::thread::Builder::new()
             .name("maripdf-document".into())
             .spawn(move || {
-                run_worker(engine, request_rx, generation, metrics);
+                run_worker(engine, request_rx, generation, metrics, waker);
             })
             .expect("Falha ao criar thread maripdf-document");
 
@@ -308,20 +317,31 @@ impl Drop for DocumentWorker {
 }
 
 impl DocumentWorkerHandle {
+    /// Reserva uma vaga na fila limitada; falha se a fila estiver cheia.
+    fn reserve_queue_slot(&self) -> bool {
+        let queued = &self.metrics.queued;
+        let mut current = queued.load(AtomicOrdering::Acquire);
+        while current < self.queue_capacity {
+            match queued.compare_exchange_weak(
+                current,
+                current + 1,
+                AtomicOrdering::AcqRel,
+                AtomicOrdering::Acquire,
+            ) {
+                Ok(_) => return true,
+                Err(actual) => current = actual,
+            }
+        }
+        false
+    }
+
     fn submit(
         &self,
         kind: JobKind,
         priority: JobPriority,
         result_tx: Sender<JobCompletion>,
     ) -> Option<u64> {
-        if self
-            .metrics
-            .queued
-            .fetch_update(AtomicOrdering::AcqRel, AtomicOrdering::Acquire, |queued| {
-                (queued < self.queue_capacity).then_some(queued + 1)
-            })
-            .is_err()
-        {
+        if !self.reserve_queue_slot() {
             return None;
         }
 
@@ -398,6 +418,7 @@ fn run_worker(
     request_rx: Receiver<DocumentJob>,
     generation: Arc<AtomicU64>,
     metrics: Arc<SharedMetrics>,
+    waker: Option<Waker>,
 ) {
     let mut queue = BinaryHeap::new();
     let mut disconnected = false;
@@ -446,6 +467,9 @@ fn run_worker(
             outcome,
         };
         let _ = job.result_tx.send(completion);
+        if let Some(wake) = &waker {
+            wake();
+        }
     }
 }
 
@@ -557,7 +581,14 @@ mod tests {
                 .expect("inclua ao menos um PDF"),
         );
         let engine = Arc::new(PdfEngine::open(&path, get_pdfium().unwrap()).unwrap());
-        let mut worker = DocumentWorker::new(engine);
+        let wakes = Arc::new(AtomicU64::new(0));
+        let counter = Arc::clone(&wakes);
+        let mut worker = DocumentWorker::with_waker(
+            engine,
+            Some(Arc::new(move || {
+                counter.fetch_add(1, AtomicOrdering::AcqRel);
+            })),
+        );
 
         assert!(worker.request_bookmarks());
         assert!(worker.request_links(0));
@@ -591,6 +622,11 @@ mod tests {
         assert_eq!(snapshot.running, 0);
         assert_eq!(snapshot.completed, 6);
         assert_eq!(snapshot.failed, 0);
+        assert_eq!(
+            wakes.load(AtomicOrdering::Acquire),
+            6,
+            "um wake por job terminal"
+        );
     }
 
     #[test]

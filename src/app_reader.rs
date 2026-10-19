@@ -177,7 +177,7 @@ impl MariApp {
             .frame(
                 egui::Frame::new()
                     .fill(color_mode.statusbar_for(self.settings.palette.0))
-                    .stroke(egui::Stroke::new(1.0, color_mode.border()))
+                    .stroke(egui::Stroke::new(1.0_f32, color_mode.border()))
                     .inner_margin(egui::Margin::symmetric(14, 3)),
             )
             .show(ctx, |ui| {
@@ -277,7 +277,7 @@ impl MariApp {
             .frame(
                 egui::Frame::new()
                     .fill(panel_bg)
-                    .stroke(egui::Stroke::new(1.0, panel_bord))
+                    .stroke(egui::Stroke::new(1.0_f32, panel_bord))
                     .inner_margin(egui::Margin::symmetric(6, 6)),
             )
             .show(ctx, |ui| {

@@ -33,7 +33,7 @@ pub(crate) fn paint_search_highlight(
         return;
     }
     let fill = egui::Color32::from_rgba_unmultiplied(255, 196, 0, 90);
-    let stroke = egui::Stroke::new(1.5, egui::Color32::from_rgb(255, 160, 0));
+    let stroke = egui::Stroke::new(1.5_f32, egui::Color32::from_rgb(255, 160, 0));
     for rect in &highlight.rects {
         let screen = pdf_rect_to_screen(page_rect, highlight.page_size, *rect).expand(1.5);
         ui.painter().rect(
@@ -100,7 +100,7 @@ pub(super) fn draw_page_tex(
     ui.painter().rect_stroke(
         rect,
         egui::CornerRadius::ZERO,
-        egui::Stroke::new(0.5, border),
+        egui::Stroke::new(0.5_f32, border),
         egui::StrokeKind::Outside,
     );
 }
@@ -122,7 +122,7 @@ pub(super) fn show_spinner(ui: &mut egui::Ui, available_h: f32) {
 /// Inversão suave (dark mode PDF): branco → grafite, preto → off-white.
 /// Fórmula: `38 + ((255 - x) * 205 / 255)`. Alpha intacto.
 pub fn invert_rgba(rgba: &mut [u8]) {
-    for pixel in rgba.chunks_exact_mut(4) {
+    for pixel in rgba.as_chunks_mut::<4>().0 {
         pixel[0] = 38 + ((255u16 - pixel[0] as u16) * 205 / 255) as u8;
         pixel[1] = 38 + ((255u16 - pixel[1] as u16) * 205 / 255) as u8;
         pixel[2] = 38 + ((255u16 - pixel[2] as u16) * 205 / 255) as u8;

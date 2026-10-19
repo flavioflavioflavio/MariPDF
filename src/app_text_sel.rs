@@ -239,7 +239,7 @@ impl MariApp {
         let knob = egui::pos2(anchor.x, anchor.y + direction * (stem + radius));
         painter.line_segment(
             [anchor, egui::pos2(anchor.x, anchor.y + direction * stem)],
-            egui::Stroke::new(2.0, color),
+            egui::Stroke::new(2.0_f32, color),
         );
         painter.circle_filled(knob, radius, color);
         let hit = egui::Rect::from_center_size(knob, egui::vec2(radius * 3.5, radius * 3.5));
