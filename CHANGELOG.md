@@ -31,6 +31,9 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   redimensionam, roda troca de página, Ctrl + roda dá zoom no cursor com pan,
   duplo clique reenquadra e o botão direito abre o menu com Sempre no topo,
   navegação, abrir arquivo e sair. Segue o tema do app e não persiste estado.
+- Controles flutuantes da Moldura: chevron no canto superior direito, invisível
+  fora da janela, semitransparente sobre a página e opaco no hover. Expande uma
+  pílula com zoom −/%/+, mão de pan, fixar no topo e sair.
 - Stress manual parametrizado para abrir, renderizar e fechar um corpus real em
   concorrência dentro do mesmo processo.
 

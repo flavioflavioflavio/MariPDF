@@ -327,6 +327,8 @@ page rendering assíncrono com LOD simples.
     transparente na criação e chamada Win32 fora do eframe);
   - decidido: a moldura segue o tema do app, incluindo a inversão no Dark;
   - atalho Ctrl+Shift+F (Ctrl+Shift+M já alterna Single/Continuous); Esc sai;
+  - controles flutuantes discretos: chevron semitransparente que fica opaco
+    no hover e expande zoom, mão de pan, fixar no topo e sair;
   - pendente: Sempre no topo ainda não é lembrado entre sessões, conforme a
     decisão de persistência acima.
 

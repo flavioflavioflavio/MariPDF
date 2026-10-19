@@ -9,6 +9,8 @@ use crate::ui::viewer::ViewMode;
 use crate::ui::viewer_helpers::paint_search_highlight;
 use eframe::egui;
 
+mod bar;
+
 /// Espessura da moldura em pontos.
 const FRAME_BORDER: f32 = 1.0;
 /// Faixa sensível nas bordas para redimensionar.
@@ -16,6 +18,8 @@ const RESIZE_MARGIN: f32 = 6.0;
 /// Menor lado aceito para a janela em modo Moldura.
 const MIN_FRAME_SIDE: f32 = 160.0;
 const MAX_FRAME_ZOOM: f32 = 8.0;
+/// Passo dos botões de zoom da barra.
+const FRAME_ZOOM_STEP: f32 = 1.25;
 /// Tempo sem mudança de tamanho antes de reajustar a proporção.
 const SNAP_SETTLE_SECS: f64 = 0.2;
 
@@ -29,6 +33,12 @@ pub struct FrameMode {
     last_size: egui::Vec2,
     size_changed_at: f64,
     shown_page: Option<usize>,
+    /// Ferramenta mão: com zoom, arrastar move a página em vez da janela.
+    pan_tool: bool,
+    /// Barra flutuante expandida (chevron aberto).
+    bar_open: bool,
+    /// Área da barra no frame anterior, para o fade por hover.
+    bar_rect: Option<egui::Rect>,
 }
 
 impl Default for FrameMode {
@@ -42,6 +52,9 @@ impl Default for FrameMode {
             last_size: egui::Vec2::ZERO,
             size_changed_at: 0.0,
             shown_page: None,
+            pan_tool: false,
+            bar_open: false,
+            bar_rect: None,
         }
     }
 }
@@ -57,6 +70,10 @@ struct FrameRestore {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum FrameAction {
+    ToggleBar,
+    ZoomIn,
+    ZoomOut,
+    TogglePan,
     ToggleOnTop,
     Next,
     Prev,
@@ -237,11 +254,13 @@ impl MariApp {
                 });
             });
 
+        let bar_action = self.frame_bar(ctx, ctx.screen_rect());
+
         if let Some((base, aspect)) = base_rect {
             self.keep_frame_resolution(ctx, base);
             self.keep_frame_aspect(ctx, aspect, now);
         }
-        if let Some(action) = action {
+        for action in [action, bar_action].into_iter().flatten() {
             self.apply_frame_action(ctx, action);
         }
     }
@@ -270,14 +289,14 @@ impl MariApp {
         surface: &egui::Response,
         resizing: bool,
     ) {
-        let zoomed = self.frame.zoom > 1.0;
-        if !resizing && surface.drag_started_by(egui::PointerButton::Primary) && !zoomed {
+        let panning = self.frame.zoom > 1.0 && self.frame.pan_tool;
+        if !resizing && surface.drag_started_by(egui::PointerButton::Primary) && !panning {
             ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
         }
-        if zoomed && surface.dragged_by(egui::PointerButton::Primary) {
+        if panning && surface.dragged_by(egui::PointerButton::Primary) {
             self.frame.pan += surface.drag_delta();
             ctx.set_cursor_icon(egui::CursorIcon::Grabbing);
-        } else if zoomed && surface.hovered() && !resizing {
+        } else if panning && surface.hovered() && !resizing {
             ctx.set_cursor_icon(egui::CursorIcon::Grab);
         }
         if surface.double_clicked() {
@@ -314,8 +333,7 @@ impl MariApp {
                         cursor,
                         factor,
                     );
-                    self.frame.zoom = zoom;
-                    self.frame.pan = pan;
+                    self.set_frame_zoom(zoom, pan);
                 }
             } else if !ctrl && raw_y.abs() > 5.0 {
                 self.viewer.page_delta = if raw_y < 0.0 { 1 } else { -1 };
@@ -339,7 +357,32 @@ impl MariApp {
     pub(crate) fn reset_frame_view(&mut self) {
         self.frame.zoom = 1.0;
         self.frame.pan = egui::Vec2::ZERO;
+        self.frame.pan_tool = false;
         self.frame.last_size = egui::Vec2::ZERO;
+    }
+
+    /// Aplica zoom/pan; ao sair do enquadramento a mão liga sozinha.
+    fn set_frame_zoom(&mut self, zoom: f32, pan: egui::Vec2) {
+        if self.frame.zoom <= 1.0 && zoom > 1.0 {
+            self.frame.pan_tool = true;
+        }
+        if zoom <= 1.0 {
+            self.frame.pan_tool = false;
+        }
+        self.frame.zoom = zoom;
+        self.frame.pan = pan;
+    }
+
+    /// Zoom pelos botões da barra, ancorado no centro da página.
+    fn step_frame_zoom(&mut self, factor: f32) {
+        let (zoom, pan) = zoom_about(
+            self.frame.zoom,
+            self.frame.pan,
+            egui::Pos2::ZERO,
+            egui::Pos2::ZERO,
+            factor,
+        );
+        self.set_frame_zoom(zoom, pan);
     }
 
     /// Ajusta a resolução do bitmap ao tamanho exibido, sem renderizar durante
@@ -383,6 +426,10 @@ impl MariApp {
 
     fn apply_frame_action(&mut self, ctx: &egui::Context, action: FrameAction) {
         match action {
+            FrameAction::ToggleBar => self.frame.bar_open = !self.frame.bar_open,
+            FrameAction::ZoomIn => self.step_frame_zoom(FRAME_ZOOM_STEP),
+            FrameAction::ZoomOut => self.step_frame_zoom(1.0 / FRAME_ZOOM_STEP),
+            FrameAction::TogglePan => self.frame.pan_tool = !self.frame.pan_tool,
             FrameAction::ToggleOnTop => {
                 self.frame.always_on_top = !self.frame.always_on_top;
                 let level = if self.frame.always_on_top {
@@ -557,6 +604,19 @@ mod tests {
         // O ponto (50, 20) do centro continua sob o cursor após dobrar o zoom.
         let page_point = egui::vec2(50.0, 20.0);
         assert_eq!(center + pan + page_point * zoom, cursor);
+    }
+
+    #[test]
+    fn centered_zoom_scales_pan_proportionally() {
+        let (zoom, pan) = zoom_about(
+            2.0,
+            egui::vec2(10.0, -4.0),
+            egui::Pos2::ZERO,
+            egui::Pos2::ZERO,
+            1.5,
+        );
+        assert_eq!(zoom, 3.0);
+        assert_eq!(pan, egui::vec2(15.0, -6.0));
     }
 
     #[test]
