@@ -55,6 +55,9 @@ anyhow        = "1.0"
 # --- Abertura de links externos no browser do sistema ---
 open          = "5"
 
+# --- Handle nativo da janela (posição/maximização via Win32, BF-412) ---
+raw-window-handle = "0.6"
+
 # --- Leitura do registro do Windows (detecção de tema dark/light) ---
 winreg        = "0.52"
 

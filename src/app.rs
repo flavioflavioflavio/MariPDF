@@ -4,6 +4,7 @@
 
 use crate::app_about::AboutState;
 use crate::app_frame::FrameMode;
+use crate::app_window::WindowTracker;
 use crate::pdf::document_worker::DocumentWorker;
 use crate::pdf::engine::{get_pdfium, BookmarkEntry, PdfEngine, PdfLinkInfo, TextCharInfo};
 use crate::pdf::persistence::{FileSession, PersistenceManager};
@@ -92,6 +93,9 @@ pub struct MariApp {
 
     // Modo Flutuante (BF-415)
     pub frame: FrameMode,
+
+    // Posição/tamanho da janela (BF-412)
+    pub window: WindowTracker,
 }
 
 impl MariApp {
@@ -142,6 +146,7 @@ impl MariApp {
             settings_open: false,
             about: AboutState::default(),
             frame: FrameMode::default(),
+            window: WindowTracker::default(),
         }
     }
 
@@ -239,16 +244,22 @@ impl MariApp {
 impl eframe::App for MariApp {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         self.save_session();
-        // Salva tamanho atual da janela
-        // (available_width é a largura do painel central; usamos como aproximação)
-        if !self.frame.active {
-            PersistenceManager::save_window(self.available_width + 48.0, 768.0);
-        }
+        let track = self.tracks_window();
+        self.window.on_exit(track);
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        let track = self.tracks_window();
+        self.window.on_frame(ctx, frame, track);
         configure_visuals(ctx);
         crate::app_update::run(self, ctx);
+    }
+}
+
+impl MariApp {
+    /// Flutuante e tela cheia não representam a janela normal do usuário.
+    fn tracks_window(&self) -> bool {
+        !self.frame.active && !self.fullscreen
     }
 }
 

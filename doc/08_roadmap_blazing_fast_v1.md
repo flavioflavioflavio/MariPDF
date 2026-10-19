@@ -109,8 +109,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
     ocorrência ativa e mostra o trecho de contexto.
 12. A seleção por arraste copia imediatamente ao soltar, comportamento que deve
     ser decidido e testado como contrato de UX.
-13. Persistência de janela salva largura aproximada e altura fixa; não salva
-    posição real, maximização ou monitor.
+13. [x] Persistência de janela salvava largura aproximada e altura fixa; agora
+    guarda posição, tamanho e maximização reais e recupera monitores ausentes.
 14. [x] Havia strings PT-BR hardcoded fora do Fluent; a UI em inglês agora cobre
     a mesma superfície, protegida por testes.
 
@@ -306,7 +306,7 @@ page rendering assíncrono com LOD simples.
   conversão tela ↔ PDF coberta por testes de múltiplos retângulos.
 - [x] BF-410 Destacar ocorrência ativa da busca e expor trecho de contexto.
 - [ ] BF-411 Fechar contrato de seleção/cópia e cobrir mouse + teclado.
-- [ ] BF-412 Persistir tamanho, posição, maximização e monitor com recuperação
+- [x] BF-412 Persistir tamanho, posição, maximização e monitor com recuperação
   segura quando a topologia de monitores mudar.
 - [x] BF-413 Completar i18n e remover strings de UI hardcoded.
 - [ ] BF-414 Remover módulos stubs mortos ou conectá-los explicitamente.

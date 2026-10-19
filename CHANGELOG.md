@@ -45,6 +45,10 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   para página/zoom/modo, menu de zoom (100%, ajustar largura, ajustar página) e
   tooltips traduzidos com atalhos.
 - Modo Moldura passa a se chamar Modo Flutuante.
+- A janela reabre com a posição, o tamanho e a maximização reais da sessão
+  anterior (GetWindowPlacement, pixels físicos), gravados com debounce e
+  escrita atômica; posições fora dos monitores atuais são trazidas para dentro
+  ou centralizadas no principal. Flutuante e tela cheia não são gravados.
 - Home, status bar, painel lateral, sumário automático, toasts, erros de
   abertura, diálogo de arquivo e rótulos das configurações passam pelo Fluent;
   a UI em inglês cobre a mesma superfície do PT-BR.

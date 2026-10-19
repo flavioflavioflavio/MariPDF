@@ -18,6 +18,7 @@ mod app_text_sel;
 mod app_toast;
 mod app_toolbar;
 mod app_update;
+mod app_window;
 mod byte_cache;
 mod i18n;
 mod logger;
@@ -49,14 +50,13 @@ fn main() -> anyhow::Result<()> {
         tracing::info!("Arquivo via CLI: {}", f.display());
     }
 
-    // ── Restaura tamanho da janela da sessão anterior ─────────────────────
-    let win = crate::pdf::persistence::PersistenceManager::load_window();
-
     // ── Opções da janela ─────────────────────────────────────────────────
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("MariPDF")
-            .with_inner_size([win.width, win.height])
+            // Tamanho inicial; a posição salva é aplicada no primeiro frame,
+            // antes de a janela aparecer (app_window.rs).
+            .with_inner_size([1024.0, 768.0])
             .with_min_inner_size([640.0, 480.0])
             .with_icon(load_icon()),
         ..Default::default()

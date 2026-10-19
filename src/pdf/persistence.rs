@@ -28,20 +28,12 @@ struct SessionStore {
     files: HashMap<String, FileSession>,
 }
 
-/// Tamanho e posição da janela persistidos entre sessões.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Posição, tamanho e maximização da janela entre sessões. Arquivos do formato
+/// antigo (só largura/altura aproximadas) são ignorados e caem no padrão.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WindowSession {
-    pub width: f32,
-    pub height: f32,
-}
-
-impl Default for WindowSession {
-    fn default() -> Self {
-        Self {
-            width: 1024.0,
-            height: 768.0,
-        }
-    }
+    #[serde(default)]
+    pub placement: Option<crate::platform::window_placement::Placement>,
 }
 
 pub struct PersistenceManager {
@@ -112,7 +104,7 @@ impl PersistenceManager {
 
     // ── Janela ────────────────────────────────────────────────────────────────
 
-    /// Carrega as dimensões da janela da sessão anterior.
+    /// Carrega o estado da janela da sessão anterior.
     pub fn load_window() -> WindowSession {
         let path = window_path();
         std::fs::read_to_string(&path)
@@ -121,19 +113,21 @@ impl PersistenceManager {
             .unwrap_or_default()
     }
 
-    /// Persiste as dimensões atuais da janela.
-    pub fn save_window(w: f32, h: f32) {
+    /// Persiste o estado da janela com escrita atômica (temp → rename).
+    pub fn save_window(
+        placement: crate::platform::window_placement::Placement,
+    ) -> anyhow::Result<()> {
         let path = window_path();
-        let session = WindowSession {
-            width: w.max(640.0),
-            height: h.max(480.0),
-        };
         if let Some(parent) = path.parent() {
-            let _ = std::fs::create_dir_all(parent);
+            std::fs::create_dir_all(parent)?;
         }
-        if let Ok(text) = toml::to_string_pretty(&session) {
-            let _ = std::fs::write(&path, text);
-        }
+        let session = WindowSession {
+            placement: Some(placement),
+        };
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, toml::to_string_pretty(&session)?)?;
+        std::fs::rename(&tmp, &path)?;
+        Ok(())
     }
 }
 
