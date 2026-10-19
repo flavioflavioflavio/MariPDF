@@ -171,7 +171,11 @@ impl MariApp {
                 // a sessao que o usuario ainda esta lendo.
                 self.save_session();
                 let engine = Arc::new(engine);
-                let mut document_worker = DocumentWorker::new(Arc::clone(&engine));
+                let repaint = ctx.clone();
+                let mut document_worker = DocumentWorker::with_waker(
+                    Arc::clone(&engine),
+                    Some(Arc::new(move || repaint.request_repaint())),
+                );
                 document_worker.request_bookmarks();
                 let scheduler = document_worker.handle();
                 let page_count = engine.page_count();

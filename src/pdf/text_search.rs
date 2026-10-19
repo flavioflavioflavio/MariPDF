@@ -175,21 +175,27 @@ impl TextSearch {
     }
 }
 
-/// Minúscula 1:1 por caractere; mantém o índice estável entre texto e geometria.
-fn fold_char(c: char) -> char {
-    if c.is_whitespace() {
-        return ' ';
-    }
-    let mut lower = c.to_lowercase();
-    match (lower.next(), lower.next()) {
-        (Some(single), None) => single,
-        _ => c,
-    }
+/// Minúscula completa: alguns chars viram mais de um code point
+/// (ex.: `İ` → `i̇`), por isso a busca compara sequências e não chars 1:1.
+fn fold_chars(c: char) -> impl Iterator<Item = char> {
+    let space = c.is_whitespace() || c.is_control();
+    let lower = (!space).then(|| c.to_lowercase());
+    space
+        .then_some(' ')
+        .into_iter()
+        .chain(lower.into_iter().flatten())
+        // Marcas combinantes soltas (como o ponto de `İ` → `i̇`) não contam
+        // na comparação; acentos pré-compostos (`ã`) continuam distintos.
+        .filter(|c| !is_combining_mark(*c))
+}
+
+fn is_combining_mark(c: char) -> bool {
+    matches!(c, '\u{0300}'..='\u{036F}')
 }
 
 fn normalize_query(query: &str) -> Vec<char> {
     let mut folded = Vec::with_capacity(query.len());
-    for c in query.trim().chars().map(fold_char) {
+    for c in query.trim().chars().flat_map(fold_chars) {
         if c == ' ' && folded.last() == Some(&' ') {
             continue;
         }
@@ -198,10 +204,12 @@ fn normalize_query(query: &str) -> Vec<char> {
     folded
 }
 
-/// Texto da página com espaços colapsados, mantendo o índice do char original.
+/// Texto normalizado da página. Cada unidade guarda o índice do char de
+/// origem (geometria) e só a primeira unidade de um char carrega o texto
+/// original exibido no contexto.
 struct NormalizedPage {
     folded: Vec<char>,
-    display: Vec<char>,
+    display: Vec<Option<char>>,
     source: Vec<usize>,
 }
 
@@ -216,14 +224,12 @@ fn normalize_page(chars: &[SearchChar]) -> NormalizedPage {
         if is_space && page.folded.last().is_none_or(|last| *last == ' ') {
             continue;
         }
-        let (folded, display) = if is_space {
-            (' ', ' ')
-        } else {
-            (fold_char(sc.ch), sc.ch)
-        };
-        page.folded.push(folded);
-        page.display.push(display);
-        page.source.push(index);
+        let original = if is_space { ' ' } else { sc.ch };
+        for (unit, folded) in fold_chars(sc.ch).enumerate() {
+            page.folded.push(folded);
+            page.display.push((unit == 0).then_some(original));
+            page.source.push(index);
+        }
     }
     page
 }
@@ -243,16 +249,15 @@ fn find_hits_in_page(page_index: usize, page: &SearchPage, query: &[char]) -> Ve
             continue;
         }
         let end = start + query.len();
-        let (context, match_start, match_end) = build_context(&normalized.display, start, end);
-        let match_chars = normalized.source[start..end]
-            .iter()
-            .map(|&source| page.chars[source]);
+        let (context, match_start, match_end) = build_context(&normalized, start, end);
+        let mut sources: Vec<usize> = normalized.source[start..end].to_vec();
+        sources.dedup();
         hits.push(SearchHit {
             page_index,
             context,
             match_start,
             match_end,
-            rects: line_rects(match_chars),
+            rects: line_rects(sources.into_iter().map(|source| page.chars[source])),
             page_size: (page.width_pts, page.height_pts),
         });
         start = end;
@@ -261,22 +266,30 @@ fn find_hits_in_page(page_index: usize, page: &SearchPage, query: &[char]) -> Ve
     hits
 }
 
-fn build_context(display: &[char], start: usize, end: usize) -> (String, usize, usize) {
+/// Trecho com a caixa original. Uma ocorrência que começa no meio de um char
+/// expandido destaca o char inteiro.
+fn build_context(page: &NormalizedPage, start: usize, end: usize) -> (String, usize, usize) {
+    // Alinha o início ao primeiro unit do char de origem.
+    let mut start = start;
+    while start > 0 && page.display[start].is_none() {
+        start -= 1;
+    }
     let context_start = start.saturating_sub(CONTEXT_CHARS);
-    let context_end = (end + CONTEXT_CHARS).min(display.len());
+    let context_end = (end + CONTEXT_CHARS).min(page.display.len());
+    let text = |range: std::ops::Range<usize>| -> String {
+        page.display[range].iter().flatten().collect()
+    };
 
     let mut context = String::new();
     if context_start > 0 {
         context.push('…');
     }
-    let before: String = display[context_start..start].iter().collect();
-    context.push_str(before.trim_start());
+    context.push_str(text(context_start..start).trim_start());
     let match_start = context.len();
-    context.extend(&display[start..end]);
+    context.push_str(&text(start..end));
     let match_end = context.len();
-    let after: String = display[end..context_end].iter().collect();
-    context.push_str(after.trim_end());
-    if context_end < display.len() {
+    context.push_str(text(end..context_end).trim_end());
+    if context_end < page.display.len() {
         context.push('…');
     }
     (context, match_start, match_end)
@@ -361,6 +374,19 @@ mod tests {
         assert_eq!(found.len(), 1);
         // "AÇÃO" começa no 4º char (x = 30pt) e tem 4 chars de largura.
         assert_eq!(found[0].rects, vec![[30.0, 800.0, 70.0, 812.0]]);
+    }
+
+    #[test]
+    fn expanding_lowercase_mappings_still_match() {
+        // `İ` minúsculo vira `i` + ponto combinante: "i" e "istanbul" acham.
+        let found = hits("Cidade: İSTANBUL", "istanbul");
+        assert_eq!(found.len(), 1);
+        let hit = &found[0];
+        assert_eq!(&hit.context[hit.match_start..hit.match_end], "İSTANBUL");
+        // Geometria cobre os 8 chars originais (x = 80..160pt).
+        assert_eq!(hit.rects, vec![[80.0, 800.0, 160.0, 812.0]]);
+
+        assert_eq!(hits("İ", "i").len(), 1);
     }
 
     #[test]

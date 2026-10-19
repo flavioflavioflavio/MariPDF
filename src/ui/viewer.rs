@@ -92,8 +92,11 @@ pub struct PdfViewer {
     pub page_margin: f32,
     /// Define se deltas suavizados do egui são usados para zoom/scroll.
     pub smooth_scroll: bool,
-    /// Última falha de render pronta para o app apresentar.
+    /// Última falha de render pronta para o app apresentar (single-page).
     pub(crate) last_error: Option<String>,
+    /// Falhas por página no modo contínuo: ficam no lugar da página, sem
+    /// derrubar o documento inteiro, e não são re-pedidas em loop.
+    pub(crate) page_errors: std::collections::HashMap<usize, String>,
 }
 
 impl PdfViewer {
@@ -123,6 +126,7 @@ impl PdfViewer {
             page_margin: 20.0,
             smooth_scroll: true,
             last_error: None,
+            page_errors: std::collections::HashMap::new(),
         }
     }
 
@@ -131,11 +135,14 @@ impl PdfViewer {
     pub fn init_cache(&mut self, scheduler: DocumentWorkerHandle, page_count: usize) {
         self.page_cache = LruPageCache::new(DEFAULT_CPU_CACHE_BYTES, scheduler);
         self.tex_cache.clear();
+        // Novo zoom/escala ou documento: páginas que falharam ganham nova chance.
+        self.page_errors.clear();
         self.page_layout.ensure_page_count(page_count);
     }
 
     /// Reset completo ao abrir novo documento
     pub fn reset(&mut self) {
+        self.page_errors.clear();
         self.texture = None;
         self.loaded_page = None;
         self.tex_cache.clear();

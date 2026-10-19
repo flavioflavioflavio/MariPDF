@@ -32,6 +32,8 @@ pub struct FrameMode {
     restore: Option<FrameRestore>,
     last_size: egui::Vec2,
     size_changed_at: f64,
+    /// Último tamanho aceito na proporção certa; diz qual eixo o usuário mexeu.
+    settled_size: Option<egui::Vec2>,
     shown_page: Option<usize>,
     /// Ferramenta mão: com zoom, arrastar move a página em vez da janela.
     pan_tool: bool,
@@ -51,6 +53,7 @@ impl Default for FrameMode {
             restore: None,
             last_size: egui::Vec2::ZERO,
             size_changed_at: 0.0,
+            settled_size: None,
             shown_page: None,
             pan_tool: false,
             bar_open: false,
@@ -66,6 +69,8 @@ struct FrameRestore {
     view_mode: ViewMode,
     side_panel: SidePanelKind,
     viewer_zoom: f32,
+    /// Maximizada ao entrar: o Flutuante desmaximiza e a saída maximiza de novo.
+    maximized: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -97,14 +102,27 @@ impl MariApp {
         if self.frame.active || self.engine.is_none() {
             return;
         }
-        let (outer, inner) = ctx.input(|i| (i.viewport().outer_rect, i.viewport().inner_rect));
+        let (outer, inner, maximized) = ctx.input(|i| {
+            let viewport = i.viewport();
+            (
+                viewport.outer_rect,
+                viewport.inner_rect,
+                viewport.maximized.unwrap_or(false),
+            )
+        });
         self.frame.restore = Some(FrameRestore {
             outer_pos: outer.map(|r| r.min),
             inner_size: inner.map(|r| r.size()),
             view_mode: self.viewer.mode,
             side_panel: self.side_panel,
             viewer_zoom: self.viewer.zoom,
+            maximized,
         });
+        // Maximizada, a janela ignora tamanho/proporção: sairia uma tela cheia
+        // sem bordas em vez de uma moldura móvel.
+        if maximized {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(false));
+        }
 
         if self.fullscreen {
             self.fullscreen = false;
@@ -121,6 +139,7 @@ impl MariApp {
         self.frame.zoom = 1.0;
         self.frame.pan = egui::Vec2::ZERO;
         self.frame.last_size = egui::Vec2::ZERO;
+        self.frame.settled_size = None;
         self.frame.shown_page = None;
         ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(egui::vec2(
@@ -150,11 +169,15 @@ impl MariApp {
         )));
 
         if let Some(restore) = self.frame.restore.take() {
-            if let Some(size) = restore.inner_size {
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
-            }
-            if let Some(pos) = restore.outer_pos {
-                ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+            if restore.maximized {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+            } else {
+                if let Some(size) = restore.inner_size {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+                }
+                if let Some(pos) = restore.outer_pos {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
+                }
             }
             self.side_panel = restore.side_panel;
             if self.engine.is_some() {
@@ -418,10 +441,12 @@ impl MariApp {
         {
             return;
         }
-        let target = snapped_inner_size(size, aspect, FRAME_BORDER);
+        let axis = snap_axis(self.frame.settled_size, size);
+        let target = snapped_inner_size(size, aspect, FRAME_BORDER, axis);
         if (target - size).length() > 1.5 {
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target));
         }
+        self.frame.settled_size = Some(target);
     }
 
     fn apply_frame_action(&mut self, ctx: &egui::Context, action: FrameAction) {
@@ -564,11 +589,39 @@ fn resize_cursor(direction: egui::ResizeDirection) -> egui::CursorIcon {
     }
 }
 
-/// Mantém a altura da janela e ajusta a largura para a proporção da página.
-fn snapped_inner_size(size: egui::Vec2, aspect: f32, border: f32) -> egui::Vec2 {
-    let height = size.y.max(MIN_FRAME_SIDE);
-    let page_height = height - border * 2.0;
-    let width = (page_height * aspect + border * 2.0).max(MIN_FRAME_SIDE);
+/// Eixo que o usuário redimensionou e que deve ser preservado no ajuste.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum KeepAxis {
+    Width,
+    Height,
+}
+
+/// Arraste pela lateral muda sobretudo a largura: preserva-se a largura.
+/// Bordas de cima/baixo, cantos e o caso inicial preservam a altura.
+fn snap_axis(settled: Option<egui::Vec2>, size: egui::Vec2) -> KeepAxis {
+    match settled {
+        Some(previous) if (size.x - previous.x).abs() > (size.y - previous.y).abs() => {
+            KeepAxis::Width
+        }
+        _ => KeepAxis::Height,
+    }
+}
+
+/// Ajusta a janela à proporção da página preservando o eixo informado.
+fn snapped_inner_size(size: egui::Vec2, aspect: f32, border: f32, keep: KeepAxis) -> egui::Vec2 {
+    let aspect = aspect.max(f32::EPSILON);
+    let (width, height) = match keep {
+        KeepAxis::Height => {
+            let height = size.y.max(MIN_FRAME_SIDE);
+            let width = (height - border * 2.0) * aspect + border * 2.0;
+            (width.max(MIN_FRAME_SIDE), height)
+        }
+        KeepAxis::Width => {
+            let width = size.x.max(MIN_FRAME_SIDE);
+            let height = (width - border * 2.0) / aspect + border * 2.0;
+            (width, height.max(MIN_FRAME_SIDE))
+        }
+    };
     egui::vec2(width.round(), height.round())
 }
 
@@ -673,14 +726,46 @@ mod tests {
     #[test]
     fn snapped_size_keeps_height_and_page_aspect() {
         // A4 retrato (~0,707) numa janela de 800pt de altura com borda de 1pt.
-        let size = snapped_inner_size(egui::vec2(1000.0, 800.0), 595.0 / 842.0, 1.0);
+        let size = snapped_inner_size(
+            egui::vec2(1000.0, 800.0),
+            595.0 / 842.0,
+            1.0,
+            KeepAxis::Height,
+        );
         assert_eq!(size.y, 800.0);
         assert_eq!(size.x, ((798.0 * 595.0 / 842.0) + 2.0_f32).round());
         // Nunca abaixo do mínimo.
         assert_eq!(
-            snapped_inner_size(egui::vec2(50.0, 50.0), 0.1, 1.0).y,
+            snapped_inner_size(egui::vec2(50.0, 50.0), 0.1, 1.0, KeepAxis::Height).y,
             MIN_FRAME_SIDE
         );
+    }
+
+    #[test]
+    fn horizontal_edge_resize_keeps_the_new_width() {
+        let aspect = 595.0 / 842.0;
+        let settled = egui::vec2(567.0, 800.0);
+        // Usuário puxou a borda direita: só a largura mudou.
+        let dragged = egui::vec2(700.0, 800.0);
+        assert_eq!(snap_axis(Some(settled), dragged), KeepAxis::Width);
+        let size = snapped_inner_size(dragged, aspect, 1.0, KeepAxis::Width);
+        assert_eq!(size.x, 700.0);
+        assert_eq!(size.y, ((698.0 / aspect) + 2.0_f32).round());
+    }
+
+    #[test]
+    fn vertical_edges_corners_and_first_snap_keep_height() {
+        let settled = egui::vec2(567.0, 800.0);
+        assert_eq!(
+            snap_axis(Some(settled), egui::vec2(567.0, 900.0)),
+            KeepAxis::Height
+        );
+        // Canto: altura mudou tanto quanto a largura.
+        assert_eq!(
+            snap_axis(Some(settled), egui::vec2(667.0, 900.0)),
+            KeepAxis::Height
+        );
+        assert_eq!(snap_axis(None, egui::vec2(1000.0, 800.0)), KeepAxis::Height);
     }
 
     #[test]

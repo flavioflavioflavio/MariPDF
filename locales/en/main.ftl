@@ -166,3 +166,4 @@ palette-sepia-0 = Parchment
 palette-sepia-1 = Amber
 palette-sepia-2 = Vintage
 palette-sepia-3 = Old Rose
+page-render-failed = Could not display page { $page }

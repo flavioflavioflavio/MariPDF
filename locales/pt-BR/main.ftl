@@ -166,3 +166,4 @@ palette-sepia-0 = Pergaminho
 palette-sepia-1 = Âmbar
 palette-sepia-2 = Vintage
 palette-sepia-3 = Rosa Antigo
+page-render-failed = Não foi possível exibir a página { $page }
