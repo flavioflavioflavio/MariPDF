@@ -4,15 +4,21 @@
 app-name = MariPDF
 app-tagline = Ultra-light PDF reader for Windows
 app-tagline-sub = Fast, portable, no installation.
-app-license = GPLv3 License  •  © 2026 Flávio Marcílio
+app-license = GPLv3 License  •  © 2026 Flávio Takemoto
 btn-close = Close
 btn-open = Open PDF…
-btn-github = 🔗  GitHub
+btn-github = Source on GitHub
 
 ## About
 about-title = About MariPDF
-about-desc = Ultra-light PDF reader for Windows.
+about-desc = A fast, focused PDF reader for Windows.
 about-version = Version { $version }
+about-dedication = Dedicated to Mariana Lima, with all my love.
+about-author-title = CREATED BY
+about-author-name = Flávio Takemoto
+about-author-bio = Art director, motion designer and digital product maker with 15+ years across design, technology and communication. Founder of EvoMind, a visual AI workspace.
+about-link-linkedin = LinkedIn
+about-link-evomind = EvoMind
 
 ## Toolbar
 toolbar-back-hint = Back (closes the PDF)
