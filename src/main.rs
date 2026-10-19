@@ -61,12 +61,8 @@ fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    // ── Detecta tema do Windows: se dark, usa Dark mode, senão Light ──────────
-    let initial_color_mode = if platform::theme::system_prefers_dark() {
-        app::ColorMode::Dark
-    } else {
-        app::ColorMode::Light
-    };
+    // ── Tema do Windows: base da preferência "Sistema" ────────────────────────
+    let system_prefers_dark = platform::theme::system_prefers_dark();
 
     eframe::run_native(
         "MariPDF",
@@ -152,7 +148,7 @@ fn main() -> anyhow::Result<()> {
             Ok(Box::new(app::MariApp::new(
                 cc,
                 cli_file,
-                initial_color_mode,
+                system_prefers_dark,
             )))
         }),
     )

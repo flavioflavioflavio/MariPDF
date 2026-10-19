@@ -3,7 +3,7 @@
 
 pub use crate::i18n::Language;
 pub use crate::settings_types::{
-    ColorPalette, DefaultPanel, FontChoice, PageMargin, RenderQuality, UiScale,
+    ColorPalette, DefaultPanel, FontChoice, PageMargin, RenderQuality, ThemePreference, UiScale,
 };
 
 use serde::{Deserialize, Serialize};
@@ -41,6 +41,8 @@ pub struct AppSettings {
     pub palette: ColorPalette,
     #[serde(default)]
     pub language: Language,
+    #[serde(default)]
+    pub theme: ThemePreference,
 }
 
 impl Default for AppSettings {
@@ -56,6 +58,7 @@ impl Default for AppSettings {
             default_panel: DefaultPanel::default(),
             palette: ColorPalette::default(),
             language: Language::default(),
+            theme: ThemePreference::default(),
         }
     }
 }

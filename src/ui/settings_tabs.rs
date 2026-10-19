@@ -6,7 +6,7 @@ use crate::app::ColorMode;
 use crate::pdf::persistence::PersistenceManager;
 use crate::settings::{
     AppSettings, ColorPalette, DefaultPanel, FontChoice, Language, PageMargin, RenderQuality,
-    UiScale,
+    ThemePreference, UiScale,
 };
 use crate::t;
 use crate::ui::settings_widgets::{action_btn, chip, divider, sec, toggle_row, Tokens};
@@ -18,11 +18,12 @@ pub(super) fn tab_appearance(
     ui: &mut egui::Ui,
     settings: &mut AppSettings,
     color_mode: &mut ColorMode,
-    cm: ColorMode,
+    system_prefers_dark: bool,
     needs_font_reload: &mut bool,
     needs_render_reload: &mut bool,
     tok: &Tokens,
 ) {
+    let cm = *color_mode;
     sec(ui, t!("settings-ui-scale"), tok.subtle);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
@@ -73,14 +74,12 @@ pub(super) fn tab_appearance(
     sec(ui, t!("settings-color-mode"), tok.subtle);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
-        for (label, mode) in [
-            ("Dark", ColorMode::Dark),
-            ("Light", ColorMode::Light),
-            ("Sépia", ColorMode::Sepia),
-        ] {
-            let sel = *color_mode == mode;
-            if chip(ui, label, sel, tok).clicked() {
-                *color_mode = mode;
+        for theme in ThemePreference::all() {
+            let sel = settings.theme == theme;
+            if chip(ui, &t!(theme.label_key()), sel, tok).clicked() {
+                settings.theme = theme;
+                *color_mode = theme.resolve(system_prefers_dark);
+                settings.save();
             }
         }
     });
@@ -181,32 +180,7 @@ pub(super) fn tab_privacy(
     divider(ui, tok.bord, tok.dw);
     ui.add_space(16.0);
 
-    ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.label(
-                egui::RichText::new(t!("settings-clear-history"))
-                    .size(13.0)
-                    .color(tok.text),
-            );
-            ui.label(
-                egui::RichText::new(t!("settings-clear-history-desc"))
-                    .size(11.0)
-                    .color(tok.muted),
-            );
-        });
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let resp = action_btn(
-                ui,
-                &format!("  {}  ", t!("settings-clear-btn")),
-                tok.danger,
-                tok.on_acc,
-                tok,
-            );
-            if resp.clicked() {
-                persistence.clear_all();
-            }
-        });
-    });
+    clear_history_row(ui, persistence, tok);
 
     // ── Integração Windows ─────────────────────────────────────────────────
     ui.add_space(20.0);
@@ -263,4 +237,82 @@ pub(super) fn tab_privacy(
             }
         });
     });
+}
+
+// ── Limpar histórico: confirmação em duas etapas + feedback ───────────────────
+
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+enum ClearHistoryState {
+    #[default]
+    Idle,
+    Confirming,
+    Done(f64),
+    Failed(f64),
+}
+
+const CLEAR_FEEDBACK_SECS: f64 = 3.0;
+
+fn clear_history_row(ui: &mut egui::Ui, persistence: &mut PersistenceManager, tok: &Tokens) {
+    let state_id = egui::Id::new("settings_clear_history_state");
+    let now = ui.input(|i| i.time);
+    let mut state: ClearHistoryState = ui.data(|d| d.get_temp(state_id).unwrap_or_default());
+    if let ClearHistoryState::Done(at) | ClearHistoryState::Failed(at) = state {
+        if now - at >= CLEAR_FEEDBACK_SECS {
+            state = ClearHistoryState::Idle;
+        } else {
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_secs_f64(CLEAR_FEEDBACK_SECS));
+        }
+    }
+
+    let (desc, desc_color) = match state {
+        ClearHistoryState::Idle => (t!("settings-clear-history-desc"), tok.muted),
+        ClearHistoryState::Confirming => (t!("settings-clear-history-confirm"), tok.danger),
+        ClearHistoryState::Done(_) => (t!("settings-clear-history-done"), tok.accent),
+        ClearHistoryState::Failed(_) => (t!("settings-clear-history-failed"), tok.danger),
+    };
+
+    ui.horizontal(|ui| {
+        ui.vertical(|ui| {
+            ui.label(
+                egui::RichText::new(t!("settings-clear-history"))
+                    .size(13.0)
+                    .color(tok.text),
+            );
+            ui.label(egui::RichText::new(desc).size(11.0).color(desc_color));
+        });
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let confirming = state == ClearHistoryState::Confirming;
+            let label = if confirming {
+                t!("settings-clear-confirm-btn")
+            } else {
+                t!("settings-clear-btn")
+            };
+            let resp = action_btn(ui, &format!("  {label}  "), tok.danger, tok.on_acc, tok);
+            if resp.clicked() {
+                state = if confirming {
+                    match persistence.clear_all() {
+                        Ok(()) => ClearHistoryState::Done(now),
+                        Err(_) => ClearHistoryState::Failed(now),
+                    }
+                } else {
+                    ClearHistoryState::Confirming
+                };
+            }
+            if confirming {
+                let cancel = action_btn(
+                    ui,
+                    &format!("  {}  ", t!("settings-cancel-btn")),
+                    tok.stat,
+                    tok.text,
+                    tok,
+                );
+                if cancel.clicked() {
+                    state = ClearHistoryState::Idle;
+                }
+            }
+        });
+    });
+
+    ui.data_mut(|d| d.insert_temp(state_id, state));
 }

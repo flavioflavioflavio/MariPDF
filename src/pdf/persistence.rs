@@ -103,11 +103,11 @@ impl PersistenceManager {
     }
 
     /// Remove todo o histórico da memória e persiste o estado vazio.
-    pub fn clear_all(&mut self) {
+    pub fn clear_all(&mut self) -> anyhow::Result<()> {
         self.store.files.clear();
-        if let Err(e) = try_save(&self.path, &self.store) {
+        try_save(&self.path, &self.store).inspect_err(|e| {
             tracing::warn!("Falha ao limpar histórico: {e}");
-        }
+        })
     }
 
     // ── Janela ────────────────────────────────────────────────────────────────
@@ -201,6 +201,39 @@ mod tests {
         assert_eq!(session.last_page, 42);
         assert_eq!(session.zoom, 1.75);
         assert_eq!(session.last_opened, 123);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn clear_all_persists_an_empty_history() {
+        let path = std::env::temp_dir().join(format!(
+            "maripdf-clear-{}-{}.toml",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock after Unix epoch")
+                .as_nanos()
+        ));
+        let mut manager = PersistenceManager {
+            path: path.clone(),
+            store: SessionStore::default(),
+        };
+        manager.save(
+            Path::new(r"C:\docs.pdf"),
+            FileSession {
+                last_page: 1,
+                zoom: 1.0,
+                last_opened: 1,
+            },
+        );
+        assert_eq!(manager.store.files.len(), 1);
+
+        manager.clear_all().expect("clear history");
+
+        assert!(manager.store.files.is_empty());
+        let reloaded = try_load(&path).expect("reload cleared history");
+        assert!(reloaded.files.is_empty());
 
         let _ = std::fs::remove_file(path);
     }

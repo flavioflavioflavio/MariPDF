@@ -18,6 +18,11 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 - Tela de recentes e persistência por documento.
 - Configurações persistidas e i18n PT-BR/EN com Mozilla Fluent.
 - Associação `.pdf` no Windows, About e logs locais.
+- Preferência de tema persistida (Sistema, Dark, Light, Sépia); “Sistema” segue
+  o tema do Windows no startup e qualquer troca pela toolbar ou Home é salva.
+- “Limpar histórico” pede confirmação, permite cancelar e informa sucesso ou
+  falha da gravação.
+- Teste garante que PT-BR e EN expõem as mesmas chaves Fluent.
 - Stress manual parametrizado para abrir, renderizar e fechar um corpus real em
   concorrência dentro do mesmo processo.
 
@@ -44,6 +49,10 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   quando necessário e cancelável por geração.
 - Jobs documentais expõem estados terminais e métricas de fila, duração, sucesso,
   falha e cancelamento nos logs de debug.
+
+### Removed
+
+- `src/color_mode.rs`, cópia morta de `app_color_mode.rs` fora da árvore de módulos.
 
 ### Fixed
 

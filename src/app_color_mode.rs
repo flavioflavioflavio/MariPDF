@@ -4,7 +4,7 @@
 use eframe::egui;
 
 /// Modos de cor da interface e do viewer PDF
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ColorMode {
     Dark,
     Light,

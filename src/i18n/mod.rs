@@ -104,3 +104,28 @@ macro_rules! t {
         $crate::i18n::get1($key, stringify!($arg), &($val).to_string())
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{FTL_EN, FTL_PT_BR};
+    use std::collections::BTreeSet;
+
+    fn keys(ftl: &str) -> BTreeSet<&str> {
+        ftl.lines()
+            .filter(|line| line.starts_with(|c: char| c.is_ascii_lowercase()))
+            .filter_map(|line| line.split_once('=').map(|(key, _)| key.trim()))
+            .collect()
+    }
+
+    #[test]
+    fn locales_expose_the_same_keys() {
+        let pt = keys(FTL_PT_BR);
+        let en = keys(FTL_EN);
+        let only_pt: Vec<_> = pt.difference(&en).collect();
+        let only_en: Vec<_> = en.difference(&pt).collect();
+        assert!(
+            only_pt.is_empty() && only_en.is_empty(),
+            "missing in EN: {only_pt:?}; missing in PT-BR: {only_en:?}"
+        );
+    }
+}

@@ -1,6 +1,7 @@
 // settings_types.rs — Enums de configuração do MariPDF
 // Extraído de settings.rs para respeitar o hardcap de 250L.
 
+use crate::app_color_mode::ColorMode;
 use serde::{Deserialize, Serialize};
 
 // ── Escala de UI ───────────────────────────────────────────────────────────────
@@ -184,6 +185,63 @@ impl DefaultPanel {
     }
 }
 
+// ── Tema ───────────────────────────────────────────────────────────────────────
+
+/// Preferência persistida de tema. `System` segue o tema do Windows no startup.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, Default)]
+pub enum ThemePreference {
+    #[default]
+    System,
+    Dark,
+    Light,
+    Sepia,
+}
+
+impl ThemePreference {
+    pub fn resolve(self, system_prefers_dark: bool) -> ColorMode {
+        match self {
+            Self::System if system_prefers_dark => ColorMode::Dark,
+            Self::System => ColorMode::Light,
+            Self::Dark => ColorMode::Dark,
+            Self::Light => ColorMode::Light,
+            Self::Sepia => ColorMode::Sepia,
+        }
+    }
+
+    /// Preferência a persistir depois que o modo ativo mudou por qualquer
+    /// controle da UI. Mantém `System` enquanto o modo ainda segue o sistema.
+    pub fn after_mode_change(self, mode: ColorMode, system_prefers_dark: bool) -> Self {
+        if self.resolve(system_prefers_dark) == mode {
+            self
+        } else {
+            mode.into()
+        }
+    }
+
+    pub fn label_key(&self) -> &'static str {
+        match self {
+            Self::System => "theme-system",
+            Self::Dark => "theme-dark",
+            Self::Light => "theme-light",
+            Self::Sepia => "theme-sepia",
+        }
+    }
+
+    pub fn all() -> [Self; 4] {
+        [Self::System, Self::Dark, Self::Light, Self::Sepia]
+    }
+}
+
+impl From<ColorMode> for ThemePreference {
+    fn from(mode: ColorMode) -> Self {
+        match mode {
+            ColorMode::Dark => Self::Dark,
+            ColorMode::Light => Self::Light,
+            ColorMode::Sepia => Self::Sepia,
+        }
+    }
+}
+
 // ── Paleta de cores ────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, Default)]
@@ -243,5 +301,44 @@ mod tests {
     fn ui_scale_default_is_one_to_one() {
         assert_eq!(UiScale::default(), UiScale::Normal);
         assert_eq!(UiScale::default().pixels_per_point(), 1.0);
+    }
+
+    #[test]
+    fn theme_system_follows_windows_preference() {
+        assert_eq!(ThemePreference::default(), ThemePreference::System);
+        assert_eq!(ThemePreference::System.resolve(true), ColorMode::Dark);
+        assert_eq!(ThemePreference::System.resolve(false), ColorMode::Light);
+        assert_eq!(ThemePreference::Sepia.resolve(true), ColorMode::Sepia);
+    }
+
+    #[test]
+    fn theme_change_persists_explicit_choice_only_when_needed() {
+        let system = ThemePreference::System;
+        assert_eq!(
+            system.after_mode_change(ColorMode::Dark, true),
+            ThemePreference::System
+        );
+        assert_eq!(
+            system.after_mode_change(ColorMode::Sepia, true),
+            ThemePreference::Sepia
+        );
+        assert_eq!(
+            ThemePreference::Light.after_mode_change(ColorMode::Dark, false),
+            ThemePreference::Dark
+        );
+    }
+
+    #[test]
+    fn theme_preference_round_trips_through_toml() {
+        #[derive(Serialize, Deserialize)]
+        struct Doc {
+            theme: ThemePreference,
+        }
+        let text = toml::to_string(&Doc {
+            theme: ThemePreference::Sepia,
+        })
+        .unwrap();
+        let back: Doc = toml::from_str(&text).unwrap();
+        assert_eq!(back.theme, ThemePreference::Sepia);
     }
 }

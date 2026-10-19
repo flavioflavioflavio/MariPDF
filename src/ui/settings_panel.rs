@@ -23,17 +23,24 @@ enum Tab {
 
 // ── Ponto de entrada público ──────────────────────────────────────────────────
 
+/// Efeitos que o chamador precisa aplicar depois de desenhar o painel.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SettingsEffects {
+    pub font_reload: bool,
+    pub render_reload: bool,
+}
+
 pub fn show_settings_panel(
     ctx: &egui::Context,
     open: &mut bool,
     settings: &mut AppSettings,
     persistence: &mut PersistenceManager,
     color_mode: &mut ColorMode,
-    needs_font_reload: &mut bool,
-    needs_render_reload: &mut bool,
-) {
+    system_prefers_dark: bool,
+) -> SettingsEffects {
+    let mut effects = SettingsEffects::default();
     if !*open {
-        return;
+        return effects;
     }
 
     let cm = *color_mode;
@@ -202,12 +209,12 @@ pub fn show_settings_panel(
                             ui,
                             settings,
                             color_mode,
-                            cm,
-                            needs_font_reload,
-                            needs_render_reload,
+                            system_prefers_dark,
+                            &mut effects.font_reload,
+                            &mut effects.render_reload,
                             &tok,
                         ),
-                        Tab::Reading => tab_reading(ui, settings, needs_render_reload, &tok),
+                        Tab::Reading => tab_reading(ui, settings, &mut effects.render_reload, &tok),
                         Tab::Privacy => tab_privacy(ui, settings, persistence, &tok),
                     }
                 });
@@ -249,4 +256,5 @@ pub fn show_settings_panel(
     if close_req {
         *open = false;
     }
+    effects
 }

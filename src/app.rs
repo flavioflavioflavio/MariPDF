@@ -40,6 +40,7 @@ pub struct MariApp {
     pub drop_zone_hovered: bool,
     pub fullscreen: bool,
     pub color_mode: ColorMode,
+    pub system_prefers_dark: bool,
 
     // Overlay GoTo
     pub goto_open: bool,
@@ -93,9 +94,11 @@ impl MariApp {
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         cli_file: Option<PathBuf>,
-        initial_color_mode: ColorMode,
+        system_prefers_dark: bool,
     ) -> Self {
         let _ = cc;
+        let settings = AppSettings::load();
+        let color_mode = settings.theme.resolve(system_prefers_dark);
         Self {
             version: env!("CARGO_PKG_VERSION"),
             current_file: None,
@@ -107,7 +110,8 @@ impl MariApp {
             viewer: PdfViewer::new(),
             drop_zone_hovered: false,
             fullscreen: false,
-            color_mode: initial_color_mode,
+            color_mode,
+            system_prefers_dark,
             goto_open: false,
             goto_input: String::new(),
             available_width: 800.0,
@@ -130,7 +134,7 @@ impl MariApp {
             side_panel: SidePanelKind::None,
             bookmarks: Vec::new(),
             thumb_cache: None,
-            settings: AppSettings::load(),
+            settings,
             settings_open: false,
             about: AboutState::default(),
         }

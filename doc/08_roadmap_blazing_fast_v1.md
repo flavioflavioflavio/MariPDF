@@ -1,7 +1,7 @@
 # MariPDF — Roadmap Blazing Fast e v1.0 Redonda
 
 > Criado em: 2026-07-13  
-> Atualizado em: 2026-07-26
+> Atualizado em: 2026-10-19
 > Baseado em: auditoria do código, documentação, build release, testes e Clippy  
 > Documento complementar ao roadmap histórico `04_roadmap.md`
 
@@ -99,7 +99,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 5. [x] Desativar histórico não impedia gravação de sessões/recentes.
 6. [x] O botão “limpar histórico” não executava nenhuma ação.
 7. [x] Escala e fonte salvas não eram reaplicadas integralmente no startup.
-8. Modo de cor não é persistido; o tema do Windows vence em toda inicialização.
+8. [x] Modo de cor não era persistido; agora há preferência salva com opção
+   “Sistema”, que segue o tema do Windows no startup.
 9. [x] O modo contínuo não mantinha de forma confiável a página atual visível para
    status, navegação e persistência.
 10. [x] Links só eram acionados quando existia exatamente um na página; o clique
@@ -291,14 +292,14 @@ page rendering assíncrono com LOD simples.
 
 ### Entregas
 
-- [ ] BF-401 Aplicar escala, fonte, idioma e tema persistidos no startup.
+- [x] BF-401 Aplicar escala, fonte, idioma e tema persistidos no startup.
 - [ ] BF-402 Ligar qualidade de render ao scheduler/LOD (o pipeline atual já respeita a escala).
 - [x] BF-403 Ligar margem de página ao layout single/continuous.
 - [ ] BF-404 Definir e implementar comportamento real de scroll suave.
 - [x] BF-405 Aplicar painel padrão ao abrir documento.
 - [x] BF-406 Respeitar `track_history` nas sessões e na Home.
-- [ ] BF-407 Implementar “limpar histórico” com confirmação e feedback (a limpeza já tem efeito imediato).
-- [ ] BF-408 Persistir modo de cor ou oferecer explicitamente “seguir sistema”.
+- [x] BF-407 Implementar “limpar histórico” com confirmação e feedback.
+- [x] BF-408 Persistir modo de cor ou oferecer explicitamente “seguir sistema”.
 - [x] BF-409 Implementar hit-test correto para todos os links da página, com
   conversão tela ↔ PDF coberta por testes de múltiplos retângulos.
 - [ ] BF-410 Destacar ocorrência ativa da busca e expor trecho de contexto.

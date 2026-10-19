@@ -53,6 +53,10 @@ settings-ui-scale = Tamanho da Interface
 settings-font = Fonte da Interface
 settings-palette = Paleta de Cores
 settings-color-mode = Modo de Cor
+theme-system = Sistema
+theme-dark = Dark
+theme-light = Light
+theme-sepia = Sépia
 settings-language = Idioma
 
 ## Settings — Leitura
@@ -68,6 +72,11 @@ settings-track-history-desc = Salvar histórico de PDFs abertos
 settings-clear-history = Limpar Histórico
 settings-clear-history-desc = Remove todos os PDFs da lista de recentes
 settings-clear-btn = Limpar
+settings-clear-history-confirm = Tem certeza? Esta ação não pode ser desfeita
+settings-clear-history-done = Histórico limpo
+settings-clear-history-failed = Não foi possível limpar o histórico
+settings-clear-confirm-btn = Confirmar
+settings-cancel-btn = Cancelar
 
 ## Settings — Integração Windows
 settings-windows = Integração com Windows

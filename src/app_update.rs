@@ -262,25 +262,36 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     }
     app.about.show(ctx);
     if app.settings_open {
-        let mut needs_font = false;
-        let mut needs_render = false;
-        crate::ui::settings_panel::show_settings_panel(
+        let effects = crate::ui::settings_panel::show_settings_panel(
             ctx,
             &mut app.settings_open,
             &mut app.settings,
             &mut app.persistence,
             &mut app.color_mode,
-            &mut needs_font,
-            &mut needs_render,
+            app.system_prefers_dark,
         );
-        if needs_font {
+        if effects.font_reload {
             crate::apply_font_settings(ctx, app.settings.font);
             app.settings.save();
         }
-        if needs_render {
+        if effects.render_reload {
             app.invalidate_render(ctx);
             app.settings.save();
         }
+    }
+    persist_theme_change(app);
+}
+
+/// Toolbar, Home e Configurações alteram `color_mode` diretamente; aqui a
+/// mudança vira preferência persistida, preservando "Sistema" quando possível.
+fn persist_theme_change(app: &mut MariApp) {
+    let theme = app
+        .settings
+        .theme
+        .after_mode_change(app.color_mode, app.system_prefers_dark);
+    if theme != app.settings.theme {
+        app.settings.theme = theme;
+        app.settings.save();
     }
 }
 
