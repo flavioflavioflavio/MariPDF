@@ -38,7 +38,7 @@ pub fn current() -> Option<ProcessMemory> {
     // SAFETY: pseudo-handle do próprio processo e struct com o layout de
     // PROCESS_MEMORY_COUNTERS.
     let ok = unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb) };
-    (ok != 0).then(|| ProcessMemory {
+    (ok != 0).then_some(ProcessMemory {
         working_set: counters.working_set_size as u64,
         peak_working_set: counters.peak_working_set_size as u64,
         private_bytes: counters.pagefile_usage as u64,
