@@ -30,6 +30,7 @@ $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $outDir = Join-Path "bench\results" $stamp
 New-Item -ItemType Directory -Force $outDir | Out-Null
 
+$missing = [System.Collections.Generic.List[string]]::new()
 foreach ($file in $files) {
     $pdf = Resolve-Path (Join-Path $Corpus $file)
     for ($run = 1; $run -le $Runs; $run++) {
@@ -46,10 +47,16 @@ foreach ($file in $files) {
         $panics = Select-String -Path (Join-Path $data "*.log*") -Pattern "panicked" -ErrorAction SilentlyContinue
         if ($panics) { Write-Warning "$file (rodada $run): panic no log"; Copy-Item (Join-Path $data "*.log*") $outDir }
         Remove-Item -Recurse -Force $data -ErrorAction SilentlyContinue
+        if (-not (Test-Path $report)) { $missing.Add("$file (rodada $run)") }
         Write-Host ("{0,-20} rodada {1}: {2}" -f $file, $run, $(if (Test-Path $report) { "ok" } else { "SEM RELATÓRIO" }))
     }
 }
 Remove-Item Env:\MARIPDF_DATA_DIR, Env:\MARIPDF_BENCH -ErrorAction SilentlyContinue
 
-python tools/bench_report.py $outDir
+python tools/bench_report.py $outDir $Manifest $Runs
+$reportExit = $LASTEXITCODE
 Write-Host "Resultados em $outDir"
+if ($missing.Count -gt 0) {
+    throw "Rodadas sem relatório (travou, crashou ou excedeu $TimeoutSec s): $($missing -join ', ')"
+}
+if ($reportExit -ne 0) { throw "bench_report.py encontrou rodadas faltando" }

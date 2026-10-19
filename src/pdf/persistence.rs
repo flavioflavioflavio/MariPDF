@@ -20,7 +20,7 @@ pub struct FileSession {
     pub last_opened: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 struct SessionStore {
     #[serde(default = "storage::schema_version")]
     schema_version: u32,
@@ -37,6 +37,15 @@ pub struct WindowSession {
     pub schema_version: u32,
     #[serde(default)]
     pub placement: Option<crate::platform::window_placement::Placement>,
+}
+
+impl Default for SessionStore {
+    fn default() -> Self {
+        Self {
+            schema_version: storage::SCHEMA_VERSION,
+            files: HashMap::new(),
+        }
+    }
 }
 
 impl Default for WindowSession {
@@ -212,5 +221,19 @@ mod tests {
         assert!(reloaded.files.is_empty());
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn new_stores_carry_the_current_schema() {
+        assert_eq!(
+            SessionStore::default().schema_version,
+            storage::SCHEMA_VERSION
+        );
+        assert_eq!(
+            WindowSession::default().schema_version,
+            storage::SCHEMA_VERSION
+        );
+        let text = toml::to_string(&SessionStore::default()).unwrap();
+        assert!(text.contains(&format!("schema_version = {}", storage::SCHEMA_VERSION)));
     }
 }

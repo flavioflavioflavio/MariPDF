@@ -28,11 +28,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: refs/tags/${{ env.TAG }}
 
+      - name: Tag precisa existir (nunca criada pelo gh a partir do branch padrão)
+        shell: pwsh
+        run: |
+          git fetch --tags --force
+          git rev-parse --verify --quiet "refs/tags/$env:TAG" | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "A tag $env:TAG não existe" }
+          $tagCommit = git rev-list -n 1 "refs/tags/$env:TAG"
+          if ($tagCommit -ne (git rev-parse HEAD)) { throw "Checkout não corresponde à tag $env:TAG" }
+
+      # Toolchain fixa: rebuild da mesma tag gera o mesmo binário e SBOM.
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: "1.99.1"
           components: rustfmt, clippy
 
       - name: Cache Cargo
@@ -48,20 +59,20 @@ jobs:
       - name: Gates
         run: |
           cargo fmt --check
-          cargo clippy --all-targets --all-features -- -D warnings
-          cargo test --all-targets
+          cargo clippy --locked --all-targets --all-features -- -D warnings
+          cargo test --locked --all-targets
 
       - name: Inno Setup
         run: choco install innosetup --no-progress -y
 
       - name: Portable, instalador e checksums (inclui smoke test)
         shell: pwsh
-        run: pwsh -NoProfile -File tools/package.ps1
+        run: pwsh -NoProfile -File tools/package.ps1 -Locked
 
       - name: SBOM (CycloneDX)
         shell: pwsh
         run: |
-          cargo install cargo-cyclonedx --locked
+          cargo install cargo-cyclonedx --locked --version 0.5.9
           cargo cyclonedx --format json --override-filename "MariPDF-$env:VERSION-sbom"
           Move-Item "MariPDF-$env:VERSION-sbom.json" dist/
           $line = "{0}  {1}" -f (Get-FileHash "dist/MariPDF-$env:VERSION-sbom.json" -Algorithm SHA256).Hash.ToLower(), "MariPDF-$env:VERSION-sbom.json"
@@ -83,7 +94,7 @@ jobs:
         run: |
           $pre = if ($env:VERSION -match "-") { "--prerelease" } else { "" }
           $notes = "Rascunho gerado pelo CI. Revise as notas e publique manualmente.`n`nArtefatos: portátil, instalador por usuário (sem admin), SBOM e SHA256SUMS assinado (Ed25519)."
-          gh release create $env:TAG --draft $pre --title "MariPDF $env:VERSION" --notes $notes (Get-ChildItem dist -File | ForEach-Object { $_.FullName })
+          gh release create $env:TAG --verify-tag --draft $pre --title "MariPDF $env:VERSION" --notes $notes (Get-ChildItem dist -File | ForEach-Object { $_.FullName })
 
       - name: Artefatos do workflow
         uses: actions/upload-artifact@v4

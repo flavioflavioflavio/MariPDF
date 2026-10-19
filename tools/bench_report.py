@@ -11,6 +11,7 @@ from pathlib import Path
 
 out_dir = Path(sys.argv[1])
 manifest = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("bench/corpus.toml")
+expected_runs = int(sys.argv[3]) if len(sys.argv) > 3 else None
 expected_failure = set()
 if manifest.exists():
     with manifest.open("rb") as fh:
@@ -86,6 +87,17 @@ lines = [
     "|" + "|".join("---" for _ in header) + "|",
 ]
 lines += ["| " + " | ".join(r) + " |" for r in rows]
+# Uma rodada sem relatório não pode sumir da mediana nem do resumo.
+incomplete = [
+    f"{name}: {len(runs)}/{expected_runs}"
+    for name, runs in sorted(by_file.items())
+    if expected_runs is not None and len(runs) != expected_runs
+]
+if incomplete:
+    lines.append("")
+    lines.append("**Rodadas faltando:** " + ", ".join(incomplete))
 summary = "\n".join(lines) + "\n"
 (out_dir / "summary.md").write_text(summary, encoding="utf-8")
 print(summary)
+if incomplete:
+    sys.exit(f"rodadas faltando: {', '.join(incomplete)}")

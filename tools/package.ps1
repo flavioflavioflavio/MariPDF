@@ -10,6 +10,8 @@
 
 param(
     [switch]$SkipBuild,
+    # Release: exige o Cargo.lock versionado (sem re-resolver dependências).
+    [switch]$Locked,
     [string]$Iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
 )
 
@@ -20,7 +22,8 @@ $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' | Se
 Write-Host "MariPDF $version"
 
 if (-not $SkipBuild) {
-    cargo build --release
+    $lockArgs = if ($Locked) { @("--locked") } else { @() }
+    cargo build --release @lockArgs
     if ($LASTEXITCODE -ne 0) { throw "cargo build --release falhou" }
 }
 $exe = "target\release\maripdf.exe"
