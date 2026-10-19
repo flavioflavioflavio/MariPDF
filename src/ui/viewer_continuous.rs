@@ -6,7 +6,7 @@ use crate::pdf::document_worker::JobPriority;
 use crate::ui::page_layout::LayoutParams;
 use crate::ui::prefetch::PrefetchPlan;
 use crate::ui::scroll_motion::{instant_wheel_offset, ScrollTween};
-use crate::ui::viewer::PdfViewer;
+use crate::ui::viewer::{page_raster_scale, PdfViewer};
 use crate::ui::viewer_helpers::{
     draw_page_tex, invert_rgba, paint_search_highlight, upload_texture,
 };
@@ -39,8 +39,9 @@ impl PdfViewer {
             self.zoom_delta = scroll_y.signum() * 0.15;
         }
 
-        let scale = self.requested_raster_scale();
         let available_w = ui.available_width();
+        self.usable_width = (available_w - self.page_margin * 2.0).max(0.0);
+        let (zoom, usable_width, density) = (self.zoom, self.usable_width, self.render_scale);
         let ctx = ui.ctx().clone();
 
         // Drena bitmaps prontos do scheduler global
@@ -101,13 +102,23 @@ impl PdfViewer {
                     JobPriority::Visible
                 };
                 if !self.page_errors.contains_key(&page) {
+                    let scale =
+                        page_raster_scale(&self.page_layout, page, zoom, usable_width, density);
                     self.page_cache.prefetch(page, scale, priority);
                 }
             });
 
             for idx in first_visible..=last_visible {
-                // Upload para GPU só quando a página chega ao viewport.
-                if !self.tex_cache.contains(idx) {
+                // Upload para GPU quando a página chega ao viewport ou quando um
+                // bitmap mais nítido substitui o atual (janela ampliada).
+                let uploaded_width = self.tex_cache.get(idx).map(|tex| tex.size()[0] as u32);
+                let cached_width = self.page_cache.get(idx).map(|bitmap| bitmap.width);
+                let needs_upload = match (uploaded_width, cached_width) {
+                    (None, _) => true,
+                    (Some(uploaded), Some(cached)) => cached > uploaded + 1,
+                    (Some(_), None) => false,
+                };
+                if needs_upload {
                     if let Some(bitmap) = self.page_cache.get(idx) {
                         let tex = if self.invert_colors {
                             let mut inverted = (*bitmap).clone();

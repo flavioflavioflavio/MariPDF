@@ -87,10 +87,15 @@ impl LruPageCache {
     }
 
     /// Solicita renderização assíncrona de `page_index` ao scheduler global.
-    /// Não bloqueia; ignora se já estiver em cache ou em voo.
+    /// Não bloqueia; ignora se já estiver em voo ou em cache com resolução
+    /// suficiente. Um bitmap bem menor que o pedido (janela maximizada depois
+    /// do render) é descartado e pedido de novo.
     pub fn prefetch(&mut self, page_index: usize, scale: f32, priority: JobPriority) {
-        if self.entries.contains(page_index) {
-            return;
+        if let Some(cached) = self.entries.get(page_index) {
+            if cached.scale >= scale * crate::ui::page_scale::UPGRADE_RATIO {
+                return;
+            }
+            self.entries.retain(|page| page != page_index);
         }
         if self.inflight.contains_key(&page_index) {
             return;

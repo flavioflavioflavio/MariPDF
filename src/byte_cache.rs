@@ -106,6 +106,7 @@ where
         self.update_byte_metrics();
     }
 
+    #[cfg(test)]
     pub fn contains(&self, key: K) -> bool {
         self.entries.contains_key(&key)
     }

@@ -24,6 +24,7 @@ impl GpuTextureCache {
         self.entries.get(page)
     }
 
+    #[cfg(test)]
     pub fn contains(&self, page: usize) -> bool {
         self.entries.contains(page)
     }

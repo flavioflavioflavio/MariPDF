@@ -11,3 +11,5 @@ pub mod persistence;
 mod robustness_tests;
 pub mod text_search;
 pub mod thumb_cache;
+#[cfg(test)]
+mod tile_spike_tests;

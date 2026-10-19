@@ -82,7 +82,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
    remover a página de `inflight`, deixando-a sem nova tentativa.
 10. [x] Single Page, Continuous, Thumbnails e busca mantinham documentos separados;
     agora os pipelines lazy compartilham o mesmo `Arc<PdfEngine>` já aberto.
-11. [ ] O pipeline sempre rasteriza a página inteira; zoom alto não usa tiles/LOD.
+11. [x] O pipeline rasterizava a página inteira no zoom pedido; agora limita ao
+    tamanho exibido (BF-3). Tiles por região ficam para a v1.1.
 12. [x] A conversão BGRA → RGBA criava um segundo buffer e ainda revertia canais
     já normalizados; o render agora solicita RGBA e reutiliza a única cópia.
 13. [x] A inicialização do singleton podia correr entre workers e bloquear para
@@ -269,14 +270,18 @@ páginas.
 
 ### Entregas
 
-- [ ] BF-301 Fazer spike de render por região/tile no PDFium usado pelo projeto.
-- [ ] BF-302 Definir tiles por página, escala e coordenadas, com chave de cache.
-- [ ] BF-303 Renderizar primeiro tiles visíveis e compor a página no painter.
-- [ ] BF-304 Implementar LOD: preview de baixa resolução seguido de refinamento.
-- [ ] BF-305 Cancelar tiles que saíram da viewport ou perderam geração.
-- [ ] BF-306 Medir overhead; manter fallback de página inteira para zoom baixo.
+- [x] BF-301 Fazer spike de render por região/tile no PDFium usado pelo projeto. Ver `doc/benchmarks/bf3-tiles-spike.md`; tile bate pixel a pixel com a página.
+- [→ v1.1] BF-302 Definir tiles por página, escala e coordenadas, com chave de cache. Adiado pela decisão do gate.
+- [→ v1.1] BF-303 Renderizar primeiro tiles visíveis e compor a página no painter. Adiado pela decisão do gate.
+- [x] BF-304 Implementar LOD: preview de baixa resolução seguido de refinamento. Atendido: textura anterior esticada até o bitmap novo chegar.
+- [→ v1.1] BF-305 Cancelar tiles que saíram da viewport ou perderam geração. Adiado pela decisão do gate.
+- [x] BF-306 Medir overhead; manter fallback de página inteira para zoom baixo. Medido; página inteira limitada ao tamanho exibido é o caminho da v1.0.
 
 ### Gate de decisão
+
+**Decisão (2026-10-19):** limitar a rasterização ao tamanho exibido entra na v1.0
+(4× menos pixels, 2,7–4,5× mais rápido em zoom alto); tiles ficam para a v1.1.
+Dados em `doc/benchmarks/bf3-tiles-spike.md`.
 
 Tiles só entram na v1.0 se o spike provar ganho material em PDFs grandes/zoom alto
 sem degradar o caso comum. Caso contrário, a fase fica como v1.1 e a v1.0 usa

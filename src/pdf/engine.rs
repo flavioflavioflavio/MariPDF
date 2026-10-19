@@ -201,6 +201,46 @@ impl PdfEngine {
         .unwrap_or((595.0, 842.0)) // A4 como fallback
     }
 
+    /// Renderiza só a região `(x, y, w, h)` (em pixels da página inteira na
+    /// `scale`) num bitmap do tamanho do tile. Spike da BF-301: a matriz do
+    /// usuário é composta antes da escala, então a translação vai em pontos.
+    #[cfg(test)]
+    pub(crate) fn render_region(
+        &self,
+        page_index: usize,
+        scale: f32,
+        (x, y, w, h): (u32, u32, u32, u32),
+    ) -> anyhow::Result<RenderedPage> {
+        self.with_document(|doc| {
+            let page = doc
+                .pages()
+                .get(page_index as u16)
+                .map_err(|e| anyhow::anyhow!("Falha ao carregar página {page_index}: {e}"))?;
+            let full_w = (page.width().value * scale) as i32;
+            let full_h = (page.height().value * scale) as i32;
+            let config = PdfRenderConfig::new()
+                .set_target_width(full_w)
+                .set_target_height(full_h)
+                .set_reverse_byte_order(true)
+                .translate(
+                    PdfPoints::new(-(x as f32) / scale),
+                    PdfPoints::new(-(y as f32) / scale),
+                )
+                .map_err(|e| anyhow::anyhow!("matriz do tile: {e}"))?;
+            let mut bitmap =
+                PdfBitmap::empty(w as i32, h as i32, PdfBitmapFormat::BGRA, page.bindings())
+                    .map_err(|e| anyhow::anyhow!("bitmap do tile: {e}"))?;
+            page.render_into_bitmap_with_config(&mut bitmap, &config)
+                .map_err(|e| anyhow::anyhow!("render do tile: {e}"))?;
+            Ok(RenderedPage {
+                scale,
+                width: w,
+                height: h,
+                rgba: bitmap.as_rgba_bytes(),
+            })
+        })
+    }
+
     /// Renderiza uma página como bitmap RGBA.
     ///
     /// # Parâmetros

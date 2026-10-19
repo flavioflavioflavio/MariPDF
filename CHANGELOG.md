@@ -50,6 +50,11 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   Ctrl+A seleciona a página e Esc limpa.
 - Scroll Suave passa a valer de fato no modo contínuo: ligado anima saltos de
   página; desligado aplica a roda instantaneamente.
+- Rasterização limitada ao tamanho realmente exibido: zoom além da largura da
+  janela não gera bitmaps maiores (4× menos pixels e 2,7–4,5× mais rápido a
+  400%); bitmaps pequenos demais são re-renderizados ao ampliar a janela.
+- Backend gráfico padrão passa a ser DX12 (GL de reserva) em GPU de baixo
+  consumo: ~95 MB a menos de memória e ~90 ms a menos até o primeiro frame.
 - Qualidade de render agora é relativa ao pixel físico (0,75× a 2×) e só muda a
   nitidez; 100% de zoom equivale ao tamanho físico do documento.
 - A janela reabre com a posição, o tamanho e a maximização reais da sessão

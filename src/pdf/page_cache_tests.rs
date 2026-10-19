@@ -1,3 +1,4 @@
+use super::document_worker::JobPriority;
 use super::engine::RenderedPage;
 use super::page_cache::{LruPageCache, RenderOutcome, RenderResult};
 
@@ -47,4 +48,16 @@ fn failed_result_clears_inflight_and_can_be_consumed() {
     assert!(!cache.is_inflight(4));
     assert_eq!(cache.take_failure(4).as_deref(), Some("render failed"));
     assert!(cache.take_failure(4).is_none());
+}
+
+#[test]
+fn low_resolution_entry_is_dropped_when_a_much_sharper_render_is_requested() {
+    let mut cache = LruPageCache::new_sync(1024);
+    cache.insert_sync(1, rendered(1));
+    // Mesma escala (ou próxima): continua no cache.
+    cache.prefetch(1, 1.1, JobPriority::Visible);
+    assert!(cache.contains(1));
+    // Pedido bem mais nítido: o bitmap pequeno sai para ser re-renderizado.
+    cache.prefetch(1, 2.0, JobPriority::Visible);
+    assert!(!cache.contains(1));
 }
