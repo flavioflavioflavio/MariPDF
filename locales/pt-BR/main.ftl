@@ -68,7 +68,7 @@ settings-language = Idioma
 settings-page-margin = Margem da Página
 settings-render-quality = Qualidade de Renderização
 settings-smooth-scroll = Scroll Suave
-settings-smooth-scroll-desc = Animação ao navegar entre páginas
+settings-smooth-scroll-desc = Animar a rolagem e os saltos entre páginas
 
 ## Settings — Privacidade
 settings-default-panel = Painel Lateral ao Abrir PDF

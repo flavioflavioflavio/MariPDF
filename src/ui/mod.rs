@@ -9,6 +9,7 @@ pub(crate) mod page_layout;
 #[cfg(test)]
 mod page_layout_tests;
 pub(crate) mod prefetch;
+pub(crate) mod scroll_motion;
 pub(crate) mod settings_tabs;
 pub(crate) mod settings_widgets;
 pub(crate) mod side_panel_thumbs;

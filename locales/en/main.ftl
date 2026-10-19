@@ -68,7 +68,7 @@ settings-language = Language
 settings-page-margin = Page Margin
 settings-render-quality = Render Quality
 settings-smooth-scroll = Smooth Scroll
-settings-smooth-scroll-desc = Animation when navigating pages
+settings-smooth-scroll-desc = Animate scrolling and page jumps
 
 ## Settings — Privacy
 settings-default-panel = Default Side Panel

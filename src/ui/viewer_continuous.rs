@@ -5,6 +5,7 @@
 use crate::pdf::document_worker::JobPriority;
 use crate::ui::page_layout::LayoutParams;
 use crate::ui::prefetch::PrefetchPlan;
+use crate::ui::scroll_motion::{instant_wheel_offset, ScrollTween};
 use crate::ui::viewer::PdfViewer;
 use crate::ui::viewer_helpers::{
     draw_page_tex, fit_page, invert_rgba, paint_search_highlight, upload_texture,
@@ -54,21 +55,7 @@ impl PdfViewer {
             render_scale: self.render_scale,
             margin: self.page_margin,
         });
-        let forced_offset = if let Some(anchor) = self.pending_scroll_anchor.take() {
-            Some(
-                self.page_layout
-                    .scroll_offset_for_anchor(anchor, self.continuous_viewport_height),
-            )
-        } else if let Some(page) = self.pending_scroll_page.take() {
-            Some(self.page_layout.scroll_offset_for_page(page))
-        } else if layout_changed {
-            self.continuous_anchor.map(|anchor| {
-                self.page_layout
-                    .scroll_offset_for_anchor(anchor, self.continuous_viewport_height)
-            })
-        } else {
-            None
-        };
+        let forced_offset = self.continuous_forced_offset(ui, ctrl, layout_changed);
         let total_h = self.page_layout.total_height();
         self.last_page_rect = egui::Rect::NOTHING;
         self.is_loading = false;
@@ -254,5 +241,78 @@ fn draw_skeleton(
 
     if is_visible {
         ui.ctx().request_repaint();
+    }
+}
+
+impl PdfViewer {
+    /// Decide o offset imposto ao ScrollArea neste frame: navegação
+    /// programática (animada ou não), preservação de âncora após mudança de
+    /// layout e, com Scroll Suave desligado, o passo instantâneo da roda.
+    fn continuous_forced_offset(
+        &mut self,
+        ui: &egui::Ui,
+        ctrl: bool,
+        layout_changed: bool,
+    ) -> Option<f32> {
+        let ctx = ui.ctx().clone();
+        let now = ctx.input(|i| i.time);
+        let current = self.continuous_scroll_offset;
+
+        let navigation = if let Some(anchor) = self.pending_scroll_anchor.take() {
+            Some(
+                self.page_layout
+                    .scroll_offset_for_anchor(anchor, self.continuous_viewport_height),
+            )
+        } else {
+            self.pending_scroll_page
+                .take()
+                .map(|page| self.page_layout.scroll_offset_for_page(page))
+        };
+
+        let mut forced = None;
+        if let Some(target) = navigation {
+            match current {
+                Some(from) if self.smooth_scroll && (target - from).abs() > 1.0 => {
+                    self.scroll_tween = Some(ScrollTween::new(from, target, now));
+                }
+                _ => {
+                    self.scroll_tween = None;
+                    forced = Some(target);
+                }
+            }
+        } else if layout_changed {
+            // Zoom/redimensionamento: a âncora precisa valer imediatamente.
+            self.scroll_tween = None;
+            forced = self.continuous_anchor.map(|anchor| {
+                self.page_layout
+                    .scroll_offset_for_anchor(anchor, self.continuous_viewport_height)
+            });
+        }
+
+        let hovered = ui.rect_contains_pointer(ui.max_rect());
+        let raw_y = ctx.input(|i| i.raw_scroll_delta.y);
+        let wheel = hovered && !ctrl && raw_y != 0.0;
+        if wheel {
+            // A roda do usuário interrompe um salto animado.
+            self.scroll_tween = None;
+        }
+        if let Some(tween) = self.scroll_tween {
+            let (offset, done) = tween.sample(now);
+            forced = Some(offset);
+            if done {
+                self.scroll_tween = None;
+            } else {
+                ctx.request_repaint();
+            }
+        }
+
+        if !self.smooth_scroll && hovered && !ctrl {
+            if wheel && forced.is_none() {
+                forced = Some(instant_wheel_offset(current.unwrap_or(0.0), raw_y));
+            }
+            // O ScrollArea não deve reaplicar a cauda suavizada do egui.
+            ctx.input_mut(|i| i.smooth_scroll_delta.y = 0.0);
+        }
+        forced
     }
 }
