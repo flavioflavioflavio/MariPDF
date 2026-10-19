@@ -11,7 +11,6 @@ impl MariApp {
             return;
         }
         self.render_error = None;
-        self.viewer.render_scale = self.settings.render_quality.scale();
         self.viewer.page_margin = self.settings.page_margin.px();
         self.viewer.smooth_scroll = self.settings.smooth_scroll;
         self.viewer
@@ -53,6 +52,18 @@ impl MariApp {
         }
     }
 
+    /// Mantém a densidade de rasterização (DPI da tela × qualidade) em dia;
+    /// bitmaps em cache de outra densidade são descartados.
+    pub(crate) fn sync_raster_density(&mut self, ctx: &egui::Context) {
+        let density = ctx.pixels_per_point() * self.settings.render_quality.scale();
+        if (self.viewer.render_scale - density).abs() > 0.01 {
+            self.viewer.render_scale = density;
+            if self.engine.is_some() {
+                self.invalidate_render(ctx);
+            }
+        }
+    }
+
     pub fn invalidate_render(&mut self, ctx: &egui::Context) {
         self.viewer.tex_cache.clear();
         self.viewer.loaded_page = None;
@@ -69,7 +80,10 @@ impl MariApp {
         let (page_w, _) = engine.page_size_pts(self.current_page);
         let margin = self.settings.page_margin.px() * 2.0;
         let usable = (self.available_width - margin).max(100.0);
-        self.set_zoom(ctx, usable / page_w.max(1.0));
+        self.set_zoom(
+            ctx,
+            usable / crate::ui::page_scale::display_scale(page_w.max(1.0)),
+        );
     }
 
     pub fn fit_page(&mut self, ctx: &egui::Context) {
@@ -78,8 +92,8 @@ impl MariApp {
         let margin = self.settings.page_margin.px() * 2.0;
         let usable_w = (self.available_width - margin).max(100.0);
         let usable_h = (ctx.screen_rect().height() - margin).max(100.0);
-        let zoom_w = usable_w / page_w.max(1.0);
-        let zoom_h = usable_h / page_h.max(1.0);
+        let zoom_w = usable_w / crate::ui::page_scale::display_scale(page_w.max(1.0));
+        let zoom_h = usable_h / crate::ui::page_scale::display_scale(page_h.max(1.0));
         self.set_zoom(ctx, zoom_w.min(zoom_h));
     }
 

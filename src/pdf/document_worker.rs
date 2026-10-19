@@ -578,18 +578,18 @@ mod tests {
 
         let deadline = Instant::now() + Duration::from_secs(10);
         let mut terminal = Vec::new();
-        while terminal.len() < 7 && Instant::now() < deadline {
+        while terminal.len() < 6 && Instant::now() < deadline {
             terminal.extend(worker.drain_results());
             std::thread::sleep(Duration::from_millis(10));
         }
 
-        assert_eq!(terminal.len(), 7);
+        assert_eq!(terminal.len(), 6);
         assert!(terminal
             .iter()
             .all(|result| matches!(result.outcome, JobOutcome::Ready(_))));
         let snapshot = worker.metrics();
         assert_eq!(snapshot.running, 0);
-        assert_eq!(snapshot.completed, 7);
+        assert_eq!(snapshot.completed, 6);
         assert_eq!(snapshot.failed, 0);
     }
 

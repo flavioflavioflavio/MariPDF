@@ -117,12 +117,13 @@ impl RenderQuality {
             Self::Ultra => "quality-ultra",
         })
     }
+    /// Pixels de bitmap por pixel físico da tela.
     pub fn scale(&self) -> f32 {
         match self {
-            Self::Fast => 1.0,
-            Self::Balanced => 1.5,
-            Self::Sharp => 2.0,
-            Self::Ultra => 3.0,
+            Self::Fast => 0.75,
+            Self::Balanced => 1.0,
+            Self::Sharp => 1.5,
+            Self::Ultra => 2.0,
         }
     }
     pub fn all() -> [Self; 4] {
@@ -308,7 +309,7 @@ mod tests {
             .map(|quality| quality.scale())
             .collect();
 
-        assert_eq!(scales, vec![1.0, 1.5, 2.0, 3.0]);
+        assert_eq!(scales, vec![0.75, 1.0, 1.5, 2.0]);
         assert!(scales.windows(2).all(|pair| pair[0] < pair[1]));
     }
 

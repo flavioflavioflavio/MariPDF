@@ -3,6 +3,7 @@ use super::page_cache::{LruPageCache, RenderOutcome, RenderResult};
 
 fn rendered(marker: u8) -> RenderedPage {
     RenderedPage {
+        scale: 1.0,
         width: 1,
         height: 1,
         rgba: vec![marker, 0, 0, 255],

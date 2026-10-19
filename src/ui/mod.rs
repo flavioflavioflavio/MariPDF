@@ -8,6 +8,7 @@ pub mod viewer;
 pub(crate) mod page_layout;
 #[cfg(test)]
 mod page_layout_tests;
+pub(crate) mod page_scale;
 pub(crate) mod prefetch;
 pub(crate) mod scroll_motion;
 pub(crate) mod settings_tabs;

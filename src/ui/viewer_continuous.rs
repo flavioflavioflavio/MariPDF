@@ -8,7 +8,7 @@ use crate::ui::prefetch::PrefetchPlan;
 use crate::ui::scroll_motion::{instant_wheel_offset, ScrollTween};
 use crate::ui::viewer::PdfViewer;
 use crate::ui::viewer_helpers::{
-    draw_page_tex, fit_page, invert_rgba, paint_search_highlight, upload_texture,
+    draw_page_tex, invert_rgba, paint_search_highlight, upload_texture,
 };
 use eframe::egui;
 
@@ -39,7 +39,7 @@ impl PdfViewer {
             self.zoom_delta = scroll_y.signum() * 0.15;
         }
 
-        let scale = self.zoom * self.render_scale;
+        let scale = self.requested_raster_scale();
         let available_w = ui.available_width();
         let ctx = ui.ctx().clone();
 
@@ -52,7 +52,6 @@ impl PdfViewer {
         let layout_changed = self.page_layout.rebuild(LayoutParams {
             available_width: available_w,
             zoom: self.zoom,
-            render_scale: self.render_scale,
             margin: self.page_margin,
         });
         let forced_offset = self.continuous_forced_offset(ui, ctrl, layout_changed);
@@ -119,7 +118,7 @@ impl PdfViewer {
                             idx,
                             bitmap.width,
                             bitmap.height,
-                            scale,
+                            bitmap.scale,
                         );
                         self.tex_cache.insert(idx, tex, bitmap.width, bitmap.height);
                         if learned_size {
@@ -154,13 +153,10 @@ impl PdfViewer {
                 ui.allocate_new_ui(egui::UiBuilder::new().max_rect(slot_rect), |ui| {
                     ui.vertical_centered(|ui| {
                         if let Some(tex) = self.tex_cache.get(idx) {
-                            let (mut w, mut h) =
-                                fit_page(tex.size_vec2(), available_w - self.page_margin * 2.0);
-                            if h > page_height {
-                                let ratio = page_height / h;
-                                w *= ratio;
-                                h = page_height;
-                            }
+                            // O layout já decidiu a altura pelo zoom; a
+                            // largura segue a proporção da página.
+                            let aspect = tex.size_vec2().x / tex.size_vec2().y.max(1.0);
+                            let (w, h) = (page_height * aspect, page_height);
                             let mut page_rect = egui::Rect::NOTHING;
                             draw_page_tex(
                                 &mut page_rect,

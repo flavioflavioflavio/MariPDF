@@ -201,6 +201,9 @@ impl PdfEngine {
 
             let width_pts = page.width().value;
             let height_pts = page.height().value;
+            // Zoom alto × qualidade pode passar do limite de textura da GPU;
+            // a página mantém o tamanho na tela e só perde nitidez.
+            let scale = crate::ui::page_scale::capped_raster_scale(width_pts, height_pts, scale);
 
             // Converte pontos (72dpi) para pixels com o fator de escala
             let width_px = (width_pts * scale) as u32;
@@ -222,6 +225,7 @@ impl PdfEngine {
             let rgba = bitmap.as_rgba_bytes();
 
             Ok(RenderedPage {
+                scale,
                 width: width_px,
                 height: height_px,
                 rgba,
@@ -271,6 +275,8 @@ impl Drop for PdfEngine {
 /// Página renderizada: bitmap RGBA pronto para egui::ColorImage
 #[derive(Clone)]
 pub struct RenderedPage {
+    /// Pixels por ponto PDF efetivamente usados (após o limite de textura).
+    pub scale: f32,
     pub width: u32,
     pub height: u32,
     pub rgba: Vec<u8>,
