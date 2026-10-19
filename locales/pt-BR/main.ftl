@@ -92,10 +92,12 @@ settings-cancel-btn = Cancelar
 ## Settings — Integração Windows
 settings-windows = Integração com Windows
 settings-assoc-title = Abrir .pdf com MariPDF
-settings-assoc-set-btn = Definir
+settings-assoc-set-btn = Definir como padrão
 settings-assoc-remove-btn = Remover
 settings-assoc-active = ✓ MariPDF é o leitor padrão de PDF
-settings-assoc-inactive = Definir como leitor padrão para arquivos .pdf
+settings-assoc-inactive = Registrar o MariPDF para abrir arquivos .pdf
+settings-assoc-choose = Nas Configurações do Windows, escolha MariPDF para .pdf
+settings-assoc-pending = Registrado — falta escolher o MariPDF no Windows
 
 ## Erros / Toast
 err-pdf-password = 🔒 PDF protegido por senha — não suportado no momento

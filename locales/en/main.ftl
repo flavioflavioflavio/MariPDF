@@ -92,10 +92,12 @@ settings-cancel-btn = Cancel
 ## Settings — Windows Integration
 settings-windows = Windows Integration
 settings-assoc-title = Open .pdf with MariPDF
-settings-assoc-set-btn = Set as Default
+settings-assoc-set-btn = Set as default
 settings-assoc-remove-btn = Remove
 settings-assoc-active = ✓ MariPDF is the default PDF reader
-settings-assoc-inactive = Set as default reader for .pdf files
+settings-assoc-inactive = Register MariPDF to open .pdf files
+settings-assoc-choose = In Windows Settings, choose MariPDF for .pdf
+settings-assoc-pending = Registered — choose MariPDF in Windows to finish
 
 ## Errors / Toast
 err-pdf-password = 🔒 Password-protected PDF — not supported yet

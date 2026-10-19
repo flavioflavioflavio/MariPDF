@@ -22,3 +22,4 @@ Desktop.ini
 # Corpus de benchmark gerado por tools/make_corpus.py (só o manifesto é versionado)
 /bench/corpus/
 /bench/results/
+/dist/

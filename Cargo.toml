@@ -2,8 +2,8 @@
 name        = "maripdf"
 version     = "0.1.0"
 edition     = "2021"
-authors     = ["MariPDF Contributors"]
-description = "Leitor de PDF ultra-leve para Windows"
+authors     = ["Flávio Takemoto"]
+description = "Leitor de PDF rápido e focado para Windows"
 license     = "GPL-3.0-or-later"
 homepage    = "https://github.com/flavioflavioflavio/MariPDF"
 repository  = "https://github.com/flavioflavioflavio/MariPDF"
