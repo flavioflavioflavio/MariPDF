@@ -25,7 +25,6 @@ toolbar-back-hint = Voltar (fecha o PDF)
 toolbar-toc-hint = Sumário
 toolbar-thumbs-hint = Miniaturas
 toolbar-settings-hint = Configurações
-toolbar-about-hint = Sobre o MariPDF
 toolbar-color-hint = Alternar tema (Dark · Light · Sépia)
 toolbar-mode-single = Página única (Ctrl+Shift+M)
 toolbar-mode-continuous = Contínuo (Ctrl+Shift+M)
@@ -43,6 +42,8 @@ toolbar-zoom-in-hint = Aproximar (Ctrl++)
 home-recents = RECENTES
 home-no-file = Nenhum arquivo recente
 home-drop-hint = ou arraste um PDF para qualquer lugar
+home-page-pill = pág. { $page }
+home-remove-hint = Remover dos recentes
 home-open-btn = Abrir PDF…
 home-search-placeholder = Buscar nos recentes…
 
@@ -58,6 +59,8 @@ overlay-search-hint = Enter → próx  •  Shift+Enter → ant  •  Esc → fe
 settings-title = Configurações
 settings-tab-appearance = Aparência
 settings-tab-reading = Leitura
+settings-tab-about = Sobre
+about-updates-title = ATUALIZAÇÕES
 settings-tab-privacy = Privacidade
 
 ## Settings — Aparência

@@ -89,7 +89,7 @@ pub struct MariApp {
     pub settings: AppSettings,
     pub settings_open: bool,
 
-    // About dialog
+    // Aba Sobre das Configurações (estado da verificação de atualização)
     pub about: AboutState,
 
     // Modo Flutuante (BF-415)

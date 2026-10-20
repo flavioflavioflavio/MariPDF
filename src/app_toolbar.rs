@@ -71,7 +71,6 @@ enum ToolbarAction {
     Float,
     CycleTheme,
     Settings,
-    About,
 }
 
 impl MariApp {
@@ -189,7 +188,6 @@ impl MariApp {
                 self.pending_rerender = true;
             }
             ToolbarAction::Settings => self.settings_open = !self.settings_open,
-            ToolbarAction::About => self.about.open = !self.about.open,
         }
     }
 
@@ -314,12 +312,6 @@ fn right_zone(
     mode: ViewMode,
     actions: &mut Vec<ToolbarAction>,
 ) {
-    if tool_button(ui, icons::INFO, false, true, tok)
-        .on_hover_text(t!("toolbar-about-hint"))
-        .clicked()
-    {
-        actions.push(ToolbarAction::About);
-    }
     if tool_button(ui, icons::GEAR, false, true, tok)
         .on_hover_text(t!("toolbar-settings-hint"))
         .clicked()

@@ -6,8 +6,9 @@ use eframe::egui;
 // ── Paleta base (Dark) ────────────────────────────────────────────────────────
 pub const BG_BASE: egui::Color32 = egui::Color32::from_rgb(14, 14, 16);
 pub const BG_SURFACE: egui::Color32 = egui::Color32::from_rgb(22, 22, 26);
-pub const ACCENT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(255, 106, 26);
-pub const ACCENT_LIGHT: egui::Color32 = egui::Color32::from_rgb(255, 165, 80);
+/// Violeta do ícone (#7C55EC); texto branco tem contraste 4.8:1 sobre ele.
+pub const ACCENT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(124, 85, 236);
+pub const ACCENT_LIGHT: egui::Color32 = egui::Color32::from_rgb(180, 140, 252);
 pub const TEXT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(250, 250, 252);
 pub const TEXT_MUTED: egui::Color32 = egui::Color32::from_rgb(120, 120, 140);
 pub const TEXT_SUBTLE: egui::Color32 = egui::Color32::from_rgb(70, 70, 85);

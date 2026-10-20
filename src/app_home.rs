@@ -1,309 +1,560 @@
 // app_home.rs — Tela inicial (Home) do MariPDF
-// Extraído de app.rs (L917-1296).
+//
+// Uma coluna única e centrada: logo, título, CTA e a lista de recentes
+// compartilham a mesma largura e a mesma margem, então tudo alinha. As cores
+// vêm da paleta ativa (o acento padrão é o violeta do ícone).
 
-use crate::app::{MariApp, ACCENT_LIGHT, ACCENT_PRIMARY};
+use crate::app::MariApp;
+use crate::app_color_mode::ColorMode;
+use crate::ui::icons;
 use eframe::egui;
+use std::path::{Path, PathBuf};
+
+/// Largura da coluna de conteúdo.
+const COLUMN_MIN: f32 = 340.0;
+const COLUMN_MAX: f32 = 560.0;
+const LOGO_SIZE: f32 = 72.0;
+const CTA_SIZE: egui::Vec2 = egui::vec2(220.0, 42.0);
+const ROW_HEIGHT: f32 = 58.0;
+const ROW_PAD_X: f32 = 14.0;
+const TILE_SIZE: f32 = 36.0;
+const REMOVE_SIZE: f32 = 28.0;
+
+/// Cores da Home resolvidas a partir do tema e da paleta.
+#[derive(Clone, Copy)]
+struct HomeColors {
+    bg: egui::Color32,
+    surface: egui::Color32,
+    border: egui::Color32,
+    text: egui::Color32,
+    muted: egui::Color32,
+    subtle: egui::Color32,
+    accent: egui::Color32,
+    on_accent: egui::Color32,
+    danger: egui::Color32,
+    divider: f32,
+}
+
+impl HomeColors {
+    fn new(cm: ColorMode, palette: u8) -> Self {
+        let accent = cm.accent_for(palette);
+        let bg = cm.bg_for(palette);
+        // No escuro o card afunda (mais escuro que o fundo); nos claros ele
+        // sobe (mais claro), com borda sólida derivada do texto.
+        let (surface, border) = match cm {
+            ColorMode::Dark => (cm.surface_for(palette), cm.border()),
+            ColorMode::Light => (lighten(bg, 0.7), cm.text_muted().gamma_multiply(0.22)),
+            ColorMode::Sepia => (lighten(bg, 0.45), cm.text_muted().gamma_multiply(0.22)),
+        };
+        Self {
+            bg,
+            surface,
+            border,
+            text: cm.text_primary(),
+            muted: cm.text_muted(),
+            subtle: cm.text_subtle(),
+            accent,
+            on_accent: readable_on(accent),
+            danger: cm.danger(),
+            divider: cm.divider_width(),
+        }
+    }
+}
+
+/// Texto branco em acentos escuros, quase preto nos claros (azul, verde).
+fn readable_on(fill: egui::Color32) -> egui::Color32 {
+    let lin = |c: u8| {
+        let c = c as f32 / 255.0;
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let luminance = 0.2126 * lin(fill.r()) + 0.7152 * lin(fill.g()) + 0.0722 * lin(fill.b());
+    if luminance > 0.30 {
+        egui::Color32::from_rgb(18, 16, 24)
+    } else {
+        egui::Color32::WHITE
+    }
+}
+
+fn lighten(color: egui::Color32, t: f32) -> egui::Color32 {
+    let mix = |c: u8| (c as f32 + (255.0 - c as f32) * t).round() as u8;
+    egui::Color32::from_rgb(mix(color.r()), mix(color.g()), mix(color.b()))
+}
 
 impl MariApp {
     pub(crate) fn ui_home(&mut self, ctx: &egui::Context) {
-        let cm = self.color_mode;
-        let pal = self.settings.palette.0;
-        let bg = cm.bg_for(pal);
-        let surf = cm.surface_for(pal);
-        let bord = cm.border();
-        let text = cm.text_primary();
-        let muted = cm.text_muted();
-        let dw = cm.divider_width();
-
+        let colors = HomeColors::new(self.color_mode, self.settings.palette.0);
         let recents = if self.settings.track_history {
             self.persistence.recent_files(8)
         } else {
             Vec::new()
         };
 
-        egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(bg))
+        // Rodapé fixo: atalhos e versão, centralizados.
+        egui::TopBottomPanel::bottom("home_footer")
+            .frame(
+                egui::Frame::new()
+                    .fill(colors.bg)
+                    .inner_margin(egui::Margin::symmetric(16, 10)),
+            )
+            .show_separator_line(false)
             .show(ctx, |ui| {
-                let total_w = ui.available_width();
-                let total_h = ui.available_height();
-                let content_w = (total_w * 0.80).clamp(360.0, 640.0);
-                let side_pad = (total_w - content_w) / 2.0;
-
-                let top_space = if recents.is_empty() {
-                    (total_h * 0.25).max(80.0)
-                } else {
-                    (total_h * 0.14).max(40.0)
-                };
-                ui.add_space(top_space);
-
-                // ── Logo ────────────────────────────────────────────────────
                 ui.vertical_centered(|ui| {
-                    ui.label(
-                        egui::RichText::new("MariPDF")
-                            .size(46.0)
-                            .color(ACCENT_PRIMARY)
-                            .family(egui::FontFamily::Name("Title".into())),
-                    );
-                    ui.add_space(5.0);
-                    ui.label(
-                        egui::RichText::new(crate::t!("app-tagline"))
-                            .size(13.0)
-                            .color(muted),
-                    );
-                });
-
-                // ── Botão CTA ────────────────────────────────────────────────
-                ui.vertical_centered(|ui| {
-                    let btn_w = (content_w * 0.55).clamp(200.0, 280.0);
-                    ui.set_max_width(btn_w);
-
-                    let cta_id = egui::Id::new("home_open_btn");
-                    let cta_hov_id = cta_id.with("hov");
-                    let was_h: bool = ctx.data(|d| d.get_temp(cta_hov_id).unwrap_or(false));
-                    let t_cta = ctx.animate_bool_with_time(cta_id, was_h, 0.12);
-                    let darken_cta = (t_cta * 24.0) as u8;
-                    let cta_bg = egui::Color32::from_rgb(
-                        ACCENT_PRIMARY.r().saturating_sub(darken_cta),
-                        ACCENT_PRIMARY.g().saturating_sub(darken_cta),
-                        ACCENT_PRIMARY.b().saturating_sub(darken_cta),
-                    );
-
-                    let cta_resp = ui.add_sized(
-                        [btn_w, 44.0],
-                        egui::Button::new(
-                            egui::RichText::new(crate::t!("home-open-btn"))
-                                .size(15.0)
-                                .color(egui::Color32::WHITE)
-                                .strong(),
-                        )
-                        .fill(cta_bg)
-                        .stroke(egui::Stroke::NONE)
-                        .corner_radius(egui::CornerRadius::same(12)),
-                    );
-                    let is_h_cta = cta_resp.hovered();
-                    ctx.data_mut(|d| d.insert_temp(cta_hov_id, is_h_cta));
-                    if is_h_cta {
-                        ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                        ctx.request_repaint();
-                    }
-                    if cta_resp.clicked() {
-                        self.open_file_dialog();
-                    }
-
-                    ui.add_space(10.0);
-
-                    let drag_color = if self.drop_zone_hovered {
-                        ACCENT_LIGHT
-                    } else {
-                        cm.text_subtle()
-                    };
-                    let drag_text = if self.drop_zone_hovered {
-                        crate::t!("home-drop-release")
-                    } else {
-                        crate::t!("home-drop-hint")
-                    };
-                    ui.label(egui::RichText::new(drag_text).size(11.5).color(drag_color));
-                });
-
-                // ── Erros ────────────────────────────────────────────────────
-                if let Some(ref err) = self.render_error.clone() {
-                    ui.add_space(12.0);
-                    ui.vertical_centered(|ui| {
-                        ui.label(
-                            egui::RichText::new(format!("⚠ {err}"))
-                                .size(12.0)
-                                .color(egui::Color32::from_rgb(239, 68, 68)),
-                        );
-                    });
-                }
-
-                // ── Recentes ─────────────────────────────────────────────────
-                if !recents.is_empty() {
-                    ui.add_space(32.0);
-                    ui.horizontal(|ui| {
-                        ui.add_space(side_pad);
-                        ui.label(
-                            egui::RichText::new(crate::t!("home-recents"))
-                                .size(10.0)
-                                .color(muted)
-                                .strong(),
-                        );
-                    });
-                    ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        ui.add_space(side_pad);
-                        ui.add(
-                            egui::Separator::default()
-                                .horizontal()
-                                .grow(-(side_pad * 2.0))
-                                .spacing(dw),
-                        );
-                    });
-                    ui.add_space(8.0);
-
-                    let mut open_path: Option<std::path::PathBuf> = None;
-                    let mut remove_path: Option<std::path::PathBuf> = None;
-
-                    for (path, session) in &recents {
-                        let name = path
-                            .file_name()
-                            .and_then(|n| n.to_str())
-                            .unwrap_or("PDF")
-                            .trim_end_matches(".pdf")
-                            .trim_end_matches(".PDF");
-                        let dir = path.parent().and_then(|p| p.to_str()).unwrap_or("");
-                        let dir_display = if dir.len() > 55 {
-                            format!("…{}", &dir[dir.len() - 52..])
-                        } else {
-                            dir.to_string()
-                        };
-                        let pg_label = format!("p.{}", session.last_page + 1);
-
-                        let mut x_btn_rect = egui::Rect::NOTHING;
-                        ui.horizontal(|ui| {
-                            ui.add_space(side_pad);
-                            let card = egui::Frame::new()
-                                .fill(surf)
-                                .stroke(egui::Stroke::new(dw, bord))
-                                .corner_radius(egui::CornerRadius::same(10))
-                                .inner_margin(egui::Margin::symmetric(14, 10));
-
-                            let ir = card.show(ui, |ui| {
-                                ui.set_min_width(content_w - 2.0);
-                                ui.set_max_width(content_w - 2.0);
-                                ui.horizontal(|ui| {
-                                    ui.painter().rect_filled(
-                                        egui::Rect::from_min_size(
-                                            ui.cursor().min + egui::vec2(0.0, 6.0),
-                                            egui::vec2(3.0, 26.0),
-                                        ),
-                                        egui::CornerRadius::same(2),
-                                        egui::Color32::from_rgb(220, 80, 60),
-                                    );
-                                    ui.add_space(10.0);
-                                    let pills_w = 70.0_f32;
-                                    let text_w =
-                                        (content_w - 2.0 - 3.0 - 10.0 - pills_w - 16.0).max(60.0);
-                                    ui.allocate_ui_with_layout(
-                                        egui::vec2(text_w, 0.0),
-                                        egui::Layout::top_down(egui::Align::LEFT),
-                                        |ui| {
-                                            ui.set_max_width(text_w);
-                                            ui.label(
-                                                egui::RichText::new(name)
-                                                    .size(13.5)
-                                                    .color(text)
-                                                    .strong(),
-                                            );
-                                            ui.add_space(1.0);
-                                            ui.label(
-                                                egui::RichText::new(&dir_display)
-                                                    .size(10.5)
-                                                    .color(muted),
-                                            );
-                                        },
-                                    );
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            let x_id = ui.id().with(("xbtn", path.as_path()));
-                                            let x_hv = x_id.with("h");
-                                            let x_was: bool =
-                                                ctx.data(|d| d.get_temp(x_hv).unwrap_or(false));
-                                            let xt = ctx.animate_bool_with_time(x_id, x_was, 0.10);
-                                            let x_bg = egui::Color32::from_rgba_unmultiplied(
-                                                200,
-                                                60,
-                                                50,
-                                                (xt * 55.0) as u8,
-                                            );
-                                            let x_fg = if xt > 0.1 {
-                                                egui::Color32::from_rgb(255, 130, 110)
-                                            } else {
-                                                egui::Color32::from_rgb(200, 80, 60)
-                                            };
-                                            let x_btn = ui.add(
-                                                egui::Button::new(
-                                                    egui::RichText::new("\u{E4F8}")
-                                                        .size(18.0)
-                                                        .color(x_fg)
-                                                        .family(egui::FontFamily::Name(
-                                                            "Icons".into(),
-                                                        )),
-                                                )
-                                                .fill(x_bg)
-                                                .stroke(egui::Stroke::NONE)
-                                                .corner_radius(egui::CornerRadius::same(6))
-                                                .min_size(egui::vec2(34.0, 34.0)),
-                                            );
-                                            x_btn_rect = x_btn.rect;
-                                            let x_is = x_btn.hovered();
-                                            ctx.data_mut(|d| d.insert_temp(x_hv, x_is));
-                                            if x_is {
-                                                ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                                                ctx.request_repaint();
-                                            }
-                                            if x_btn.clicked() {
-                                                remove_path = Some(path.clone());
-                                            }
-                                            ui.add_space(6.0);
-                                            ui.label(
-                                                egui::RichText::new(&pg_label)
-                                                    .size(10.5)
-                                                    .color(muted)
-                                                    .monospace(),
-                                            );
-                                        },
-                                    );
-                                })
-                            });
-
-                            let card_rect = ir.response.rect;
-                            let (hovered, clicked, click_pos) = ctx.input(|i| {
-                                let pos = i.pointer.hover_pos().unwrap_or_default();
-                                let interact = i.pointer.interact_pos().unwrap_or_default();
-                                (
-                                    card_rect.contains(pos),
-                                    i.pointer.any_released() && card_rect.contains(interact),
-                                    interact,
-                                )
-                            });
-                            if hovered
-                                && !x_btn_rect.contains(
-                                    ctx.input(|i| i.pointer.hover_pos().unwrap_or_default()),
-                                )
-                            {
-                                ctx.set_cursor_icon(egui::CursorIcon::PointingHand);
-                            }
-                            if clicked && !x_btn_rect.contains(click_pos) && remove_path.is_none() {
-                                open_path = Some(path.clone());
-                            }
-                        });
-                        ui.add_space(5.0);
-                    }
-
-                    if let Some(p) = open_path {
-                        self.pending_open = Some(p);
-                    }
-                    if let Some(p) = remove_path {
-                        self.persistence.remove_recent(&p);
-                    }
-                }
-
-                // ── Rodapé ────────────────────────────────────────────────────
-                let remaining = ui.available_height();
-                ui.add_space(remaining.max(16.0) - 16.0);
-                ui.horizontal(|ui| {
-                    ui.add_space(side_pad);
                     ui.label(
                         egui::RichText::new(crate::t!("home-shortcuts", version => self.version))
-                            .size(10.0)
-                            .color(cm.text_subtle()),
+                            .size(10.5)
+                            .color(colors.subtle),
                     );
                 });
             });
 
-        // ── Botões flutuantes (tema + settings) ── extraídos para app_home_btns.rs
+        let mut open_path: Option<PathBuf> = None;
+        let mut remove_path: Option<PathBuf> = None;
+
+        egui::CentralPanel::default()
+            .frame(egui::Frame::new().fill(colors.bg))
+            .show(ctx, |ui| {
+                let avail = ui.available_size();
+                let column = (avail.x - 48.0).clamp(COLUMN_MIN.min(avail.x), COLUMN_MAX);
+                let side = ((avail.x - column) / 2.0).max(0.0);
+
+                egui::ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        // Sem recentes o hero fica no centro óptico; com
+                        // recentes, sobe para dar lugar à lista.
+                        let hero_height = 260.0;
+                        let list_height = if recents.is_empty() {
+                            0.0
+                        } else {
+                            44.0 + recents.len() as f32 * ROW_HEIGHT
+                        };
+                        let top = ((avail.y - hero_height - list_height) * 0.42).max(36.0);
+                        ui.add_space(top);
+
+                        ui.horizontal(|ui| {
+                            ui.add_space(side);
+                            ui.vertical(|ui| {
+                                ui.set_width(column);
+                                self.home_hero(ui, &colors, column);
+                                if let Some(err) = self.render_error.clone() {
+                                    ui.add_space(14.0);
+                                    ui.vertical_centered(|ui| {
+                                        ui.label(
+                                            egui::RichText::new(format!("⚠ {err}"))
+                                                .size(12.0)
+                                                .color(colors.danger),
+                                        );
+                                    });
+                                }
+                                if !recents.is_empty() {
+                                    ui.add_space(40.0);
+                                    recents_header(ui, &colors);
+                                    ui.add_space(10.0);
+                                    let action = recents_list(ui, &colors, column, &recents);
+                                    match action {
+                                        Some(RowAction::Open(path)) => open_path = Some(path),
+                                        Some(RowAction::Remove(path)) => remove_path = Some(path),
+                                        None => {}
+                                    }
+                                }
+                                ui.add_space(32.0);
+                            });
+                        });
+                    });
+            });
+
+        if let Some(path) = open_path {
+            self.pending_open = Some(path);
+        }
+        if let Some(path) = remove_path {
+            self.persistence.remove_recent(&path);
+        }
+
+        // Botões flutuantes (tema + configurações) em app_home_btns.rs
         self.ui_home_buttons(ctx);
+    }
+
+    /// Logo, nome, tagline, CTA e dica de arrastar.
+    fn home_hero(&mut self, ui: &mut egui::Ui, colors: &HomeColors, column: f32) {
+        ui.vertical_centered(|ui| {
+            let logo = home_logo(ui.ctx());
+            ui.add(egui::Image::new(&logo).fit_to_exact_size(egui::vec2(LOGO_SIZE, LOGO_SIZE)));
+            ui.add_space(14.0);
+            ui.label(
+                egui::RichText::new("MariPDF")
+                    .size(34.0)
+                    .color(colors.text)
+                    .family(egui::FontFamily::Name("Title".into())),
+            );
+            ui.add_space(2.0);
+            ui.label(
+                egui::RichText::new(crate::t!("app-tagline"))
+                    .size(13.0)
+                    .color(colors.muted),
+            );
+            ui.add_space(26.0);
+
+            let cta_width = CTA_SIZE.x.min(column);
+            let (rect, response) =
+                ui.allocate_exact_size(egui::vec2(cta_width, CTA_SIZE.y), egui::Sense::click());
+            let hover = ui
+                .ctx()
+                .animate_bool_with_time(response.id, response.hovered(), 0.12);
+            let fill = lighten(colors.accent, hover * 0.12);
+            let painter = ui.painter();
+            painter.rect_filled(rect, egui::CornerRadius::same(10), fill);
+            let icon = painter.layout_no_wrap(
+                icons::FOLDER_OPEN.to_string(),
+                egui::FontId::new(17.0, egui::FontFamily::Name("Icons".into())),
+                colors.on_accent,
+            );
+            let label = painter.layout_no_wrap(
+                crate::t!("home-open-btn"),
+                egui::FontId::proportional(14.5),
+                colors.on_accent,
+            );
+            let gap = 8.0;
+            let total = icon.size().x + gap + label.size().x;
+            let x = rect.center().x - total / 2.0;
+            painter.galley(
+                egui::pos2(x, rect.center().y - icon.size().y / 2.0),
+                icon,
+                colors.on_accent,
+            );
+            painter.galley(
+                egui::pos2(
+                    x + total - label.size().x,
+                    rect.center().y - label.size().y / 2.0,
+                ),
+                label,
+                colors.on_accent,
+            );
+            if response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if response.clicked() {
+                self.open_file_dialog();
+            }
+
+            ui.add_space(12.0);
+            let (hint, color) = if self.drop_zone_hovered {
+                (crate::t!("home-drop-release"), colors.accent)
+            } else {
+                (crate::t!("home-drop-hint"), colors.muted)
+            };
+            ui.label(egui::RichText::new(hint).size(11.5).color(color));
+        });
+    }
+}
+
+/// Logo embutido (cantos já transparentes), carregado uma vez por contexto.
+pub(crate) fn home_logo(ctx: &egui::Context) -> egui::TextureHandle {
+    let id = egui::Id::new("home_logo_texture");
+    if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return texture;
+    }
+    let image = image::load_from_memory(include_bytes!("../assets/logo-home.png"))
+        .map(|img| img.to_rgba8())
+        .unwrap_or_else(|_| image::RgbaImage::new(1, 1));
+    let size = [image.width() as usize, image.height() as usize];
+    let color_image = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+    let texture = ctx.load_texture("home_logo", color_image, egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
+    texture
+}
+
+fn recents_header(ui: &mut egui::Ui, colors: &HomeColors) {
+    ui.horizontal(|ui| {
+        ui.add_space(4.0);
+        ui.label(icons::ph(icons::CLOCK, 13.0, colors.muted));
+        ui.add_space(2.0);
+        let mut job = egui::text::LayoutJob::default();
+        job.append(
+            &crate::t!("home-recents"),
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(10.5),
+                color: colors.muted,
+                extra_letter_spacing: 1.2,
+                ..Default::default()
+            },
+        );
+        ui.label(job);
+    });
+}
+
+enum RowAction {
+    Open(PathBuf),
+    Remove(PathBuf),
+}
+
+/// Lista de recentes num único bloco com divisórias, linhas de altura fixa.
+fn recents_list(
+    ui: &mut egui::Ui,
+    colors: &HomeColors,
+    width: f32,
+    recents: &[(PathBuf, crate::pdf::persistence::FileSession)],
+) -> Option<RowAction> {
+    let height = recents.len() as f32 * ROW_HEIGHT;
+    let (block, _) = ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
+    let painter = ui.painter_at(block.expand(1.0));
+    painter.rect_filled(block, egui::CornerRadius::same(12), colors.surface);
+    painter.rect_stroke(
+        block,
+        egui::CornerRadius::same(12),
+        egui::Stroke::new(colors.divider, colors.border),
+        egui::StrokeKind::Inside,
+    );
+
+    let mut action = None;
+    for (index, (path, session)) in recents.iter().enumerate() {
+        let row = egui::Rect::from_min_size(
+            block.min + egui::vec2(0.0, index as f32 * ROW_HEIGHT),
+            egui::vec2(width, ROW_HEIGHT),
+        );
+        if index > 0 {
+            let y = row.top();
+            painter.hline(
+                (row.left() + ROW_PAD_X + TILE_SIZE + 12.0)..=(row.right() - ROW_PAD_X),
+                y,
+                egui::Stroke::new(colors.divider, colors.border),
+            );
+        }
+        if let Some(row_action) = recent_row(ui, &painter, colors, row, path, session) {
+            action = Some(row_action);
+        }
+    }
+    action
+}
+
+fn recent_row(
+    ui: &mut egui::Ui,
+    painter: &egui::Painter,
+    colors: &HomeColors,
+    row: egui::Rect,
+    path: &Path,
+    session: &crate::pdf::persistence::FileSession,
+) -> Option<RowAction> {
+    let id = ui.id().with(("recent", path));
+    let response = ui.interact(row, id, egui::Sense::click());
+    let remove_rect = egui::Rect::from_center_size(
+        egui::pos2(row.right() - ROW_PAD_X - REMOVE_SIZE / 2.0, row.center().y),
+        egui::vec2(REMOVE_SIZE, REMOVE_SIZE),
+    );
+    // Registrado depois da linha: o X recebe o clique por cima dela.
+    let remove = ui
+        .interact(remove_rect, id.with("remove"), egui::Sense::click())
+        .on_hover_text(crate::t!("home-remove-hint"));
+    let row_hovered = response.hovered() || remove.hovered();
+    let hover = ui.ctx().animate_bool_with_time(id, row_hovered, 0.10);
+
+    if hover > 0.0 {
+        painter.rect_filled(
+            row.shrink(4.0),
+            egui::CornerRadius::same(9),
+            colors.accent.gamma_multiply(0.09 * hover),
+        );
+    }
+
+    // Ícone do arquivo
+    let tile = egui::Rect::from_center_size(
+        egui::pos2(row.left() + ROW_PAD_X + TILE_SIZE / 2.0, row.center().y),
+        egui::vec2(TILE_SIZE, TILE_SIZE),
+    );
+    painter.rect_filled(
+        tile,
+        egui::CornerRadius::same(9),
+        colors.accent.gamma_multiply(0.16),
+    );
+    painter.text(
+        tile.center(),
+        egui::Align2::CENTER_CENTER,
+        icons::FILE_PDF,
+        egui::FontId::new(19.0, egui::FontFamily::Name("Icons".into())),
+        colors.accent,
+    );
+
+    // Página onde parou (pílula) e espaço reservado para o X
+    let page = painter.layout_no_wrap(
+        crate::t!("home-page-pill", page => session.last_page + 1),
+        egui::FontId::proportional(11.0),
+        colors.muted,
+    );
+    let pill_right = row.right() - ROW_PAD_X - hover * (REMOVE_SIZE + 6.0);
+    let pill = egui::Rect::from_min_size(
+        egui::pos2(pill_right - page.size().x - 16.0, row.center().y - 11.0),
+        egui::vec2(page.size().x + 16.0, 22.0),
+    );
+    painter.rect_filled(pill, egui::CornerRadius::same(11), colors.bg);
+    painter.galley(pill.center() - page.size() / 2.0, page, colors.muted);
+
+    // Nome e pasta, elididos para caber até a pílula
+    let text_left = tile.right() + 12.0;
+    let pill_rest_left = row.right() - ROW_PAD_X - pill.width();
+    let text_width = (pill_rest_left - 12.0 - text_left).max(40.0);
+    let name = file_stem(path);
+    let folder = folder_label(path);
+    let name_galley = ui.fonts(|f| f.layout_job(single_line(&name, 13.5, colors.text, text_width)));
+    let folder = elide_start(ui, &folder, 11.0, text_width);
+    let folder_galley =
+        ui.fonts(|f| f.layout_job(single_line(&folder, 11.0, colors.muted, text_width)));
+    let block_height = name_galley.size().y + 2.0 + folder_galley.size().y;
+    let top = row.center().y - block_height / 2.0;
+    painter.galley(egui::pos2(text_left, top), name_galley.clone(), colors.text);
+    painter.galley(
+        egui::pos2(text_left, top + name_galley.size().y + 2.0),
+        folder_galley,
+        colors.muted,
+    );
+
+    // X só aparece com a linha em foco
+    if hover > 0.0 {
+        let danger_hover = remove.hovered();
+        if danger_hover {
+            painter.rect_filled(
+                remove_rect,
+                egui::CornerRadius::same(7),
+                colors.danger.gamma_multiply(0.16),
+            );
+        }
+        let color = if danger_hover {
+            colors.danger
+        } else {
+            colors.muted
+        };
+        painter.text(
+            remove_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            icons::X,
+            egui::FontId::new(15.0, egui::FontFamily::Name("Icons".into())),
+            color.gamma_multiply(hover),
+        );
+    }
+
+    if row_hovered {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    if remove.clicked() {
+        Some(RowAction::Remove(path.to_path_buf()))
+    } else if response.clicked() {
+        Some(RowAction::Open(path.to_path_buf()))
+    } else {
+        None
+    }
+}
+
+/// Uma linha, cortada com reticências se passar da largura.
+fn single_line(
+    text: &str,
+    size: f32,
+    color: egui::Color32,
+    max_width: f32,
+) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::single_section(
+        text.to_owned(),
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(size),
+            color,
+            ..Default::default()
+        },
+    );
+    job.wrap = egui::text::TextWrapping {
+        max_width,
+        max_rows: 1,
+        break_anywhere: true,
+        overflow_character: Some('…'),
+    };
+    job
+}
+
+/// Corta o início (`…\pasta\final`): o fim do caminho é o que identifica.
+fn elide_start(ui: &egui::Ui, text: &str, size: f32, max_width: f32) -> String {
+    let width = |s: &str| {
+        ui.fonts(|f| {
+            f.layout_no_wrap(
+                s.to_owned(),
+                egui::FontId::proportional(size),
+                egui::Color32::WHITE,
+            )
+            .size()
+            .x
+        })
+    };
+    if width(text) <= max_width {
+        return text.to_owned();
+    }
+    let chars: Vec<char> = text.chars().collect();
+    // Busca binária pelo maior sufixo que cabe com a reticência.
+    let (mut lo, mut hi) = (0usize, chars.len());
+    while lo < hi {
+        let mid = (lo + hi) / 2;
+        let candidate: String = std::iter::once('…')
+            .chain(chars[mid..].iter().copied())
+            .collect();
+        if width(&candidate) <= max_width {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    std::iter::once('…')
+        .chain(chars[lo..].iter().copied())
+        .collect()
+}
+
+fn file_stem(path: &Path) -> String {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("PDF");
+    match name.rsplit_once('.') {
+        Some((stem, ext)) if ext.eq_ignore_ascii_case("pdf") => stem.to_owned(),
+        _ => name.to_owned(),
+    }
+}
+
+/// Pasta do arquivo, com o perfil do usuário abreviado para `~`.
+fn folder_label(path: &Path) -> String {
+    let dir = path
+        .parent()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
+    match std::env::var("USERPROFILE") {
+        Ok(home) if !home.is_empty() && dir.to_lowercase().starts_with(&home.to_lowercase()) => {
+            format!("~{}", &dir[home.len()..])
+        }
+        _ => dir,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_on_accent_stays_readable() {
+        // Violeta da marca: texto branco; azul/verde claros: texto escuro.
+        assert_eq!(
+            readable_on(egui::Color32::from_rgb(124, 85, 236)),
+            egui::Color32::WHITE
+        );
+        assert_ne!(
+            readable_on(egui::Color32::from_rgb(74, 222, 128)),
+            egui::Color32::WHITE
+        );
+    }
+
+    #[test]
+    fn file_stem_drops_only_the_pdf_extension() {
+        assert_eq!(file_stem(Path::new(r"C:\docs\Relatório.PDF")), "Relatório");
+        assert_eq!(
+            file_stem(Path::new(r"C:\docs\v1.2 notas.pdf")),
+            "v1.2 notas"
+        );
+        assert_eq!(
+            file_stem(Path::new(r"C:\docs\sem-extensao")),
+            "sem-extensao"
+        );
     }
 }

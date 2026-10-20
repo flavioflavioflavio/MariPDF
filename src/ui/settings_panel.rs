@@ -1,8 +1,9 @@
 // settings_panel.rs — Painel de configurações do MariPDF
-// Layout: tabs (Aparência / Leitura / Privacidade)
+// Layout: tabs (Aparência / Leitura / Privacidade / Sobre)
 // Todas as cores via tokens do ColorMode — zero hardcoded
 
 use crate::app::ColorMode;
+use crate::app_about::AboutState;
 use crate::pdf::persistence::PersistenceManager;
 use crate::settings::AppSettings;
 use crate::t;
@@ -19,7 +20,18 @@ enum Tab {
     Appearance,
     Reading,
     Privacy,
+    About,
 }
+
+const TAB_ID: &str = "settings_tab";
+
+/// Abre as Configurações direto na aba Sobre (Ctrl+Shift+I).
+pub fn select_about_tab(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new(TAB_ID), Tab::About));
+}
+
+/// Altura útil do conteúdo; a aba Sobre rola dentro dela.
+const CONTENT_MAX_HEIGHT: f32 = 300.0;
 
 // ── Ponto de entrada público ──────────────────────────────────────────────────
 
@@ -37,6 +49,7 @@ pub fn show_settings_panel(
     persistence: &mut PersistenceManager,
     color_mode: &mut ColorMode,
     system_prefers_dark: bool,
+    about: &mut AboutState,
 ) -> SettingsEffects {
     let mut effects = SettingsEffects::default();
     if !*open {
@@ -53,7 +66,7 @@ pub fn show_settings_panel(
         .inner_margin(egui::Margin::same(0));
 
     let mut close_req = false;
-    let tab_id = egui::Id::new("settings_tab");
+    let tab_id = egui::Id::new(TAB_ID);
     let mut active_tab: Tab = ctx.data(|d| d.get_temp(tab_id).unwrap_or_default());
 
     egui::Window::new("settings_wnd")
@@ -141,6 +154,7 @@ pub fn show_settings_panel(
                             ),
                             (t!("settings-tab-reading"), icons::BOOK, Tab::Reading),
                             (t!("settings-tab-privacy"), icons::SHIELD, Tab::Privacy),
+                            (t!("settings-tab-about"), icons::INFO, Tab::About),
                         ] {
                             let is_active = active_tab == tab;
                             let tab_bg = if is_active {
@@ -159,8 +173,8 @@ pub fn show_settings_panel(
                                     se: 0,
                                 })
                                 .inner_margin(egui::Margin {
-                                    left: 18,
-                                    right: 18,
+                                    left: 14,
+                                    right: 14,
                                     top: 12,
                                     bottom: 12,
                                 })
@@ -216,6 +230,15 @@ pub fn show_settings_panel(
                         ),
                         Tab::Reading => tab_reading(ui, settings, &mut effects.render_reload, &tok),
                         Tab::Privacy => tab_privacy(ui, settings, persistence, &tok),
+                        Tab::About => {
+                            egui::ScrollArea::vertical()
+                                .max_height(CONTENT_MAX_HEIGHT)
+                                .auto_shrink([false, true])
+                                .show(ui, |ui| {
+                                    ui.spacing_mut().item_spacing.y = 6.0;
+                                    about.ui(ui, &tok);
+                                });
+                        }
                     }
                 });
 

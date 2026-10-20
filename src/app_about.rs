@@ -1,9 +1,10 @@
-// app_about.rs — Diálogo "Sobre" do MariPDF
+// app_about.rs — Aba "Sobre" das Configurações do MariPDF
 //
-// Exibido via Ctrl+Shift+I ou pelo botão ⓘ da toolbar. Textos via t!().
+// Aberta pela aba Sobre ou por Ctrl+Shift+I. Cores via tokens do tema;
+// textos via t!().
 
-use crate::app_constants::{ACCENT_LIGHT, ACCENT_PRIMARY, BG_SURFACE, TEXT_MUTED, TEXT_PRIMARY};
 use crate::t;
+use crate::ui::settings_widgets::{sec, Tokens};
 use eframe::egui;
 
 const REPO_URL: &str = "https://github.com/flavioflavioflavio/MariPDF";
@@ -13,165 +14,132 @@ const EVOMIND_URL: &str = "https://evomind.app/investors";
 /// o link não aparece — o README pede para não enviar valores a links antigos.
 const DONATION_URL: Option<&str> = None;
 
-const DIALOG_WIDTH: f32 = 440.0;
+const LOGO_SIZE: f32 = 52.0;
 
 #[derive(Default)]
 pub struct AboutState {
-    pub open: bool,
     update: crate::updater::UpdateState,
 }
 
 impl AboutState {
-    pub fn show(&mut self, ctx: &egui::Context) {
-        if !self.open {
-            return;
-        }
-
+    pub fn ui(&mut self, ui: &mut egui::Ui, tok: &Tokens) {
         let version = env!("CARGO_PKG_VERSION");
-        let mut close = false;
 
-        egui::Window::new(t!("about-title"))
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-            .fixed_size([DIALOG_WIDTH, 0.0])
-            .collapsible(false)
-            .resizable(false)
-            .title_bar(false)
-            .frame(
-                egui::Frame::window(&ctx.style())
-                    .fill(BG_SURFACE)
-                    .inner_margin(egui::Margin::symmetric(28, 24)),
-            )
-            .show(ctx, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        egui::RichText::new("MariPDF")
-                            .font(egui::FontId::new(
-                                32.0,
-                                egui::FontFamily::Name("Title".into()),
-                            ))
-                            .color(ACCENT_PRIMARY),
-                    );
-                    ui.label(
-                        egui::RichText::new(t!("about-version", version => version))
-                            .size(12.0)
-                            .color(TEXT_MUTED),
-                    );
-                    ui.add_space(10.0);
-                    ui.label(
-                        egui::RichText::new(t!("about-desc"))
-                            .size(13.5)
-                            .color(TEXT_PRIMARY),
-                    );
+        // ── Identidade ──────────────────────────────────────────────────────
+        ui.horizontal(|ui| {
+            let logo = crate::app_home::home_logo(ui.ctx());
+            ui.add(egui::Image::new(&logo).fit_to_exact_size(egui::vec2(LOGO_SIZE, LOGO_SIZE)));
+            ui.add_space(6.0);
+            ui.vertical(|ui| {
+                ui.add_space(4.0);
+                ui.label(
+                    egui::RichText::new("MariPDF")
+                        .font(egui::FontId::new(
+                            22.0,
+                            egui::FontFamily::Name("Title".into()),
+                        ))
+                        .color(tok.text),
+                );
+                ui.label(
+                    egui::RichText::new(t!("about-version", version => version))
+                        .size(12.0)
+                        .color(tok.muted),
+                );
+            });
+        });
+        ui.add_space(4.0);
+        ui.label(
+            egui::RichText::new(t!("about-desc"))
+                .size(13.0)
+                .color(tok.text),
+        );
 
-                    // ── Dedicatória ─────────────────────────────────────────
-                    ui.add_space(18.0);
-                    ui.label(egui::RichText::new("♥").size(18.0).color(ACCENT_LIGHT));
-                    ui.add_space(2.0);
+        // ── Dedicatória ─────────────────────────────────────────────────────
+        ui.add_space(6.0);
+        egui::Frame::new()
+            .fill(tok.accent.gamma_multiply(0.10))
+            .corner_radius(egui::CornerRadius::same(10))
+            .inner_margin(egui::Margin::symmetric(14, 10))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new("♥").size(15.0).color(tok.accent));
+                    ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new(t!("about-dedication"))
-                            .size(14.0)
+                            .size(13.0)
                             .italics()
-                            .color(TEXT_PRIMARY),
+                            .color(tok.text),
                     );
-
-                    // ── Autor ───────────────────────────────────────────────
-                    ui.add_space(18.0);
-                    ui.separator();
-                    ui.add_space(12.0);
-                    ui.label(
-                        egui::RichText::new(t!("about-author-title"))
-                            .size(10.5)
-                            .strong()
-                            .color(TEXT_MUTED),
-                    );
-                    ui.add_space(4.0);
-                    ui.label(
-                        egui::RichText::new(t!("about-author-name"))
-                            .size(16.0)
-                            .strong()
-                            .color(TEXT_PRIMARY),
-                    );
-                    ui.add_space(4.0);
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(t!("about-author-bio"))
-                                .size(12.5)
-                                .color(TEXT_MUTED),
-                        )
-                        .wrap(),
-                    );
-
-                    ui.add_space(12.0);
-                    ui.horizontal(|ui| {
-                        let links = [
-                            (t!("about-link-linkedin"), LINKEDIN_URL),
-                            (t!("about-link-evomind"), EVOMIND_URL),
-                            (t!("btn-github"), REPO_URL),
-                        ];
-                        // Centraliza a linha de links dentro do diálogo.
-                        let spacing = ui.spacing().item_spacing.x * 4.0;
-                        let estimate: f32 = links
-                            .iter()
-                            .map(|(label, _)| label.chars().count() as f32 * 7.0 + spacing)
-                            .sum();
-                        ui.add_space(((ui.available_width() - estimate) * 0.5).max(0.0));
-                        for (index, (label, url)) in links.into_iter().enumerate() {
-                            if index > 0 {
-                                ui.label(egui::RichText::new("·").color(TEXT_MUTED));
-                            }
-                            let link = ui
-                                .link(egui::RichText::new(label).size(12.5).color(ACCENT_PRIMARY));
-                            if link.on_hover_text(url).clicked() {
-                                let _ = open::that(url);
-                            }
-                        }
-                    });
-
-                    if let Some(url) = DONATION_URL {
-                        ui.add_space(8.0);
-                        if ui
-                            .link(
-                                egui::RichText::new(t!("about-donate"))
-                                    .size(12.5)
-                                    .color(ACCENT_LIGHT),
-                            )
-                            .clicked()
-                        {
-                            let _ = open::that(url);
-                        }
-                    }
-
-                    ui.add_space(14.0);
-                    self.update_section(ctx, ui);
-
-                    ui.add_space(16.0);
-                    ui.label(
-                        egui::RichText::new(t!("app-license"))
-                            .size(11.0)
-                            .color(TEXT_MUTED),
-                    );
-                    ui.add_space(14.0);
-                    if ui
-                        .button(egui::RichText::new(t!("btn-close")).size(13.0))
-                        .clicked()
-                    {
-                        close = true;
-                    }
                 });
             });
 
-        if close || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.open = false;
-        }
-    }
-}
+        // ── Autor ───────────────────────────────────────────────────────────
+        ui.add_space(10.0);
+        sec(ui, t!("about-author-title"), tok.subtle);
+        ui.label(
+            egui::RichText::new(t!("about-author-name"))
+                .size(15.0)
+                .strong()
+                .color(tok.text),
+        );
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(t!("about-author-bio"))
+                    .size(12.0)
+                    .color(tok.muted),
+            )
+            .wrap(),
+        );
+        ui.horizontal(|ui| {
+            let links = [
+                (t!("about-link-linkedin"), LINKEDIN_URL),
+                (t!("about-link-evomind"), EVOMIND_URL),
+                (t!("btn-github"), REPO_URL),
+            ];
+            for (index, (label, url)) in links.into_iter().enumerate() {
+                if index > 0 {
+                    ui.label(egui::RichText::new("·").color(tok.subtle));
+                }
+                let link = ui.link(egui::RichText::new(label).size(12.5).color(tok.accent));
+                if link.on_hover_text(url).clicked() {
+                    let _ = open::that(url);
+                }
+            }
+            if let Some(url) = DONATION_URL {
+                ui.label(egui::RichText::new("·").color(tok.subtle));
+                if ui
+                    .link(
+                        egui::RichText::new(t!("about-donate"))
+                            .size(12.5)
+                            .color(tok.accent),
+                    )
+                    .clicked()
+                {
+                    let _ = open::that(url);
+                }
+            }
+        });
 
-impl AboutState {
+        // ── Atualizações ────────────────────────────────────────────────────
+        ui.add_space(10.0);
+        sec(ui, t!("about-updates-title"), tok.subtle);
+        self.update_section(ui, tok);
+
+        ui.add_space(10.0);
+        ui.label(
+            egui::RichText::new(t!("app-license"))
+                .size(11.0)
+                .color(tok.subtle),
+        );
+    }
+
     /// Verificação manual de atualização (BF-606): nada vai à rede sem clique.
-    fn update_section(&mut self, ctx: &egui::Context, ui: &mut egui::Ui) {
+    fn update_section(&mut self, ui: &mut egui::Ui, tok: &Tokens) {
         use crate::updater::{self, UpdateState};
+        let ctx = ui.ctx().clone();
         self.update.poll();
-        let muted = |text: String| egui::RichText::new(text).size(12.0).color(TEXT_MUTED);
+        let muted = |text: String| egui::RichText::new(text).size(12.0).color(tok.muted);
         let mut action: Option<UpdateAction> = None;
 
         match &self.update {
@@ -187,17 +155,19 @@ impl AboutState {
                 });
             }
             UpdateState::UpToDate => {
-                ui.label(muted(t!("update-up-to-date")));
-                if ui.small_button(t!("update-check-again")).clicked() {
-                    action = Some(UpdateAction::Check);
-                }
+                ui.horizontal(|ui| {
+                    ui.label(muted(t!("update-up-to-date")));
+                    if ui.small_button(t!("update-check-again")).clicked() {
+                        action = Some(UpdateAction::Check);
+                    }
+                });
             }
             UpdateState::Available(release) => {
                 ui.label(
                     egui::RichText::new(t!("update-available", version => release.tag_name))
                         .size(13.0)
                         .strong()
-                        .color(TEXT_PRIMARY),
+                        .color(tok.text),
                 );
                 ui.horizontal(|ui| {
                     if updater::is_installed_copy()
@@ -224,7 +194,7 @@ impl AboutState {
                 }
             }
             UpdateState::Failed(message) => {
-                ui.label(egui::RichText::new(message).size(12.0).color(ACCENT_LIGHT));
+                ui.label(egui::RichText::new(message).size(12.0).color(tok.danger));
                 ui.horizontal(|ui| {
                     if ui.small_button(t!("update-check-again")).clicked() {
                         action = Some(UpdateAction::Check);
@@ -237,8 +207,8 @@ impl AboutState {
         }
 
         match action {
-            Some(UpdateAction::Check) => self.update.start_check(ctx),
-            Some(UpdateAction::Download(release)) => self.update.start_download(release, ctx),
+            Some(UpdateAction::Check) => self.update.start_check(&ctx),
+            Some(UpdateAction::Download(release)) => self.update.start_download(release, &ctx),
             Some(UpdateAction::Install(path)) => match updater::launch_installer(&path) {
                 // O instalador fecha a cópia em execução; sair libera o .exe.
                 Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
