@@ -22,7 +22,9 @@ $version = (Select-String -Path Cargo.toml -Pattern '^version\s*=\s*"(.+)"' | Se
 Write-Host "MariPDF $version"
 
 if (-not $SkipBuild) {
-    $lockArgs = if ($Locked) { @("--locked") } else { @() }
+    # @(...) garante um array: "--locked" sozinho viraria string e o
+    # splatting passaria cada caractere como argumento.
+    $lockArgs = @(if ($Locked) { "--locked" })
     cargo build --release @lockArgs
     if ($LASTEXITCODE -ne 0) { throw "cargo build --release falhou" }
 }
