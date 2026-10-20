@@ -180,7 +180,7 @@ impl MariApp {
             }
             Shot::Marks => {
                 self.side_panel = SidePanelKind::None;
-                self.open_properties();
+                self.open_properties(ctx);
                 Shot::Properties
             }
             Shot::Properties => {

@@ -219,7 +219,7 @@ impl MariApp {
             ToolbarAction::ToggleMark => self.toggle_mark(ctx),
             ToolbarAction::CopyPage => self.copy_page_image(ctx),
             ToolbarAction::ShowInFolder => self.show_in_folder(),
-            ToolbarAction::Properties => self.open_properties(),
+            ToolbarAction::Properties => self.open_properties(ctx),
         }
     }
 

@@ -107,6 +107,8 @@ pub struct MariApp {
     /// Páginas marcadas pelo usuário no documento atual (ordenadas).
     pub marks: Vec<usize>,
     pub properties: Option<crate::app_tools::DocProperties>,
+    /// Leitura de propriedades em andamento (thread à parte).
+    pub properties_rx: Option<std::sync::mpsc::Receiver<crate::app_tools::DocProperties>>,
     /// Cópia da página em andamento no worker.
     pub page_copy: Option<std::sync::mpsc::Receiver<crate::pdf::document_worker::JobCompletion>>,
 
@@ -175,6 +177,7 @@ impl MariApp {
             password_prompt: None,
             marks: Vec::new(),
             properties: None,
+            properties_rx: None,
             page_copy: None,
             bench: crate::bench::BenchRun::from_env(),
             soak: crate::soak::SoakRun::from_env(),
@@ -276,6 +279,7 @@ impl MariApp {
                 self.page_copy = None;
                 self.file_watch.reset(&path);
                 self.properties = None;
+                self.properties_rx = None;
                 let session = live
                     .clone()
                     .or_else(|| self.persistence.get(&path).cloned())

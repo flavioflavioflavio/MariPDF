@@ -36,6 +36,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         app.side_panel = SidePanelKind::None;
         // Diálogos e estado ligados ao documento fechado.
         app.properties = None;
+        app.properties_rx = None;
         app.page_copy = None;
         if app.password_prompt.as_ref().is_some_and(|p| p.reload) {
             app.password_prompt = None;
@@ -274,11 +275,12 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             app.copy_page_image(ctx);
         }
         if open_properties {
-            app.open_properties();
+            app.open_properties(ctx);
         }
     }
     app.poll_file_changes(ctx);
     app.poll_page_copy(ctx);
+    app.poll_properties();
 
     if select_all && app.engine.is_some() && !app.search_open && !app.goto_open {
         app.select_all_text(ctx);
@@ -296,7 +298,10 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     }
     let current_texture_is_visible =
         app.viewer.mode == ViewMode::SinglePage && app.viewer.loaded_page == Some(app.current_page);
-    if current_texture_is_visible && !app.page_links.is_empty() {
+    // Um diálogo por cima (senha, propriedades) fica com o clique: o link que
+    // estiver embaixo dele não pode navegar nem abrir URI.
+    let dialog_open = app.password_prompt.is_some() || app.properties.is_some();
+    if current_texture_is_visible && !app.page_links.is_empty() && !dialog_open {
         let maybe_click = ctx.input(|i| {
             if i.pointer.button_clicked(egui::PointerButton::Primary) {
                 i.pointer.interact_pos()

@@ -426,15 +426,44 @@ impl MariApp {
 
     // ── Propriedades ─────────────────────────────────────────────────────────
 
-    pub(crate) fn open_properties(&mut self) {
-        let (Some(engine), Some(path)) = (&self.engine, &self.current_file) else {
+    /// Lê os metadados numa thread à parte: o PDFium é serializado por um
+    /// mutex global e um job pesado do worker travaria a janela.
+    pub(crate) fn open_properties(&mut self, ctx: &egui::Context) {
+        let (Some(engine), Some(path)) = (self.engine.clone(), self.current_file.clone()) else {
             return;
         };
-        self.properties = Some(DocProperties {
-            info: engine.info(),
-            file_size: std::fs::metadata(path).map(|m| m.len()).unwrap_or(0),
-            page_size_pts: engine.page_size_pts(self.current_page),
-        });
+        let page = self.current_page;
+        let repaint = ctx.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let spawned = std::thread::Builder::new()
+            .name("maripdf-properties".into())
+            .spawn(move || {
+                let _ = tx.send(DocProperties {
+                    info: engine.info(),
+                    file_size: std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
+                    page_size_pts: engine.page_size_pts(page),
+                });
+                repaint.request_repaint();
+            });
+        match spawned {
+            Ok(_) => self.properties_rx = Some(rx),
+            Err(error) => tracing::warn!("propriedades: {error}"),
+        }
+    }
+
+    /// Mostra as propriedades quando a leitura termina.
+    pub(crate) fn poll_properties(&mut self) {
+        let Some(rx) = &self.properties_rx else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(props) => {
+                self.properties = Some(props);
+                self.properties_rx = None;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.properties_rx = None,
+        }
     }
 
     pub(crate) fn ui_properties(&mut self, ctx: &egui::Context) {
