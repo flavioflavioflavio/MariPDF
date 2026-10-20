@@ -181,11 +181,11 @@ impl MariApp {
             ToolbarAction::ToggleThumbs => self.toggle_side_panel(SidePanelKind::Thumbs),
             ToolbarAction::PrevPage if self.current_page > 0 => {
                 let page = self.current_page - 1;
-                self.go_to_page(ctx, page);
+                self.turn_page(ctx, page);
             }
             ToolbarAction::NextPage if self.current_page + 1 < self.page_count => {
                 let page = self.current_page + 1;
-                self.go_to_page(ctx, page);
+                self.turn_page(ctx, page);
             }
             ToolbarAction::PrevPage | ToolbarAction::NextPage => {}
             ToolbarAction::GoTo => {

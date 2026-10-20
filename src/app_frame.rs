@@ -467,11 +467,11 @@ impl MariApp {
             }
             FrameAction::Next if self.current_page + 1 < self.page_count => {
                 let page = self.current_page + 1;
-                self.go_to_page(ctx, page);
+                self.turn_page(ctx, page);
             }
             FrameAction::Prev if self.current_page > 0 => {
                 let page = self.current_page - 1;
-                self.go_to_page(ctx, page);
+                self.turn_page(ctx, page);
             }
             FrameAction::Next | FrameAction::Prev => {}
             FrameAction::GoTo => {

@@ -218,17 +218,17 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             let p = (app.current_page as i64 + page_delta as i64)
                 .clamp(0, app.page_count as i64 - 1) as usize;
             let c = ctx.clone();
-            app.go_to_page(&c, p);
+            app.turn_page(&c, p);
         }
         if go_next && app.current_page + 1 < app.page_count {
             let p = app.current_page + 1;
             let c = ctx.clone();
-            app.go_to_page(&c, p);
+            app.turn_page(&c, p);
         }
         if go_prev && app.current_page > 0 {
             let p = app.current_page - 1;
             let c = ctx.clone();
-            app.go_to_page(&c, p);
+            app.turn_page(&c, p);
         }
         if go_home {
             let c = ctx.clone();

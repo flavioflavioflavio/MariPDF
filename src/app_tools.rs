@@ -19,7 +19,9 @@ use std::time::SystemTime;
 const HISTORY_LIMIT: usize = 64;
 
 /// Pilhas de páginas para Alt+← / Alt+→. Só saltos (link, sumário, busca,
-/// ir para página) entram; virar uma página não polui o histórico.
+/// ir para página) entram: quem vira página usa `turn_page`, que não registra.
+/// A intenção vem de quem chama, não da distância (um salto do sumário para a
+/// página vizinha também conta).
 #[derive(Default, Debug)]
 pub struct NavHistory {
     back: Vec<usize>,
@@ -28,7 +30,7 @@ pub struct NavHistory {
 
 impl NavHistory {
     pub fn record(&mut self, from: usize, to: usize) {
-        if from.abs_diff(to) <= 1 {
+        if from == to {
             return;
         }
         if self.back.last() != Some(&from) {
@@ -118,7 +120,11 @@ impl FileWatch {
             return false;
         }
         if self.pending == Some(current) {
+            // Marca como tratada antes de recarregar: se a abertura falhar
+            // (PDF corrompido, senha nova cancelada), só uma nova mudança no
+            // disco dispara outra tentativa.
             self.pending = None;
+            self.stamp = Some(current);
             return true;
         }
         self.pending = Some(current);
@@ -626,13 +632,18 @@ mod tests {
     #[test]
     fn history_records_only_jumps_and_walks_both_ways() {
         let mut nav = NavHistory::default();
-        nav.record(3, 4); // virar página não entra
+        nav.record(4, 4); // mesma página não entra
         assert!(!nav.can_back());
+        nav.record(3, 4); // salto para a vizinha (sumário, ir para) entra
+        assert_eq!(nav.back(4), Some(3));
+        nav.forward(3);
         nav.record(4, 40); // salto
         nav.record(40, 90);
         assert_eq!(nav.back(90), Some(40));
         assert_eq!(nav.back(40), Some(4));
-        assert_eq!(nav.back(4), None);
+        assert_eq!(nav.back(4), Some(3));
+        assert_eq!(nav.back(3), None);
+        assert_eq!(nav.forward(3), Some(4));
         assert_eq!(nav.forward(4), Some(40));
         assert_eq!(nav.forward(40), Some(90));
         // Um salto novo descarta o "avançar".
@@ -654,6 +665,9 @@ mod tests {
         assert!(!watch.changed(&path, 12.0), "1ª observação só marca");
         assert!(!watch.changed(&path, 12.5), "antes do intervalo não checa");
         assert!(watch.changed(&path, 14.0), "estável: recarrega");
+        // Mesmo que a recarga falhe, o mesmo arquivo não é tentado de novo.
+        assert!(!watch.changed(&path, 16.0));
+        assert!(!watch.changed(&path, 18.0));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

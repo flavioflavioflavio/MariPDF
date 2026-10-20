@@ -40,6 +40,11 @@ impl MariApp {
         self.go_to_page_untracked(ctx, page);
     }
 
+    /// Virar página (anterior/próxima, roda, setas): não entra no histórico.
+    pub(crate) fn turn_page(&mut self, ctx: &egui::Context, page: usize) {
+        self.go_to_page_untracked(ctx, page);
+    }
+
     /// Navegação sem registrar no histórico (o próprio Voltar/Avançar).
     pub(crate) fn go_to_page_untracked(&mut self, ctx: &egui::Context, page: usize) {
         let page = page.min(self.page_count.saturating_sub(1));

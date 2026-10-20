@@ -206,6 +206,15 @@ impl MariApp {
         reload: bool,
     ) -> bool {
         tracing::info!("Abrindo: {}", path.display());
+        // Na recarga o estado vem do documento aberto agora, não do histórico
+        // (que pode estar desligado ou desatualizado).
+        let live = reload.then(|| FileSession {
+            last_page: self.current_page,
+            zoom: self.viewer.zoom,
+            last_opened: 0,
+            rotation: self.viewer.rotation,
+            marks: self.marks.clone(),
+        });
         let open_started = std::time::Instant::now();
         let opened =
             get_pdfium().and_then(|p| PdfEngine::open_with_password(&path, p, password.as_deref()));
@@ -261,7 +270,10 @@ impl MariApp {
                 self.doc_password = password;
                 self.file_watch.reset(&path);
                 self.properties = None;
-                let session = self.persistence.get(&path).cloned().unwrap_or_default();
+                let session = live
+                    .clone()
+                    .or_else(|| self.persistence.get(&path).cloned())
+                    .unwrap_or_default();
                 if session.zoom > 0.0 {
                     self.viewer.zoom = session.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
                     self.current_page = session.last_page.min(page_count.saturating_sub(1));
