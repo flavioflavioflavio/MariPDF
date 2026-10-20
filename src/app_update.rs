@@ -113,8 +113,14 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     let (mut nav_back, mut nav_forward, mut rotate_cw, mut rotate_ccw) =
         (false, false, false, false);
     let (mut toggle_mark, mut copy_page, mut open_properties) = (false, false, false);
+    // Com o campo de senha aberto, setas/Home/End editam o texto: nenhum
+    // atalho do leitor pode mexer no documento por baixo.
+    let modal = app.password_prompt.is_some();
 
     ctx.input(|i| {
+        if modal {
+            return;
+        }
         let ctrl = i.modifiers.ctrl;
         let shift = i.modifiers.shift;
         let alt = i.modifiers.alt;
@@ -271,6 +277,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         }
     }
     app.poll_file_changes(ctx);
+    app.poll_page_copy(ctx);
 
     if select_all && app.engine.is_some() && !app.search_open && !app.goto_open {
         app.select_all_text(ctx);
@@ -302,7 +309,16 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
                 let page_size = engine.page_size_pts(app.current_page);
                 let mapping = PageMapping::new(page_rect, page_size, app.viewer.rotation);
                 if let Some(link) = hit_test_link(&app.page_links, click_pos, &mapping) {
-                    let _ = open::that(&link.uri);
+                    match link.page {
+                        // Link interno: salto registrado no histórico.
+                        Some(page) => {
+                            let c = ctx.clone();
+                            app.go_to_page(&c, page);
+                        }
+                        None => {
+                            let _ = open::that(&link.uri);
+                        }
+                    }
                 }
             }
         }
@@ -433,6 +449,7 @@ mod tests {
     fn link(uri: &str, rect: [f32; 4]) -> PdfLinkInfo {
         PdfLinkInfo {
             uri: uri.to_string(),
+            page: None,
             rect,
         }
     }

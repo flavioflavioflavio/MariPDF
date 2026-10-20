@@ -34,11 +34,14 @@ pub struct SearchPage {
     pub height_pts: f32,
 }
 
-/// Informação sobre um link URI encontrado numa página PDF.
+/// Link encontrado numa página PDF: externo (URI) ou interno (página).
 /// Coordenadas em pontos PDF (sistema pdfium: origem = canto inferior esquerdo).
 #[derive(Debug, Clone)]
 pub struct PdfLinkInfo {
+    /// URI externa; vazia em links internos.
     pub uri: String,
+    /// Página de destino de um link interno (GoTo).
+    pub page: Option<usize>,
     /// Rect em pontos PDF: [left, bottom, right, top] (origem canto inf-esq)
     pub rect: [f32; 4],
 }
@@ -139,9 +142,9 @@ pub fn extract_search_page(
     })
 }
 
-// ── Links URI ─────────────────────────────────────────────────────────────────
+// ── Links ─────────────────────────────────────────────────────────────────────
 
-/// Extrai todos os links URI de uma página.
+/// Extrai os links (externos e internos) de uma página.
 pub fn extract_page_links(doc: &PdfDocument<'static>, page_index: usize) -> Vec<PdfLinkInfo> {
     let page = match doc.pages().get(page_index as u16) {
         Ok(p) => p,
@@ -151,15 +154,23 @@ pub fn extract_page_links(doc: &PdfDocument<'static>, page_index: usize) -> Vec<
     let mut links = Vec::new();
 
     for link in page.links().iter() {
-        let uri = match link.action() {
-            Some(action) => match action.as_uri_action() {
-                Some(ua) => match ua.uri() {
-                    Ok(u) => u,
-                    Err(_) => continue,
-                },
-                None => continue,
-            },
-            None => continue,
+        // Destino direto, ação GoTo local ou URI externa; o resto é ignorado.
+        let direct = link.destination().and_then(|d| d.page_index().ok());
+        let (uri, page) = match (direct, link.action()) {
+            (Some(index), _) => (String::new(), Some(index as usize)),
+            (None, Some(action)) => {
+                if let Some(local) = action.as_local_destination_action() {
+                    match local.destination().and_then(|d| d.page_index()) {
+                        Ok(index) => (String::new(), Some(index as usize)),
+                        Err(_) => continue,
+                    }
+                } else if let Some(Ok(uri)) = action.as_uri_action().map(|ua| ua.uri()) {
+                    (uri, None)
+                } else {
+                    continue;
+                }
+            }
+            (None, None) => continue,
         };
 
         let rect = match link.rect() {
@@ -172,7 +183,7 @@ pub fn extract_page_links(doc: &PdfDocument<'static>, page_index: usize) -> Vec<
             Err(_) => continue,
         };
 
-        links.push(PdfLinkInfo { uri, rect });
+        links.push(PdfLinkInfo { uri, page, rect });
     }
 
     links

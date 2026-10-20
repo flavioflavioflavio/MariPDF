@@ -107,6 +107,8 @@ pub struct MariApp {
     /// Páginas marcadas pelo usuário no documento atual (ordenadas).
     pub marks: Vec<usize>,
     pub properties: Option<crate::app_tools::DocProperties>,
+    /// Cópia da página em andamento no worker.
+    pub page_copy: Option<std::sync::mpsc::Receiver<crate::pdf::document_worker::JobCompletion>>,
 
     // Medidor/smoke test embutido (BF-002/BF-007), só com MARIPDF_BENCH
     pub bench: Option<crate::bench::BenchRun>,
@@ -173,6 +175,7 @@ impl MariApp {
             password_prompt: None,
             marks: Vec::new(),
             properties: None,
+            page_copy: None,
             bench: crate::bench::BenchRun::from_env(),
             soak: crate::soak::SoakRun::from_env(),
             showcase: crate::showcase::ShowcaseRun::from_env(),
@@ -268,6 +271,7 @@ impl MariApp {
                 self.thumb_cache = (self.side_panel == SidePanelKind::Thumbs)
                     .then(|| ThumbCache::new(page_count, scheduler.clone()));
                 self.doc_password = password;
+                self.password_prompt = None;
                 self.file_watch.reset(&path);
                 self.properties = None;
                 let session = live

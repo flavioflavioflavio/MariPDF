@@ -6,6 +6,7 @@
 
 use crate::app::{MariApp, Toast};
 use crate::app_constants::{BG_SURFACE, TEXT_MUTED, TEXT_PRIMARY};
+use crate::pdf::document_worker::{DocumentJobOutput, JobOutcome, JobPriority};
 use crate::pdf::engine::DocumentInfo;
 use crate::t;
 use crate::ui::icons;
@@ -132,6 +133,9 @@ impl FileWatch {
     }
 }
 
+/// Escala do render copiado: 2 px por ponto = 144 dpi.
+const COPY_SCALE: f32 = 2.0;
+
 // ── Senha ─────────────────────────────────────────────────────────────────────
 
 pub struct PasswordPrompt {
@@ -242,27 +246,62 @@ impl MariApp {
 
     // ── Copiar / pasta ───────────────────────────────────────────────────────
 
-    /// Copia a página atual como imagem (144 dpi, cores originais).
+    /// Copia a página atual como imagem (144 dpi, cores originais). O render
+    /// vai para o worker; a imagem chega em `poll_page_copy`.
     pub(crate) fn copy_page_image(&mut self, ctx: &egui::Context) {
-        let Some(engine) = self.engine.clone() else {
+        let Some(worker) = &self.document_worker else {
             return;
         };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let page = self.current_page;
+        if worker
+            .handle()
+            .request_render(page, COPY_SCALE, JobPriority::Immediate, tx)
+        {
+            self.page_copy = Some(rx);
+        } else {
+            let now = ctx.input(|i| i.time);
+            self.toast = Some(Toast::error(t!("toast-page-copy-failed"), 4.0, now));
+        }
+    }
+
+    /// Entrega a cópia da página quando o render termina.
+    pub(crate) fn poll_page_copy(&mut self, ctx: &egui::Context) {
+        let Some(rx) = &self.page_copy else {
+            return;
+        };
+        let completion = match rx.try_recv() {
+            Ok(completion) => completion,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.page_copy = None;
+                return;
+            }
+        };
+        self.page_copy = None;
         let now = ctx.input(|i| i.time);
-        match engine.render_page(self.current_page, 2.0) {
-            Ok(page) => {
+        match completion.outcome {
+            JobOutcome::Ready(DocumentJobOutput::Render {
+                page_index, page, ..
+            }) => {
                 let image = egui::ColorImage::from_rgba_unmultiplied(
                     [page.width as usize, page.height as usize],
                     &page.rgba,
                 );
                 ctx.copy_image(image);
                 self.toast = Some(Toast::info(
-                    t!("toast-page-copied", page => self.current_page + 1),
+                    t!("toast-page-copied", page => page_index + 1),
                     2.5,
                     now,
                 ));
             }
-            Err(error) => {
+            JobOutcome::Cancelled => {}
+            JobOutcome::Failed(error) => {
                 tracing::warn!("copiar página: {error}");
+                self.toast = Some(Toast::error(t!("toast-page-copy-failed"), 4.0, now));
+            }
+            JobOutcome::Ready(_) => {
+                tracing::warn!("copiar página: resultado de tipo inesperado");
                 self.toast = Some(Toast::error(t!("toast-page-copy-failed"), 4.0, now));
             }
         }

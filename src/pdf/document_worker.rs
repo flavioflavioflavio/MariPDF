@@ -509,7 +509,8 @@ fn execute_job(engine: &PdfEngine, kind: JobKind) -> anyhow::Result<JobOutcome> 
             page_index,
             height_px,
         } => {
-            let (_, height_pts) = engine.page_size_pts(page_index);
+            // Altura como exibida: com 90°/270° é a largura original.
+            let (_, height_pts) = engine.display_size_pts(page_index);
             let scale = if height_pts > 0.0 {
                 height_px as f32 / height_pts
             } else {
