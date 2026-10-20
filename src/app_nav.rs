@@ -9,7 +9,7 @@ impl MariApp {
     /// Visual da página segundo o perfil de cor escolhido e o tema atual.
     pub(crate) fn page_look(&self) -> crate::reader_profile::PageLook {
         crate::reader_profile::page_look(
-            self.settings.reader_profile,
+            self.settings.page_styles,
             self.color_mode,
             self.settings.palette.0,
         )

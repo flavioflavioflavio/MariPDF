@@ -35,8 +35,9 @@ pub struct AppSettings {
     pub language: Language,
     #[serde(default)]
     pub theme: ThemePreference,
+    /// Página escolhida para cada tema (sempre coerente com ele).
     #[serde(default)]
-    pub reader_profile: crate::reader_profile::ReaderProfile,
+    pub page_styles: crate::reader_profile::PageStyles,
 }
 
 impl Default for AppSettings {
@@ -53,7 +54,7 @@ impl Default for AppSettings {
             palette: ColorPalette::default(),
             language: Language::default(),
             theme: ThemePreference::default(),
-            reader_profile: crate::reader_profile::ReaderProfile::default(),
+            page_styles: crate::reader_profile::PageStyles::default(),
         }
     }
 }

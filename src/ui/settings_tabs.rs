@@ -4,12 +4,13 @@
 
 use crate::app::ColorMode;
 use crate::pdf::persistence::PersistenceManager;
+use crate::reader_profile::PageChoice;
 use crate::settings::{
     AppSettings, ColorPalette, DefaultPanel, FontChoice, Language, PageMargin, RenderQuality,
     ThemePreference, UiScale,
 };
 use crate::t;
-use crate::ui::settings_widgets::{action_btn, chip, divider, sec, toggle_row, Tokens};
+use crate::ui::settings_widgets::{action_btn, chip, divider, page_chip, sec, toggle_row, Tokens};
 use eframe::egui;
 
 // ── Tab: Aparência ─────────────────────────────────────────────────────────────
@@ -84,6 +85,25 @@ pub(super) fn tab_appearance(
         }
     });
 
+    // Página do tema atual: as opções mudam com o tema e sempre combinam.
+    ui.add_space(18.0);
+    sec(ui, t!("settings-page-style"), tok.subtle);
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(10.0, 10.0);
+        let mode = *color_mode;
+        let current = PageChoice::current(settings.page_styles, mode);
+        for choice in PageChoice::options(mode) {
+            let (paper, ink) = choice.look(mode, settings.palette.0).preview();
+            let selected = choice == current;
+            if page_chip(ui, &choice.label(), paper, ink, selected, tok).clicked() && !selected {
+                choice.apply(&mut settings.page_styles);
+                // Texturas já filtradas precisam ser refeitas com a nova página.
+                *needs_render_reload = true;
+                settings.save();
+            }
+        }
+    });
+
     ui.add_space(18.0);
     sec(ui, t!("settings-language"), tok.subtle);
     ui.horizontal(|ui| {
@@ -107,21 +127,6 @@ pub(super) fn tab_reading(
     needs_render_reload: &mut bool,
     tok: &Tokens,
 ) {
-    sec(ui, t!("settings-reader-profile"), tok.subtle);
-    ui.horizontal_wrapped(|ui| {
-        ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
-        for profile in crate::reader_profile::ReaderProfile::all() {
-            let sel = settings.reader_profile == profile;
-            if chip(ui, &profile.label(), sel, tok).clicked() && !sel {
-                settings.reader_profile = profile;
-                // Texturas já filtradas precisam ser refeitas com o novo perfil.
-                *needs_render_reload = true;
-                settings.save();
-            }
-        }
-    });
-
-    ui.add_space(18.0);
     sec(ui, t!("settings-page-margin"), tok.subtle);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);

@@ -211,15 +211,18 @@ update-err-signature = Invalid update signature — download discarded.
 update-err-hash = Downloaded file does not match the signed list — discarded.
 update-err-io = Could not save or start the installer.
 
-# Perfis de cor da página
-settings-reader-profile = Page color
-profile-auto = Automatic
-profile-original = Original
-profile-new-book = New book
-profile-sepia = Sepia
-profile-soft-gray = Soft gray
-profile-mono = Black & white
-profile-night = Night
+# Página de cada tema
+settings-page-style = Theme page
+page-night = Night
+page-warm-night = Warm night
+page-deep = Deep black
+page-original = Original
+page-new-book = New book
+page-soft-gray = Soft gray
+page-mono = Black & white
+page-sepia = Sepia
+page-parchment = Old paper
+page-soft-sepia = Soft sepia
 
 # Reading tools
 toolbar-more-hint = More options

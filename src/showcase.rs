@@ -7,7 +7,7 @@
 
 use crate::app::MariApp;
 use crate::app_reader::SidePanelKind;
-use crate::reader_profile::ReaderProfile;
+use crate::reader_profile::{DarkPage, PageChoice};
 use crate::ui::viewer::ViewMode;
 use eframe::egui;
 use std::path::PathBuf;
@@ -31,10 +31,10 @@ enum Shot {
     Rotated,
     Marks,
     Properties,
-    ProfileMono,
-    ProfileNewBook,
-    ProfileNight,
-    ReadingTab,
+    PageWarm,
+    PageDeep,
+    PageNight,
+    Appearance,
     Password,
     Gif(usize),
     Done,
@@ -185,24 +185,23 @@ impl MariApp {
             }
             Shot::Properties => {
                 self.properties = None;
-                self.set_reader_profile(ctx, ReaderProfile::Mono);
-                Shot::ProfileMono
+                self.set_page(ctx, PageChoice::Dark(DarkPage::WarmNight));
+                Shot::PageWarm
             }
-            Shot::ProfileMono => {
-                self.set_reader_profile(ctx, ReaderProfile::NewBook);
-                Shot::ProfileNewBook
+            Shot::PageWarm => {
+                self.set_page(ctx, PageChoice::Dark(DarkPage::Deep));
+                Shot::PageDeep
             }
-            Shot::ProfileNewBook => {
-                self.set_reader_profile(ctx, ReaderProfile::Night);
-                Shot::ProfileNight
+            Shot::PageDeep => {
+                self.set_page(ctx, PageChoice::Dark(DarkPage::Night));
+                Shot::PageNight
             }
-            Shot::ProfileNight => {
-                self.set_reader_profile(ctx, ReaderProfile::Auto);
+            Shot::PageNight => {
                 self.settings_open = true;
-                crate::ui::settings_panel::select_reading_tab(ctx);
-                Shot::ReadingTab
+                crate::ui::settings_panel::select_appearance_tab(ctx);
+                Shot::Appearance
             }
-            Shot::ReadingTab => {
+            Shot::Appearance => {
                 self.settings_open = false;
                 // PDF com senha opcional: MARIPDF_SHOWCASE_LOCKED=<pdf>.
                 match std::env::var_os("MARIPDF_SHOWCASE_LOCKED") {
@@ -232,8 +231,8 @@ impl MariApp {
 }
 
 impl MariApp {
-    fn set_reader_profile(&mut self, ctx: &egui::Context, profile: ReaderProfile) {
-        self.settings.reader_profile = profile;
+    fn set_page(&mut self, ctx: &egui::Context, choice: PageChoice) {
+        choice.apply(&mut self.settings.page_styles);
         self.invalidate_render(ctx);
     }
 

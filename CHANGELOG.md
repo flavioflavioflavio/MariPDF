@@ -22,8 +22,12 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 - Mostrar na pasta e copiar a página como imagem (Ctrl+Shift+C).
 - Marcadores do usuário (Ctrl+D), listados no topo do painel de sumário.
 - Menu ⋯ na barra com todas essas ações e seus atalhos.
-- Perfis de cor da página (Configurações → Leitura): Automático, Original,
-  Livro novo, Sépia, Cinza suave, Preto e branco e Noturno.
+- Página de cada tema (Configurações → Aparência), sempre coerente com ele:
+  escuro tem Noturno, Noturno quente e Preto profundo; claro tem Original,
+  Livro novo, Cinza suave e Preto e branco; sépia tem Sépia, Papel antigo e
+  Sépia suave. A escolha fica guardada por tema e o seletor mostra uma
+  miniatura de cada página.
+- Conteúdo das Configurações rola dentro da janela em telas baixas.
 
 ### Corrigido
 

@@ -211,15 +211,18 @@ update-err-signature = Assinatura da atualização inválida — download descar
 update-err-hash = O arquivo baixado não confere com a lista assinada — descartado.
 update-err-io = Não foi possível salvar ou iniciar o instalador.
 
-# Perfis de cor da página
-settings-reader-profile = Cor da página
-profile-auto = Automático
-profile-original = Original
-profile-new-book = Livro novo
-profile-sepia = Sépia
-profile-soft-gray = Cinza suave
-profile-mono = Preto e branco
-profile-night = Noturno
+# Página de cada tema
+settings-page-style = Página do tema
+page-night = Noturno
+page-warm-night = Noturno quente
+page-deep = Preto profundo
+page-original = Original
+page-new-book = Livro novo
+page-soft-gray = Cinza suave
+page-mono = Preto e branco
+page-sepia = Sépia
+page-parchment = Papel antigo
+page-soft-sepia = Sépia suave
 
 # Ferramentas de leitura
 toolbar-more-hint = Mais opções
