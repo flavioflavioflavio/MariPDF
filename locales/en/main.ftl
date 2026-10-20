@@ -4,15 +4,21 @@
 app-name = MariPDF
 app-tagline = Ultra-light PDF reader for Windows
 app-tagline-sub = Fast, portable, no installation.
-app-license = GPLv3 License  •  © 2026 Flávio Marcílio
+app-license = GPLv3 License  •  © 2026 Flávio Takemoto
 btn-close = Close
 btn-open = Open PDF…
-btn-github = 🔗  GitHub
+btn-github = Source on GitHub
 
 ## About
 about-title = About MariPDF
-about-desc = Ultra-light PDF reader for Windows.
+about-desc = A fast, focused PDF reader for Windows.
 about-version = Version { $version }
+about-dedication = Dedicated to Mariana Lima, with all my love.
+about-author-title = CREATED BY
+about-author-name = Flávio Takemoto
+about-author-bio = Art director, motion designer and digital product maker with 15+ years across design, technology and communication. Founder of EvoMind, a visual AI workspace.
+about-link-linkedin = LinkedIn
+about-link-evomind = EvoMind
 
 ## Toolbar
 toolbar-back-hint = Back (closes the PDF)
@@ -44,6 +50,7 @@ home-search-placeholder = Search recents…
 overlay-goto-label = Go to page:
 overlay-goto-hint = Enter → confirm  •  Esc → close
 overlay-search-placeholder = Search in PDF…
+overlay-search-partial = { $count } page(s) unreadable
 overlay-search-no-results = No results
 overlay-search-hint = Enter → next  •  Shift+Enter → prev  •  Esc → close
 
@@ -86,10 +93,13 @@ settings-cancel-btn = Cancel
 ## Settings — Windows Integration
 settings-windows = Windows Integration
 settings-assoc-title = Open .pdf with MariPDF
-settings-assoc-set-btn = Set as Default
+settings-assoc-set-btn = Set as default
 settings-assoc-remove-btn = Remove
+settings-assoc-change-btn = Change in Windows
 settings-assoc-active = ✓ MariPDF is the default PDF reader
-settings-assoc-inactive = Set as default reader for .pdf files
+settings-assoc-inactive = Register MariPDF to open .pdf files
+settings-assoc-choose = In Windows Settings, choose MariPDF for .pdf
+settings-assoc-pending = Registered — choose MariPDF in Windows to finish
 
 ## Errors / Toast
 err-pdf-password = 🔒 Password-protected PDF — not supported yet
@@ -170,3 +180,30 @@ palette-sepia-3 = Old Rose
 sel-copy = Copy (Ctrl+C)
 sel-select-all = Select all (Ctrl+A)
 page-render-failed = Could not display page { $page }
+
+## Persistência e integração
+storage-save-failed = Could not save { $what }: { $error }
+storage-read-failed = Could not read { $what } ({ $error }); using defaults this session without overwriting the file
+storage-recovered = { $what } was corrupted and was reset to defaults (backup kept next to it)
+storage-what-settings = the settings
+storage-what-session = the reading history
+storage-what-window = the window position
+settings-assoc-failed = Could not change the .pdf association: { $error }
+
+## Atualização
+about-donate = ♥ Support MariPDF
+update-check = Check for updates
+update-check-again = Check again
+update-checking = Checking…
+update-up-to-date = ✓ You are on the latest version
+update-available = New version available: { $version }
+update-download-install = Download and install
+update-open-page = See the release on GitHub
+update-downloading = Downloading and verifying { $version }…
+update-verified = Installer downloaded and signature verified.
+update-install-now = Install now
+update-err-network = Could not check for updates (offline?).
+update-err-no-installer = This release has no installer to download.
+update-err-signature = Invalid update signature — download discarded.
+update-err-hash = Downloaded file does not match the signed list — discarded.
+update-err-io = Could not save or start the installer.

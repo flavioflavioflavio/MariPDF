@@ -11,6 +11,12 @@ impl MariApp {
             return;
         }
         self.render_error = None;
+        // Antes do 1º frame do viewer, a largura do painel central (ou o seu
+        // padrão) é a melhor estimativa da área útil para limitar o bitmap.
+        if self.viewer.usable_width <= 0.0 {
+            self.viewer.usable_width =
+                (self.available_width - self.settings.page_margin.px() * 2.0).max(0.0);
+        }
         self.viewer.page_margin = self.settings.page_margin.px();
         self.viewer.smooth_scroll = self.settings.smooth_scroll;
         self.viewer

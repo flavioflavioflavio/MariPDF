@@ -276,6 +276,9 @@ mod tests {
         const KEY_PREFIXES: [&str; 6] = [
             "scale-", "quality-", "margin-", "panel-", "palette-", "theme-",
         ];
+        let _guard = crate::i18n::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         for language in crate::i18n::Language::all() {
             crate::i18n::init(language);
             let mut labels: Vec<String> = Vec::new();

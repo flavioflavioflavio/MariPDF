@@ -4,6 +4,7 @@
 use crate::app::{MariApp, ACCENT_PRIMARY, BG_SURFACE, TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE};
 use crate::pdf::text_search::SearchHit;
 use crate::t;
+use crate::ui::icons;
 use crate::ui::viewer::{SearchHighlight, ViewMode};
 use eframe::egui;
 
@@ -82,6 +83,7 @@ impl MariApp {
         }
 
         let total_hits = self.search.hits.len();
+        let failed_pages = self.search.failed_pages;
         let current_idx = self.search.current_hit;
         let is_running = self.search.is_running;
         let query_snap = self.search.query.clone();
@@ -158,15 +160,37 @@ impl MariApp {
                                 );
                             }
 
+                            if failed_pages > 0 && !is_running {
+                                // Resultado incompleto não pode parecer "sem resultados".
+                                ui.add_space(6.0);
+                                ui.label(
+                                    egui::RichText::new(t!(
+                                        "overlay-search-partial",
+                                        count => failed_pages
+                                    ))
+                                    .size(11.0)
+                                    .color(egui::Color32::from_rgb(220, 150, 60)),
+                                );
+                            }
+
                             ui.add_space(8.0);
-                            if ui.small_button("◀").clicked() {
+                            if ui
+                                .small_button(icons::ph(icons::CARET_LEFT, 13.0, TEXT_PRIMARY))
+                                .clicked()
+                            {
                                 go_prev = true;
                             }
-                            if ui.small_button("▶").clicked() {
+                            if ui
+                                .small_button(icons::ph(icons::CARET_RIGHT, 13.0, TEXT_PRIMARY))
+                                .clicked()
+                            {
                                 go_next = true;
                             }
                             ui.add_space(4.0);
-                            if ui.small_button("✕").clicked() {
+                            if ui
+                                .small_button(icons::ph(icons::X, 13.0, TEXT_PRIMARY))
+                                .clicked()
+                            {
                                 do_close = true;
                             }
                         });

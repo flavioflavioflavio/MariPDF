@@ -3,9 +3,14 @@
 Mudanças relevantes do MariPDF são registradas neste arquivo.
 
 O formato segue [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) e o
-versionamento seguirá [Semantic Versioning](https://semver.org/).
+versionamento segue [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [1.0.0-rc.1] — 2026-10-19
+
+Primeira release candidate da v1.0. Fecha o roadmap Blazing Fast (BF-0 a BF-7);
+tiles por região ficam para a v1.1 (decisão medida em `doc/benchmarks/bf3-tiles-spike.md`).
 
 ### Added
 
@@ -40,6 +45,13 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Distribuição: EXE portátil e instalador **por usuário** (sem admin/UAC), com
+  ícone, metadados de versão, associação `.pdf` moderna (Capabilities +
+  Aplicativos padrão), upgrade que fecha o app aberto e downgrade bloqueado.
+- Atualização manual em *Sobre*: só consulta a rede ao clicar, baixa o
+  instalador e só executa com assinatura Ed25519 e hash válidos.
+- Release por tag gera portátil, instalador, SBOM CycloneDX, SHA256SUMS
+  assinado e manifestos Winget num rascunho de release.
 - Toolbar redesenhada em três zonas (documento, página centralizada e
   visualização), com um único estilo de botão, hover por baixo do ícone, grupos
   para página/zoom/modo, menu de zoom (100%, ajustar largura, ajustar página) e
@@ -50,6 +62,11 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
   Ctrl+A seleciona a página e Esc limpa.
 - Scroll Suave passa a valer de fato no modo contínuo: ligado anima saltos de
   página; desligado aplica a roda instantaneamente.
+- Rasterização limitada ao tamanho realmente exibido: zoom além da largura da
+  janela não gera bitmaps maiores (4× menos pixels e 2,7–4,5× mais rápido a
+  400%); bitmaps pequenos demais são re-renderizados ao ampliar a janela.
+- Backend gráfico padrão passa a ser DX12 (GL de reserva) em GPU de baixo
+  consumo: ~95 MB a menos de memória e ~90 ms a menos até o primeiro frame.
 - Qualidade de render agora é relativa ao pixel físico (0,75× a 2×) e só muda a
   nitidez; 100% de zoom equivale ao tamanho físico do documento.
 - A janela reabre com a posição, o tamanho e a maximização reais da sessão
@@ -91,6 +108,16 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Configurações, sessões e janela agora usam escrita atômica (temp → sync →
+  rename); TOML corrompido é movido para `*.corrupt-<unix>.toml`, o app volta ao
+  padrão e avisa. Falhas de gravação e da associação `.pdf` viram toasts.
+- PDF protegido por senha, corrompido ou ausente mostra a mensagem certa;
+  caminhos Unicode abrem normalmente (testado com fixtures versionadas).
+- Panic em job do worker vira falha daquele job (`panic = "unwind"`), sem
+  derrubar o app nem envenenar o lock do PDFium; páginas com dimensões
+  inválidas são recusadas com erro claro.
+- A `pdfium.dll` extraída é validada pelo conteúdo inteiro (não só tamanho) e
+  gravada atomicamente.
 - A qualidade de render alterava o tamanho da página na tela e telas HiDPI
   recebiam bitmaps ampliados; zoom alto em Ultra podia exceder o limite de
   textura da GPU.
@@ -106,11 +133,14 @@ versionamento seguirá [Semantic Versioning](https://semver.org/).
 
 ### Known limitations
 
-- Algumas configurações ainda não controlam integralmente o comportamento.
-- Não há instalador, auto-update ou release pública suportada.
-- O corpus de PDFs e os benchmarks controlados ainda estão sendo construídos.
+- Binários sem assinatura Authenticode: o SmartScreen avisa na primeira
+  execução (integridade garantida por SHA256SUMS assinado com Ed25519).
+- Instalador validado no Windows 11; Windows 10 ainda não passou pela matriz RC.
+- Tiles por região e zoom horizontal além da largura da janela ficam para a v1.1.
+- PDFium roda no mesmo processo (ADR-007): crash nativo do motor fecha o app.
+- Seleção de texto com destaque visual só no modo página única.
 
 ## [1.0.0] — planejada
 
-A release será criada somente quando o Definition of Done do roadmap BF estiver
-integralmente atendido.
+Publicada a partir da RC quando a matriz RC (incluindo Windows 10) estiver
+completa e não houver bloqueadores abertos.

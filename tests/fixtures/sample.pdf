@@ -1,0 +1,50 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Length 170 >>
+stream
+BT /F1 14 Tf
+1 0 0 1 72 700 Tm (Leitor de PDF MariPDF) Tj
+1 0 0 1 72 680 Tm (Busca com destaque na pagina) Tj
+1 0 0 1 72 660 Tm (segunda linha com MariPDF de novo) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 3 0 R >> >> >>
+endobj
+6 0 obj
+<< /Length 100 >>
+stream
+BT /F1 14 Tf
+1 0 0 1 72 700 Tm (Pagina dois do documento de teste) Tj
+1 0 0 1 72 680 Tm (fim) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 3 0 R >> >> >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000191 00000 n 
+0000000411 00000 n 
+0000000537 00000 n 
+0000000687 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+813
+%%EOF

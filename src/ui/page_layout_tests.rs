@@ -67,3 +67,16 @@ fn dominant_page_has_largest_visible_area() {
 
     assert_eq!(layout.dominant_page(split - 100.0, split + 600.0), 1);
 }
+
+#[test]
+fn unseen_pages_are_still_capped_by_an_estimated_width() {
+    let mut layout = PageLayout::new();
+    layout.ensure_page_count(3);
+    let density = 1.25;
+    let unseen = crate::ui::viewer::page_raster_scale(&layout, 2, 4.0, 1200.0, density);
+    let uncapped = crate::ui::page_scale::raster_scale(4.0, density);
+    assert!(
+        unseen < uncapped * 0.5,
+        "página nunca vista não pode pedir o zoom cheio"
+    );
+}

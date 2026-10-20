@@ -24,9 +24,8 @@ fn configured_filter() -> EnvFilter {
 /// Inicializa o sistema de logging.
 /// Retorna o `WorkerGuard` do appender — manter vivo até o fim do processo.
 pub fn init() -> Option<tracing_appender::non_blocking::WorkerGuard> {
-    let log_dir = dirs::data_local_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("maripdf");
+    // Mesmo diretório do estado local (respeita MARIPDF_DATA_DIR).
+    let log_dir = crate::storage::local_dir();
 
     // Cria o diretório se não existir
     if std::fs::create_dir_all(&log_dir).is_err() {

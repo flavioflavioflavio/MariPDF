@@ -25,12 +25,26 @@ impl ScrollTween {
         }
     }
 
+    /// Mantém o andamento e troca o destino: usado quando o layout muda no
+    /// meio do salto (páginas que terminam de renderizar mudam de altura).
+    pub(crate) fn retarget(&mut self, to: f32) {
+        self.to = to;
+    }
+
     /// Offset no instante `now` e se a animação terminou.
     pub(crate) fn sample(&self, now: f64) -> (f32, bool) {
         let t = ((now - self.started) / JUMP_SECS).clamp(0.0, 1.0) as f32;
         let eased = 1.0 - (1.0 - t).powi(3);
         (self.from + (self.to - self.from) * eased, t >= 1.0)
     }
+}
+
+/// Destino de uma navegação programática, guardado para ser recalculado se
+/// o layout mudar antes de a animação terminar.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum NavGoal {
+    Page(usize),
+    Anchor(crate::ui::page_layout::LayoutAnchor),
 }
 
 /// Offset após um passo de roda sem suavização (delta positivo sobe a página).
@@ -66,6 +80,16 @@ mod tests {
         let tween = ScrollTween::new(800.0, 200.0, 0.0);
         let (mid, done) = tween.sample(JUMP_SECS / 2.0);
         assert!(mid < 800.0 && mid > 200.0 && !done);
+    }
+
+    #[test]
+    fn retarget_keeps_progress_and_lands_on_the_new_target() {
+        let mut tween = ScrollTween::new(0.0, 1000.0, 0.0);
+        let (before, _) = tween.sample(JUMP_SECS / 2.0);
+        tween.retarget(1200.0);
+        let (after, _) = tween.sample(JUMP_SECS / 2.0);
+        assert!(after > before, "mesmo andamento, destino mais distante");
+        assert_eq!(tween.sample(JUMP_SECS), (1200.0, true));
     }
 
     #[test]

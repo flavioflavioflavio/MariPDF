@@ -106,6 +106,11 @@ where
         self.update_byte_metrics();
     }
 
+    /// Lê sem mexer no LRU nem nas métricas.
+    pub fn peek(&self, key: K) -> Option<&V> {
+        self.entries.get(&key).map(|entry| &entry.value)
+    }
+
     pub fn contains(&self, key: K) -> bool {
         self.entries.contains_key(&key)
     }

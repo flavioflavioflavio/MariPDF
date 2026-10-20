@@ -6,21 +6,15 @@ pub use crate::settings_types::{
     ColorPalette, DefaultPanel, FontChoice, PageMargin, RenderQuality, ThemePreference, UiScale,
 };
 
+use crate::storage::{self, StoreKind};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-
-fn settings_path() -> PathBuf {
-    let mut p = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-    p.push("MariPDF");
-    std::fs::create_dir_all(&p).ok();
-    p.push("settings.toml");
-    p
-}
 
 // ── Configurações gerais ───────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AppSettings {
+    #[serde(default = "storage::schema_version")]
+    pub schema_version: u32,
     #[serde(default)]
     pub scale: UiScale,
     #[serde(default)]
@@ -46,6 +40,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            schema_version: storage::SCHEMA_VERSION,
             scale: UiScale::default(),
             font: FontChoice::default(),
             render_quality: RenderQuality::default(),
@@ -62,18 +57,11 @@ impl Default for AppSettings {
 
 impl AppSettings {
     pub fn load() -> Self {
-        let path = settings_path();
-        if let Ok(data) = std::fs::read_to_string(&path) {
-            toml::from_str(&data).unwrap_or_default()
-        } else {
-            Self::default()
-        }
+        storage::load_toml(&storage::settings_path(), StoreKind::Settings)
     }
 
+    /// Grava atomicamente; falhas viram aviso na UI (storage::save_toml).
     pub fn save(&self) {
-        let path = settings_path();
-        if let Ok(toml_str) = toml::to_string_pretty(self) {
-            std::fs::write(path, toml_str).ok();
-        }
+        let _ = storage::save_toml(&storage::settings_path(), self, StoreKind::Settings);
     }
 }

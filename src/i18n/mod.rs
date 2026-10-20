@@ -34,6 +34,10 @@ impl Language {
 // Mutex é necessário porque init() re-atribui o conteúdo após a primeira chamada.
 static BUNDLE: OnceLock<Mutex<FluentBundle<FluentResource>>> = OnceLock::new();
 
+/// Testes que trocam o idioma global seguram este lock para não se atropelarem.
+#[cfg(test)]
+pub(crate) static TEST_LOCK: Mutex<()> = Mutex::new(());
+
 const FTL_PT_BR: &str = include_str!("../../locales/pt-BR/main.ftl");
 const FTL_EN: &str = include_str!("../../locales/en/main.ftl");
 

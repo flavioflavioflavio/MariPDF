@@ -62,3 +62,27 @@ fn smooth_scroll_animates_jumps_and_lands_on_the_target() {
     assert!(viewer.scroll_tween.is_none());
     assert_eq!(viewer.dominant_continuous_page(), Some(10));
 }
+
+/// Regressão: páginas que terminam de renderizar no meio do salto mudam o
+/// layout; o salto precisa acompanhar o novo destino e chegar nele.
+#[test]
+fn smooth_jump_survives_layout_changes_from_pages_loading() {
+    let ctx = egui::Context::default();
+    let mut viewer = PdfViewer::new();
+    viewer.mode = ViewMode::Continuous;
+    viewer.smooth_scroll = true;
+    run_frame_at(&ctx, &mut viewer, 40, 0.0);
+
+    viewer.request_continuous_page(20);
+    run_frame_at(&ctx, &mut viewer, 40, 0.0);
+    assert!(viewer.scroll_tween.is_some());
+
+    // Várias páginas "chegam" com altura real diferente da estimada.
+    for (i, page) in [1usize, 2, 5, 9, 14].into_iter().enumerate() {
+        viewer.page_layout.observe_bitmap(page, 612, 1400, 1.0);
+        run_frame_at(&ctx, &mut viewer, 40, 0.03 * (i as f64 + 1.0));
+    }
+    run_frame_at(&ctx, &mut viewer, 40, JUMP_SECS + 0.05);
+    run_frame_at(&ctx, &mut viewer, 40, JUMP_SECS + 0.1);
+    assert_eq!(viewer.dominant_continuous_page(), Some(20));
+}

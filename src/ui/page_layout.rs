@@ -1,6 +1,6 @@
 // ui/page_layout.rs — Índice virtual de offsets e alturas das páginas.
 
-const DEFAULT_PAGE_WIDTH: f32 = 595.0;
+pub(crate) const DEFAULT_PAGE_WIDTH: f32 = 595.0;
 const DEFAULT_PAGE_HEIGHT: f32 = 842.0;
 
 #[derive(Clone, Copy, Debug)]

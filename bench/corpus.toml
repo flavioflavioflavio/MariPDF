@@ -1,0 +1,83 @@
+# Corpus de benchmark do MariPDF (BF-001) — gerado por tools/make_corpus.py.
+# Os PDFs não são versionados; regenere-os e confira os hashes.
+# Hashes de complex-fonts dependem da versão da Segoe UI do Windows.
+
+[[pdf]]
+file = "text-small.pdf"
+category = "text"
+pages = 2
+purpose = "abertura e primeira página no caso comum"
+bytes = 4801
+sha256 = "9b051d42c4b5270af2091e8371589b28dcdb335fb5cd31a10a732f265e53fb25"
+
+[[pdf]]
+file = "scan-10.pdf"
+category = "images"
+pages = 10
+purpose = "render pesado de imagens (scan 300 dpi)"
+bytes = 7904350
+sha256 = "9f2583cb15105d7a501ab0b81c30c4ffd51053b5aacbe01751ea7324216dc019"
+
+[[pdf]]
+file = "text-100.pdf"
+category = "pages"
+pages = 100
+purpose = "navegação e prefetch em documento médio"
+bytes = 199153
+sha256 = "a9e039bc49fc2826aa115c6f681e65709cb139358079dff99e5c5357473708de"
+
+[[pdf]]
+file = "text-1000.pdf"
+category = "pages"
+pages = 1000
+purpose = "documento grande: custo não linear de UI/layout"
+bytes = 1991951
+sha256 = "2d5696b9942300be6950ad0b5e32e11526d9f56c46272737c2ddf82291b539e8"
+
+[[pdf]]
+file = "bookmarks-60.pdf"
+category = "outline"
+pages = 60
+purpose = "sumário com 3 níveis"
+bytes = 128023
+sha256 = "42d6779b89dc1edb1ccc5bdbb7d4ce05855fce1cfd348c10949d7f2568ca953f"
+
+[[pdf]]
+file = "links-20.pdf"
+category = "links"
+pages = 20
+purpose = "50 links URI por página"
+bytes = 221084
+sha256 = "cc220aee4eabad817de3f3fc9ba1b5ef392d2b3d320278581b7b54f1d1dae3c5"
+
+[[pdf]]
+file = "complex-fonts.pdf"
+category = "fonts"
+pages = 5
+purpose = "acentos, grego, cirílico, turco e japonês"
+bytes = 35151
+sha256 = "382b4a6312234761d6d372e1a9366d902f6d1cd232de9c2f9e8148b819e37712"
+
+[[pdf]]
+file = "mixed-sizes.pdf"
+category = "layout"
+pages = 12
+purpose = "A4, Letter, A3 paisagem, recibo e página muito alta"
+bytes = 29667
+sha256 = "22625f8d004487651caf17df38dc5b4617f2d433774655e04b7c901babc6f71e"
+
+[[pdf]]
+file = "encrypted.pdf"
+category = "error"
+pages = -1
+purpose = "protegido por senha (deve falhar com mensagem)"
+bytes = 7646
+sha256 = "variable"
+
+[[pdf]]
+file = "corrupt.pdf"
+category = "error"
+pages = -1
+purpose = "estrutura corrompida (deve falhar sem crash)"
+bytes = 4400
+sha256 = "2f9af1a8d56b9d01b6da69b679855d73cc1641480d6e87a38745db87edb0e063"

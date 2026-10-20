@@ -5,8 +5,8 @@
 use crate::pdf::document_worker::JobPriority;
 use crate::ui::page_layout::LayoutParams;
 use crate::ui::prefetch::PrefetchPlan;
-use crate::ui::scroll_motion::{instant_wheel_offset, ScrollTween};
-use crate::ui::viewer::PdfViewer;
+use crate::ui::scroll_motion::{instant_wheel_offset, NavGoal, ScrollTween};
+use crate::ui::viewer::{page_raster_scale, PdfViewer};
 use crate::ui::viewer_helpers::{
     draw_page_tex, invert_rgba, paint_search_highlight, upload_texture,
 };
@@ -39,8 +39,9 @@ impl PdfViewer {
             self.zoom_delta = scroll_y.signum() * 0.15;
         }
 
-        let scale = self.requested_raster_scale();
         let available_w = ui.available_width();
+        self.usable_width = (available_w - self.page_margin * 2.0).max(0.0);
+        let (zoom, usable_width, density) = (self.zoom, self.usable_width, self.render_scale);
         let ctx = ui.ctx().clone();
 
         // Drena bitmaps prontos do scheduler global
@@ -101,13 +102,27 @@ impl PdfViewer {
                     JobPriority::Visible
                 };
                 if !self.page_errors.contains_key(&page) {
-                    self.page_cache.prefetch(page, scale, priority);
+                    let scale =
+                        page_raster_scale(&self.page_layout, page, zoom, usable_width, density);
+                    // Bitmap despejado do cache de CPU mas com textura nítida
+                    // na GPU: re-renderizar só gastaria PDFium em loop.
+                    if !self.tex_cache.is_sharp_enough(page, scale) {
+                        self.page_cache.prefetch(page, scale, priority);
+                    }
                 }
             });
 
             for idx in first_visible..=last_visible {
-                // Upload para GPU só quando a página chega ao viewport.
-                if !self.tex_cache.contains(idx) {
+                // Upload para GPU quando a página chega ao viewport ou quando um
+                // bitmap mais nítido substitui o atual (janela ampliada).
+                let uploaded_width = self.tex_cache.get(idx).map(|tex| tex.size()[0] as u32);
+                let cached_width = self.page_cache.get(idx).map(|bitmap| bitmap.width);
+                let needs_upload = match (uploaded_width, cached_width) {
+                    (None, _) => true,
+                    (Some(uploaded), Some(cached)) => cached > uploaded + 1,
+                    (Some(_), None) => false,
+                };
+                if needs_upload {
                     if let Some(bitmap) = self.page_cache.get(idx) {
                         let tex = if self.invert_colors {
                             let mut inverted = (*bitmap).clone();
@@ -122,7 +137,8 @@ impl PdfViewer {
                             bitmap.height,
                             bitmap.scale,
                         );
-                        self.tex_cache.insert(idx, tex, bitmap.width, bitmap.height);
+                        let (width, height, scale) = (bitmap.width, bitmap.height, bitmap.scale);
+                        self.tex_cache.insert(idx, tex, width, height, scale);
                         if learned_size {
                             ctx.request_repaint();
                         }
@@ -144,6 +160,7 @@ impl PdfViewer {
                     } else if let Some(error) = self.page_cache.take_failure(idx) {
                         tracing::warn!("continuous: página {} falhou: {error}", idx + 1);
                         self.page_errors.insert(idx, error);
+                        self.continuous_failures += 1;
                     }
                 }
 
@@ -298,35 +315,52 @@ impl PdfViewer {
         let now = ctx.input(|i| i.time);
         let current = self.continuous_scroll_offset;
 
-        let navigation = if let Some(anchor) = self.pending_scroll_anchor.take() {
-            Some(
-                self.page_layout
-                    .scroll_offset_for_anchor(anchor, self.continuous_viewport_height),
-            )
-        } else {
-            self.pending_scroll_page
-                .take()
-                .map(|page| self.page_layout.scroll_offset_for_page(page))
+        let goal = match self.pending_scroll_anchor.take() {
+            Some(anchor) => Some(NavGoal::Anchor(anchor)),
+            None => self.pending_scroll_page.take().map(NavGoal::Page),
         };
 
         let mut forced = None;
-        if let Some(target) = navigation {
+        if let Some(goal) = goal {
+            let target = self.goal_offset(goal);
+            tracing::debug!(
+                target,
+                from = ?current,
+                smooth = self.smooth_scroll,
+                "continuous: navegação programática"
+            );
             match current {
                 Some(from) if self.smooth_scroll && (target - from).abs() > 1.0 => {
                     self.scroll_tween = Some(ScrollTween::new(from, target, now));
+                    self.scroll_goal = Some(goal);
                 }
                 _ => {
                     self.scroll_tween = None;
+                    self.scroll_goal = None;
                     forced = Some(target);
                 }
             }
         } else if layout_changed {
-            // Zoom/redimensionamento: a âncora precisa valer imediatamente.
-            self.scroll_tween = None;
-            forced = self.continuous_anchor.map(|anchor| {
-                self.page_layout
-                    .scroll_offset_for_anchor(anchor, self.continuous_viewport_height)
-            });
+            match self.scroll_goal {
+                // Durante o salto, páginas que terminam de renderizar mudam o
+                // layout: o destino acompanha em vez de a animação morrer no
+                // meio do caminho.
+                Some(goal) if self.scroll_tween.is_some() => {
+                    let target = self.goal_offset(goal);
+                    if let Some(tween) = self.scroll_tween.as_mut() {
+                        tween.retarget(target);
+                    }
+                }
+                // Zoom/redimensionamento fora de salto: a âncora vale na hora.
+                _ => {
+                    self.scroll_tween = None;
+                    self.scroll_goal = None;
+                    forced = self.continuous_anchor.map(|anchor| {
+                        self.page_layout
+                            .scroll_offset_for_anchor(anchor, self.continuous_viewport_height)
+                    });
+                }
+            }
         }
 
         let hovered = ui.rect_contains_pointer(ui.max_rect());
@@ -335,12 +369,14 @@ impl PdfViewer {
         if wheel {
             // A roda do usuário interrompe um salto animado.
             self.scroll_tween = None;
+            self.scroll_goal = None;
         }
         if let Some(tween) = self.scroll_tween {
             let (offset, done) = tween.sample(now);
             forced = Some(offset);
             if done {
                 self.scroll_tween = None;
+                self.scroll_goal = None;
             } else {
                 ctx.request_repaint();
             }
@@ -354,5 +390,14 @@ impl PdfViewer {
             ctx.input_mut(|i| i.smooth_scroll_delta.y = 0.0);
         }
         forced
+    }
+
+    fn goal_offset(&self, goal: NavGoal) -> f32 {
+        match goal {
+            NavGoal::Page(page) => self.page_layout.scroll_offset_for_page(page),
+            NavGoal::Anchor(anchor) => self
+                .page_layout
+                .scroll_offset_for_anchor(anchor, self.continuous_viewport_height),
+        }
     }
 }

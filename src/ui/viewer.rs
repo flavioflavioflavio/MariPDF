@@ -10,6 +10,7 @@ use crate::pdf::document_worker::{DocumentWorkerHandle, JobPriority};
 use crate::pdf::engine::RenderedPage;
 use crate::pdf::page_cache::{LruPageCache, DEFAULT_CPU_CACHE_BYTES};
 use crate::ui::page_layout::{LayoutAnchor, PageLayout};
+use crate::ui::page_scale;
 use crate::ui::texture_cache::GpuTextureCache;
 use eframe::egui;
 
@@ -64,6 +65,8 @@ pub struct PdfViewer {
     pub(crate) pending_scroll_anchor: Option<LayoutAnchor>,
     /// Salto animado em andamento (Scroll Suave ligado).
     pub(crate) scroll_tween: Option<crate::ui::scroll_motion::ScrollTween>,
+    /// Destino do salto animado, recalculado se o layout mudar no caminho.
+    pub(crate) scroll_goal: Option<crate::ui::scroll_motion::NavGoal>,
     /// Âncora mantida ao recalcular alturas/zoom.
     pub(crate) continuous_anchor: Option<LayoutAnchor>,
     pub(crate) continuous_viewport_height: f32,
@@ -92,6 +95,8 @@ pub struct PdfViewer {
     pub render_scale: f32,
     /// Escala (px por ponto PDF) do bitmap da textura single-page atual.
     pub(crate) texture_scale: f32,
+    /// Largura útil (sem margens) do último frame, em pontos de UI.
+    pub(crate) usable_width: f32,
     /// Margem visual configurada entre página e viewport.
     pub page_margin: f32,
     /// Define se deltas suavizados do egui são usados para zoom/scroll.
@@ -101,6 +106,9 @@ pub struct PdfViewer {
     /// Falhas por página no modo contínuo: ficam no lugar da página, sem
     /// derrubar o documento inteiro, e não são re-pedidas em loop.
     pub(crate) page_errors: std::collections::HashMap<usize, String>,
+    /// Total de falhas de render no modo contínuo desde a última leitura
+    /// (o soak consome com `mem::take`).
+    pub(crate) continuous_failures: u64,
 }
 
 impl PdfViewer {
@@ -116,6 +124,7 @@ impl PdfViewer {
             pending_scroll_page: None,
             pending_scroll_anchor: None,
             scroll_tween: None,
+            scroll_goal: None,
             continuous_anchor: None,
             continuous_viewport_height: 0.0,
             continuous_scroll_offset: None,
@@ -129,10 +138,12 @@ impl PdfViewer {
             invert_colors: false,
             render_scale: 1.0,
             texture_scale: 1.0,
+            usable_width: 0.0,
             page_margin: 20.0,
             smooth_scroll: true,
             last_error: None,
             page_errors: std::collections::HashMap::new(),
+            continuous_failures: 0,
         }
     }
 
@@ -158,6 +169,7 @@ impl PdfViewer {
         self.pending_scroll_page = None;
         self.pending_scroll_anchor = None;
         self.scroll_tween = None;
+        self.scroll_goal = None;
         self.search_highlight = None;
         self.continuous_anchor = None;
         self.continuous_viewport_height = 0.0;
@@ -199,22 +211,31 @@ impl PdfViewer {
         self.visible_page
     }
 
-    /// Pixels por ponto PDF pedidos ao renderer no zoom atual.
-    pub(crate) fn requested_raster_scale(&self) -> f32 {
-        crate::ui::page_scale::raster_scale(self.zoom, self.render_scale)
+    /// Pixels por ponto PDF pedidos ao renderer para `page`: o zoom é limitado
+    /// ao que cabe na área útil (a página nunca fica mais larga que ela).
+    pub(crate) fn raster_scale_for(&self, page: usize) -> f32 {
+        page_raster_scale(
+            &self.page_layout,
+            page,
+            self.zoom,
+            self.usable_width,
+            self.render_scale,
+        )
     }
 
     pub fn request_single_page(&mut self, page_index: usize, page_count: usize) {
-        let scale = self.requested_raster_scale();
-        self.page_cache
-            .prefetch(page_index, scale, JobPriority::Immediate);
-        if page_index + 1 < page_count {
-            self.page_cache
-                .prefetch(page_index + 1, scale, JobPriority::Visible);
-        }
-        if page_index > 0 {
-            self.page_cache
-                .prefetch(page_index - 1, scale, JobPriority::Visible);
+        for (page, priority) in [
+            (Some(page_index), JobPriority::Immediate),
+            (
+                (page_index + 1 < page_count).then_some(page_index + 1),
+                JobPriority::Visible,
+            ),
+            (page_index.checked_sub(1), JobPriority::Visible),
+        ] {
+            if let Some(page) = page {
+                let scale = self.raster_scale_for(page);
+                self.page_cache.prefetch(page, scale, priority);
+            }
         }
         self.is_loading = self.loaded_page != Some(page_index);
     }
@@ -258,6 +279,15 @@ impl PdfViewer {
     ) {
         if self.page_cache.drain_ready() {
             ctx.request_repaint();
+        }
+
+        // Textura visível bem abaixo da resolução útil (ex.: janela maximizada
+        // depois do render): pede uma mais nítida e mantém a atual até chegar.
+        if self.loaded_page == Some(current_page)
+            && self.texture_scale < self.achievable_scale(current_page) * page_scale::UPGRADE_RATIO
+        {
+            self.loaded_page = None;
+            self.request_single_page(current_page, page_count);
         }
 
         if self.loaded_page != Some(current_page) {
@@ -323,6 +353,7 @@ impl PdfViewer {
         }
 
         let available = ui.available_size();
+        self.usable_width = (available.x - self.page_margin * 2.0).max(0.0);
 
         if let Some(ref tex) = self.texture {
             // Tamanho na tela vem do zoom; a textura (talvez de outro zoom,
@@ -396,6 +427,36 @@ impl PdfViewer {
             }
         } else {
             show_spinner(ui, available.y);
+        }
+    }
+}
+
+/// Escala de rasterização para `page` limitada à largura útil (BF-3).
+pub(crate) fn page_raster_scale(
+    layout: &PageLayout,
+    page: usize,
+    zoom: f32,
+    usable_width: f32,
+    density: f32,
+) -> f32 {
+    // Página ainda não vista: estima A4 em vez de não limitar. Se a real for
+    // mais larga, o bitmap menor é re-renderizado pelo UPGRADE_RATIO.
+    let page_width = layout
+        .page_size_pts(page)
+        .map(|(width, _)| width)
+        .or(Some(crate::ui::page_layout::DEFAULT_PAGE_WIDTH));
+    let zoom = page_scale::effective_zoom(zoom, page_width, usable_width);
+    page_scale::raster_scale(zoom, density)
+}
+
+impl PdfViewer {
+    /// Escala que o renderer realmente entrega para `page` (após o teto de
+    /// textura/memória); evita re-render em loop quando o teto atua.
+    fn achievable_scale(&self, page: usize) -> f32 {
+        let wanted = self.raster_scale_for(page);
+        match self.page_layout.page_size_pts(page) {
+            Some((width, height)) => page_scale::capped_raster_scale(width, height, wanted),
+            None => wanted,
         }
     }
 }

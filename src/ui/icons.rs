@@ -24,6 +24,7 @@ pub const CARET_DOWN: &str = "\u{e136}"; // caret-down — abre menu
 
 pub const MAGNIFY_GLASS: &str = "\u{e30c}"; // magnifying-glass — busca
 pub const X_CIRCLE: &str = "\u{e4f8}"; // x-circle — fechar/dispensar
+pub const X: &str = "\u{e4f6}"; // x — fechar barra/overlay
 pub const CHECK: &str = "\u{e182}"; // check
 pub const FILE_PDF: &str = "\u{e702}"; // file-pdf
 pub const FOLDER_OPEN: &str = "\u{e256}"; // folder-open

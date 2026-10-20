@@ -1,7 +1,7 @@
 # MariPDF — Roadmap Blazing Fast e v1.0 Redonda
 
 > Criado em: 2026-07-13  
-> Atualizado em: 2026-10-19
+> Atualizado em: 2026-10-19 (1.0.0-rc.1)
 > Baseado em: auditoria do código, documentação, build release, testes e Clippy  
 > Documento complementar ao roadmap histórico `04_roadmap.md`
 
@@ -82,7 +82,8 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
    remover a página de `inflight`, deixando-a sem nova tentativa.
 10. [x] Single Page, Continuous, Thumbnails e busca mantinham documentos separados;
     agora os pipelines lazy compartilham o mesmo `Arc<PdfEngine>` já aberto.
-11. [ ] O pipeline sempre rasteriza a página inteira; zoom alto não usa tiles/LOD.
+11. [x] O pipeline rasterizava a página inteira no zoom pedido; agora limita ao
+    tamanho exibido (BF-3). Tiles por região ficam para a v1.1.
 12. [x] A conversão BGRA → RGBA criava um segundo buffer e ainda revertia canais
     já normalizados; o render agora solicita RGBA e reutiliza a única cópia.
 13. [x] A inicialização do singleton podia correr entre workers e bloquear para
@@ -126,13 +127,13 @@ Os itens marcados foram corrigidos durante a execução deste roadmap.
 6. README e Cargo ainda contêm URLs e dados de doação placeholder.
 7. O README promete aproximadamente 25 MB de RAM e instalador de 8–10 MB sem
    benchmark que sustente esses números.
-8. Escritas TOML não são atômicas e erros de persistência são frequentemente
-   descartados; queda durante escrita pode perder configurações.
+8. [x] Escritas TOML não eram atômicas e erros eram descartados; agora `storage.rs`
+   grava temp → sync → rename, recupera TOML corrompido com backup e avisa o usuário.
 9. A associação de arquivo precisa registrar corretamente o aplicativo e orientar
    o usuário pelo fluxo do Windows, sem prometer que o app consegue forçar o
    `UserChoice` moderno.
-10. Não existe política explícita de suporte a PDF malformado, crash do engine ou
-    isolamento do renderizador.
+10. [x] Não existia política para PDF malformado, crash do engine ou isolamento;
+    ver testes de robustez e ADR-007.
 
 ## 3. Decisões arquiteturais para a v1.0
 
@@ -181,20 +182,20 @@ renderer.
 
 ### Entregas
 
-- [ ] BF-001 Criar corpus versionado por manifesto, sem incluir PDFs restritos:
+- [x] BF-001 Criar corpus versionado por manifesto, sem incluir PDFs restritos:
   pequeno textual, imagens/scans, 100 páginas, 1.000 páginas, bookmarks, muitos
-  links, fontes complexas, corrompido, criptografado e páginas de tamanhos mistos.
-- [ ] BF-002 Criar medidor de `startup → home`, `open → first_page_presented`,
-  render por página, navegação cached/uncached, zoom, busca, working set e pico.
-- [ ] BF-003 Registrar baseline em hardware e build identificados.
-- [ ] BF-004 Adicionar testes unitários para persistência, settings, LRU, i18n,
-  busca e conversões de coordenadas.
+  links, fontes complexas, corrompido, criptografado e páginas de tamanhos mistos. Gerador `tools/make_corpus.py` + manifesto `bench/corpus.toml` (10 PDFs determinísticos).
+- [x] BF-002 Criar medidor de `startup → home`, `open → first_page_presented`,
+  render por página, navegação cached/uncached, zoom, busca, working set e pico. Medidor embutido `MARIPDF_BENCH` + `tools/bench.ps1`/`bench_report.py`.
+- [x] BF-003 Registrar baseline em hardware e build identificados. Ver `doc/benchmarks/baseline-2026-10-19.md`.
+- [x] BF-004 Adicionar testes unitários para persistência, settings, LRU, i18n,
+  busca e conversões de coordenadas. Persistência, settings, LRU, i18n, busca, seleção e coordenadas cobertos.
 - [x] BF-005 Adicionar CI Windows com `cargo fmt --check`, `cargo check`, testes,
   Clippy acordado e build release.
 - [x] BF-006 Zerar warnings do build e definir política de lints pragmática.
-- [ ] BF-007 Criar smoke test que abre o app, abre um PDF conhecido e confirma
-  processo responsivo sem panic no log.
-- [ ] BF-008 Congelar os contratos funcionais atuais em uma matriz de testes.
+- [x] BF-007 Criar smoke test que abre o app, abre um PDF conhecido e confirma
+  processo responsivo sem panic no log. `tools/smoke.ps1`, também no CI.
+- [x] BF-008 Congelar os contratos funcionais atuais em uma matriz de testes. Ver `doc/09_matriz_contratos.md`.
 - [x] BF-009 Adicionar stress manual parametrizado por corpus real para abrir,
   renderizar e fechar vários documentos concorrentemente no mesmo processo.
 
@@ -269,14 +270,18 @@ páginas.
 
 ### Entregas
 
-- [ ] BF-301 Fazer spike de render por região/tile no PDFium usado pelo projeto.
-- [ ] BF-302 Definir tiles por página, escala e coordenadas, com chave de cache.
-- [ ] BF-303 Renderizar primeiro tiles visíveis e compor a página no painter.
-- [ ] BF-304 Implementar LOD: preview de baixa resolução seguido de refinamento.
-- [ ] BF-305 Cancelar tiles que saíram da viewport ou perderam geração.
-- [ ] BF-306 Medir overhead; manter fallback de página inteira para zoom baixo.
+- [x] BF-301 Fazer spike de render por região/tile no PDFium usado pelo projeto. Ver `doc/benchmarks/bf3-tiles-spike.md`; tile bate pixel a pixel com a página.
+- [→ v1.1] BF-302 Definir tiles por página, escala e coordenadas, com chave de cache. Adiado pela decisão do gate.
+- [→ v1.1] BF-303 Renderizar primeiro tiles visíveis e compor a página no painter. Adiado pela decisão do gate.
+- [x] BF-304 Implementar LOD: preview de baixa resolução seguido de refinamento. Atendido: textura anterior esticada até o bitmap novo chegar.
+- [→ v1.1] BF-305 Cancelar tiles que saíram da viewport ou perderam geração. Adiado pela decisão do gate.
+- [x] BF-306 Medir overhead; manter fallback de página inteira para zoom baixo. Medido; página inteira limitada ao tamanho exibido é o caminho da v1.0.
 
 ### Gate de decisão
+
+**Decisão (2026-10-19):** limitar a rasterização ao tamanho exibido entra na v1.0
+(4× menos pixels, 2,7–4,5× mais rápido em zoom alto); tiles ficam para a v1.1.
+Dados em `doc/benchmarks/bf3-tiles-spike.md`.
 
 Tiles só entram na v1.0 se o spike provar ganho material em PDFs grandes/zoom alto
 sem degradar o caso comum. Caso contrário, a fase fica como v1.1 e a v1.0 usa
@@ -348,16 +353,16 @@ page rendering assíncrono com LOD simples.
 
 ### Entregas
 
-- [ ] BF-501 Centralizar diretório, schema e versão de settings/sessões.
-- [ ] BF-502 Implementar escrita atômica `temp → flush → rename`.
-- [ ] BF-503 Fazer backup/recovery de TOML corrompido e logar motivo.
-- [ ] BF-504 Propagar erros hoje descartados e mostrar feedback quando acionável.
-- [ ] BF-505 Definir limites para páginas, dimensões, alocações e zoom.
-- [ ] BF-506 Testar PDF corrompido, senha, arquivo removido, path Unicode, rede lenta
+- [x] BF-501 Centralizar diretório, schema e versão de settings/sessões.
+- [x] BF-502 Implementar escrita atômica `temp → flush → rename`.
+- [x] BF-503 Fazer backup/recovery de TOML corrompido e logar motivo.
+- [x] BF-504 Propagar erros hoje descartados e mostrar feedback quando acionável.
+- [x] BF-505 Definir limites para páginas, dimensões, alocações e zoom.
+- [x] BF-506 Testar PDF corrompido, senha, arquivo removido, path Unicode, rede lenta
   e falta de espaço/permissão.
-- [ ] BF-507 Tratar falha/panic de worker sem derrubar silenciosamente a feature.
-- [ ] BF-508 Decidir, por threat model, se isolamento do PDFium em processo separado
-  é requisito de v1.x; documentar custo e benefício.
+- [x] BF-507 Tratar falha/panic de worker sem derrubar silenciosamente a feature.
+- [x] BF-508 Decidir, por threat model, se isolamento do PDFium em processo separado
+  é requisito de v1.x; documentar custo e benefício. Decisão: ADR-007.
 
 ### DoD
 
@@ -371,18 +376,18 @@ page rendering assíncrono com LOD simples.
 
 ### Entregas
 
-- [ ] BF-601 Definir identidade final: publisher, URLs, licença e canais de suporte.
-- [ ] BF-602 Gerar ícone `.ico` correto e validar recursos/version info do EXE.
-- [ ] BF-603 Criar pipeline para EXE portátil e MSI com instalação/desinstalação.
-- [ ] BF-604 Registrar `ProgID`, `OpenWithProgids`, capabilities e fluxo correto para
-  o usuário escolher o app padrão no Windows.
-- [ ] BF-605 Assinar EXE/MSI ou documentar conscientemente a estratégia inicial.
-- [ ] BF-606 Implementar update assinado/verificado, com rollback e rollout manual.
-- [ ] BF-607 Gerar SHA-256, SBOM e artefatos a partir de tag.
+- [x] BF-601 Definir identidade final: publisher, URLs, licença e canais de suporte. Ver `doc/10_distribuicao.md`.
+- [x] BF-602 Gerar ícone `.ico` correto e validar recursos/version info do EXE. `assets/icon.ico` (16–256 px) e version info no `build.rs`.
+- [x] BF-603 Criar pipeline para EXE portátil e MSI com instalação/desinstalação. Decisão: em vez de MSI, instalador Inno Setup **por usuário** (sem admin/UAC) + EXE portátil.
+- [x] BF-604 Registrar `ProgID`, `OpenWithProgids`, capabilities e fluxo correto para
+  o usuário escolher o app padrão no Windows. Registro moderno (Capabilities/RegisteredApplications) + abre Aplicativos padrão.
+- [x] BF-605 Assinar EXE/MSI ou documentar conscientemente a estratégia inicial. Estratégia documentada: sem Authenticode por ora; SHA256SUMS assinado (Ed25519); SignPath/Trusted Signing como próximo passo.
+- [x] BF-606 Implementar update assinado/verificado, com rollback e rollout manual. Manual (sem rede em segundo plano), assinatura Ed25519 + hash, rollback do Inno, downgrade bloqueado.
+- [x] BF-607 Gerar SHA-256, SBOM e artefatos a partir de tag. `release.yml` em tag: gates, smoke, portátil, instalador, SBOM CycloneDX, checksums, rascunho de release.
 - [ ] BF-608 Testar instalação limpa, upgrade, downgrade bloqueado, desinstalação e
-  portable em Windows 10/11.
-- [ ] BF-609 Preparar manifesto Winget depois de o MSI estar estável.
-- [ ] BF-610 Implementar doação apenas depois do core/release, sem modal agressivo.
+  portable em Windows 10/11. Windows 11: 13/13 em `tools/installer_test.ps1`; Windows 10 pendente na matriz RC.
+- [x] BF-609 Preparar manifesto Winget depois de o MSI estar estável. Manifestos gerados e validados (`winget validate`); envio manual após a 1ª estável.
+- [x] BF-610 Implementar doação apenas depois do core/release, sem modal agressivo. Link discreto no *Sobre*, oculto até existir um canal oficial (`DONATION_URL`).
 
 ### DoD
 
@@ -401,12 +406,12 @@ page rendering assíncrono com LOD simples.
   alternativa futura, incluindo implicações de licença.
 - [x] BF-702 Reconciliar arquitetura, roadmap histórico, manifesto e CHANGELOG.
 - [x] BF-703 Remover placeholders do README/Cargo/Funding.
-- [ ] BF-704 Publicar benchmarks reais e máquina de referência.
+- [x] BF-704 Publicar benchmarks reais e máquina de referência. Ver `doc/benchmarks/` e a seção Desempenho do README.
 - [x] BF-705 Substituir claims comparativos não medidos por resultados reproduzíveis.
-- [ ] BF-706 Criar screenshots e GIF curto do fluxo real.
-- [ ] BF-707 Executar matriz RC em PDFs e versões Windows suportadas.
-- [ ] BF-708 Fazer soak test prolongado com navegação, zoom, busca e troca de docs.
-- [ ] BF-709 Congelar escopo, corrigir somente blockers e publicar RC.
+- [x] BF-706 Criar screenshots e GIF curto do fluxo real. `doc/screenshots/` (capturados pela própria janela, `showcase.rs`) + `navegacao.gif`.
+- [ ] BF-707 Executar matriz RC em PDFs e versões Windows suportadas. Windows 11 completo (`doc/benchmarks/rc-1.0.0-rc.1.md`); Windows 10 pendente.
+- [x] BF-708 Fazer soak test prolongado com navegação, zoom, busca e troca de docs. 20 min, 3.337 ações, 40 trocas de documento, 0 falhas, sem vazamento.
+- [x] BF-709 Congelar escopo, corrigir somente blockers e publicar RC. 1.0.0-rc.1: escopo congelado, bloqueadores da revisão corrigidos, rascunho de release gerado por tag.
 
 ### DoD da v1.0
 

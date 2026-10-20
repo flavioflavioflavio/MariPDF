@@ -1,9 +1,9 @@
 [package]
 name        = "maripdf"
-version     = "0.1.0"
+version     = "1.0.0-rc.1"
 edition     = "2021"
-authors     = ["MariPDF Contributors"]
-description = "Leitor de PDF ultra-leve para Windows"
+authors     = ["Flávio Takemoto"]
+description = "Leitor de PDF rápido e focado para Windows"
 license     = "GPL-3.0-or-later"
 homepage    = "https://github.com/flavioflavioflavio/MariPDF"
 repository  = "https://github.com/flavioflavioflavio/MariPDF"
@@ -60,6 +60,11 @@ raw-window-handle = "0.6"
 
 # --- Leitura do registro do Windows (detecção de tema dark/light) ---
 winreg        = "0.52"
+ureq = { version = "2", features = ["json"] }
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+sha2 = "0.10"
+serde_json = "1"
+base64 = "0.22"
 
 [build-dependencies]
 # Embute ícone .ico e metadados no executável Windows
@@ -70,7 +75,9 @@ opt-level     = 3
 lto           = true          # Link-Time Optimization — binário menor e mais rápido
 codegen-units = 1             # Melhor otimização, build mais lento
 strip         = true          # Remove símbolos de debug do binário
-panic         = "abort"       # Menor binário, sem stack unwinding
+# Unwind permite que o worker transforme um panic de job em falha recuperável
+# (BF-507) em vez de encerrar o processo; o custo em tamanho é pequeno.
+panic         = "unwind"
 
 [profile.dev]
 opt-level     = 1             # Equilibrio entre velocidade de build e performance em dev

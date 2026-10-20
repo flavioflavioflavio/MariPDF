@@ -42,6 +42,21 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         }
     }
 
+    // Avisos de persistência/integração vindos de fora da UI: um por vez,
+    // o próximo só depois que o toast atual expirar (nenhum se perde).
+    let now = ctx.input(|i| i.time);
+    if app.toast.as_ref().is_none_or(|toast| !toast.is_alive(now)) {
+        if let Some(notice) = crate::notices::pop() {
+            app.toast = Some(match notice.kind {
+                crate::notices::NoticeKind::Info => Toast::info(notice.message, 4.0, now),
+                crate::notices::NoticeKind::Error => Toast::error(notice.message, 5.0, now),
+            });
+        }
+    }
+    if crate::notices::has_pending() {
+        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+    }
+
     // Arquivo pendente
     if let Some(path) = app.pending_open.take() {
         let c = ctx.clone();

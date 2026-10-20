@@ -19,22 +19,32 @@ mod app_toast;
 mod app_toolbar;
 mod app_update;
 mod app_window;
+mod bench;
 mod byte_cache;
 mod i18n;
 mod logger;
+mod notices;
 mod pdf;
 mod platform;
 mod settings;
 mod settings_types;
+mod showcase;
+mod soak;
+mod storage;
 mod text_selection;
 mod ui;
+mod updater;
 
 fn main() -> anyhow::Result<()> {
+    bench::mark_process_start();
     // Logging: stdout + arquivo em %APPDATA%\maripdf\maripdf.log
     // Manter _log_guard vivo até o fim do processo para flush do buffer
     let _log_guard = logger::init();
 
     // i18n: carrega idioma salvo ou pt-BR padrão
+    // Idioma padrão primeiro: se settings.toml estiver corrompido, o aviso
+    // de recuperação já sai traduzido em vez de mostrar a chave crua.
+    crate::i18n::init(crate::i18n::Language::default());
     let lang = crate::settings::AppSettings::load().language;
     crate::i18n::init(lang);
 
@@ -60,6 +70,7 @@ fn main() -> anyhow::Result<()> {
             .with_inner_size([1024.0, 768.0])
             .with_min_inner_size([640.0, 480.0])
             .with_icon(load_icon()),
+        wgpu_options: wgpu_configuration(),
         ..Default::default()
     };
 
@@ -226,6 +237,25 @@ pub fn apply_font_settings(ctx: &egui::Context, font: FontChoice) {
     }
 
     ctx.set_fonts(fonts);
+}
+
+/// DX12 nativo com GL de reserva e GPU de baixo consumo. Medido no corpus
+/// (BF-003): o Vulkan padrão custava ~140 MB a mais de working set e ~200 ms
+/// a mais até o primeiro frame. `WGPU_BACKEND` / `WGPU_POWER_PREF` ainda
+/// sobrescrevem para diagnóstico.
+fn wgpu_configuration() -> eframe::egui_wgpu::WgpuConfiguration {
+    use eframe::egui_wgpu::{WgpuConfiguration, WgpuSetup, WgpuSetupCreateNew};
+    use eframe::wgpu;
+
+    let mut setup = WgpuSetupCreateNew::default();
+    setup.instance_descriptor.backends =
+        wgpu::Backends::from_env().unwrap_or(wgpu::Backends::DX12 | wgpu::Backends::GL);
+    setup.power_preference =
+        wgpu::PowerPreference::from_env().unwrap_or(wgpu::PowerPreference::LowPower);
+    WgpuConfiguration {
+        wgpu_setup: WgpuSetup::CreateNew(setup),
+        ..Default::default()
+    }
 }
 
 fn load_icon() -> egui::IconData {

@@ -35,3 +35,9 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Smoke test (app real, sem GPU usa WARP)
+        shell: pwsh
+        run: |
+          cargo build
+          pwsh -NoProfile -File tools/smoke.ps1 -Exe target/debug/maripdf.exe -TimeoutSec 180

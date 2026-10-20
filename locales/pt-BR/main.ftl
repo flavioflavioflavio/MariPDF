@@ -4,15 +4,21 @@
 app-name = MariPDF
 app-tagline = Leitor PDF ultra-leve para Windows
 app-tagline-sub = Rápido, portátil, sem instalar.
-app-license = Licença GPLv3  •  © 2026 Flávio Marcílio
+app-license = Licença GPLv3  •  © 2026 Flávio Takemoto
 btn-close = Fechar
 btn-open = Abrir PDF…
-btn-github = 🔗  GitHub
+btn-github = Código no GitHub
 
 ## About
 about-title = Sobre o MariPDF
-about-desc = Leitor de PDF ultra-leve para Windows.
+about-desc = Um leitor de PDF rápido e focado para Windows.
 about-version = Versão { $version }
+about-dedication = Dedicado a Mariana Lima, com muito amor.
+about-author-title = CRIADO POR
+about-author-name = Flávio Takemoto
+about-author-bio = Diretor de arte, motion designer e criador de produtos digitais, com mais de 15 anos entre design, tecnologia e comunicação. Fundador da EvoMind, um espaço visual de trabalho com IA.
+about-link-linkedin = LinkedIn
+about-link-evomind = EvoMind
 
 ## Toolbar
 toolbar-back-hint = Voltar (fecha o PDF)
@@ -45,6 +51,7 @@ overlay-goto-label = Ir para página:
 overlay-goto-hint = Enter → confirmar  •  Esc → fechar
 overlay-search-placeholder = Buscar no PDF…
 overlay-search-no-results = Sem resultados
+overlay-search-partial = { $count } pág. não lida(s)
 overlay-search-hint = Enter → próx  •  Shift+Enter → ant  •  Esc → fechar
 
 ## Settings — cabeçalho e abas
@@ -86,10 +93,13 @@ settings-cancel-btn = Cancelar
 ## Settings — Integração Windows
 settings-windows = Integração com Windows
 settings-assoc-title = Abrir .pdf com MariPDF
-settings-assoc-set-btn = Definir
+settings-assoc-set-btn = Definir como padrão
 settings-assoc-remove-btn = Remover
+settings-assoc-change-btn = Trocar no Windows
 settings-assoc-active = ✓ MariPDF é o leitor padrão de PDF
-settings-assoc-inactive = Definir como leitor padrão para arquivos .pdf
+settings-assoc-inactive = Registrar o MariPDF para abrir arquivos .pdf
+settings-assoc-choose = Nas Configurações do Windows, escolha MariPDF para .pdf
+settings-assoc-pending = Registrado — falta escolher o MariPDF no Windows
 
 ## Erros / Toast
 err-pdf-password = 🔒 PDF protegido por senha — não suportado no momento
@@ -170,3 +180,30 @@ palette-sepia-3 = Rosa Antigo
 sel-copy = Copiar (Ctrl+C)
 sel-select-all = Selecionar tudo (Ctrl+A)
 page-render-failed = Não foi possível exibir a página { $page }
+
+## Persistência e integração
+storage-save-failed = Não foi possível salvar { $what }: { $error }
+storage-read-failed = Não foi possível ler { $what } ({ $error }); usando o padrão nesta sessão sem sobrescrever o arquivo
+storage-recovered = { $what } estava corrompido e voltou ao padrão (backup guardado ao lado)
+storage-what-settings = as configurações
+storage-what-session = o histórico de leitura
+storage-what-window = a posição da janela
+settings-assoc-failed = Não foi possível alterar a associação .pdf: { $error }
+
+## Atualização
+about-donate = ♥ Apoiar o MariPDF
+update-check = Verificar atualizações
+update-check-again = Verificar de novo
+update-checking = Verificando…
+update-up-to-date = ✓ Você está na versão mais recente
+update-available = Nova versão disponível: { $version }
+update-download-install = Baixar e instalar
+update-open-page = Ver a versão no GitHub
+update-downloading = Baixando e verificando { $version }…
+update-verified = Instalador baixado e assinatura verificada.
+update-install-now = Instalar agora
+update-err-network = Não foi possível consultar as atualizações (sem conexão?).
+update-err-no-installer = Esta versão não tem instalador para baixar.
+update-err-signature = Assinatura da atualização inválida — download descartado.
+update-err-hash = O arquivo baixado não confere com a lista assinada — descartado.
+update-err-io = Não foi possível salvar ou iniciar o instalador.

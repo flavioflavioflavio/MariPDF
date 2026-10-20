@@ -189,7 +189,8 @@ pub(super) fn tab_privacy(
     sec(ui, t!("settings-windows"), tok.subtle);
     ui.add_space(8.0);
 
-    let is_assoc = crate::platform::file_assoc::is_pdf_associated();
+    use crate::platform::file_assoc::{self, AssociationState};
+    let state = file_assoc::association_state();
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
             ui.label(
@@ -197,22 +198,30 @@ pub(super) fn tab_privacy(
                     .size(13.0)
                     .color(tok.text),
             );
-            if is_assoc {
-                ui.label(
-                    egui::RichText::new(t!("settings-assoc-active"))
-                        .size(11.0)
-                        .color(tok.accent),
-                );
-            } else {
-                ui.label(
-                    egui::RichText::new(t!("settings-assoc-inactive"))
-                        .size(11.0)
-                        .color(tok.muted),
-                );
-            }
+            let (status, color) = match state {
+                AssociationState::Default => (t!("settings-assoc-active"), tok.accent),
+                AssociationState::Registered => (t!("settings-assoc-pending"), tok.muted),
+                AssociationState::NotRegistered => (t!("settings-assoc-inactive"), tok.muted),
+            };
+            ui.label(egui::RichText::new(status).size(11.0).color(color));
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if is_assoc {
+            if state == AssociationState::Default {
+                // O UserChoice é protegido: remover o ProgID agora deixaria o
+                // .pdf apontando para um handler inexistente. O usuário troca
+                // o padrão no Windows primeiro; aí o Remover aparece.
+                let resp = action_btn(
+                    ui,
+                    &format!("  {}  ", t!("settings-assoc-change-btn")),
+                    tok.accent,
+                    tok.on_acc,
+                    tok,
+                );
+                if resp.clicked() {
+                    file_assoc::open_default_apps();
+                }
+            }
+            if state == AssociationState::Registered {
                 let resp = action_btn(
                     ui,
                     &format!("  {}  ", t!("settings-assoc-remove-btn")),
@@ -221,9 +230,13 @@ pub(super) fn tab_privacy(
                     tok,
                 );
                 if resp.clicked() {
-                    let _ = crate::platform::file_assoc::unregister_pdf_association();
+                    if let Err(error) = file_assoc::unregister_pdf_association() {
+                        tracing::warn!("associação .pdf: falha ao remover: {error}");
+                        crate::notices::error(t!("settings-assoc-failed", error => error));
+                    }
                 }
-            } else {
+            }
+            if state != AssociationState::Default {
                 let resp = action_btn(
                     ui,
                     &format!("  {}  ", t!("settings-assoc-set-btn")),
@@ -232,7 +245,13 @@ pub(super) fn tab_privacy(
                     tok,
                 );
                 if resp.clicked() {
-                    let _ = crate::platform::file_assoc::register_pdf_association();
+                    match file_assoc::register_pdf_association() {
+                        Ok(()) => crate::notices::info(t!("settings-assoc-choose")),
+                        Err(error) => {
+                            tracing::warn!("associação .pdf: falha ao registrar: {error}");
+                            crate::notices::error(t!("settings-assoc-failed", error => error));
+                        }
+                    }
                 }
             }
         });
