@@ -109,15 +109,21 @@ pub fn unregister_pdf_association() -> anyhow::Result<()> {
         use winreg::RegKey;
 
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let _ = hkcu.delete_subkey_all(format!(r"Software\Classes\{PROG_ID}"));
-        let _ = hkcu.delete_subkey_all(r"Software\Classes\Applications\maripdf.exe");
-        let _ = hkcu.delete_subkey_all(APP_KEY);
+        // Ausente = já removido; qualquer outro erro (ACL, etc.) é reportado.
+        let tolerate_missing = |result: std::io::Result<()>| match result {
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+            _ => Ok(()),
+        };
+        tolerate_missing(hkcu.delete_subkey_all(format!(r"Software\Classes\{PROG_ID}")))?;
+        tolerate_missing(hkcu.delete_subkey_all(r"Software\Classes\Applications\maripdf.exe"))?;
+        tolerate_missing(hkcu.delete_subkey_all(APP_KEY))?;
         for (key, value) in [
             (r"Software\Classes\.pdf\OpenWithProgids", PROG_ID),
             (r"Software\RegisteredApplications", REGISTERED_APP_NAME),
         ] {
-            if let Ok(k) = hkcu.open_subkey_with_flags(key, KEY_READ | KEY_WRITE) {
-                let _ = k.delete_value(value);
+            match hkcu.open_subkey_with_flags(key, KEY_READ | KEY_WRITE) {
+                Ok(k) => tolerate_missing(k.delete_value(value))?,
+                Err(error) => tolerate_missing(Err(error))?,
             }
         }
         // Versões antigas gravavam o padrão legado de `.pdf`; limpa se for nosso.

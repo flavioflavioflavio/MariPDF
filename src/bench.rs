@@ -232,12 +232,34 @@ impl MariApp {
                 }
             }
             Step::Continuous => {
-                if run.jumps_left == 0 {
-                    run.finish_step(true, format!("{CONTINUOUS_JUMPS} saltos"), Step::Done);
-                } else {
-                    run.jumps_left -= 1;
-                    let page = (CONTINUOUS_JUMPS - run.jumps_left) * 7 % self.page_count.max(1);
-                    self.viewer.request_continuous_page(page);
+                // Cada salto só conta quando a página pedida virou a dominante
+                // e tem textura na GPU; erro de render ou timeout reprova.
+                let target = run.target_page;
+                let landed = run.jumps_left == CONTINUOUS_JUMPS
+                    || (self.viewer.dominant_continuous_page() == Some(target)
+                        && self.viewer.tex_cache.contains(target));
+                if let Some(error) = self.viewer.page_errors.get(&target).cloned() {
+                    run.finish_step(false, format!("página {}: {error}", target + 1), Step::Done);
+                } else if run.timed_out() {
+                    let detail = format!(
+                        "timeout no salto {} (página {})",
+                        CONTINUOUS_JUMPS - run.jumps_left,
+                        target + 1
+                    );
+                    run.finish_step(false, detail, Step::Done);
+                } else if landed {
+                    if run.jumps_left == 0 {
+                        run.finish_step(
+                            true,
+                            format!("{CONTINUOUS_JUMPS} saltos renderizados"),
+                            Step::Done,
+                        );
+                    } else {
+                        run.jumps_left -= 1;
+                        run.target_page =
+                            (CONTINUOUS_JUMPS - run.jumps_left) * 7 % self.page_count.max(1);
+                        self.viewer.request_continuous_page(run.target_page);
+                    }
                 }
             }
             Step::Done => {

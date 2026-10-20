@@ -48,7 +48,7 @@ pub fn get_pdfium() -> anyhow::Result<Arc<Mutex<Pdfium>>> {
     // ficaria bloqueado para sempre antes de chegar ao `set`.
     let _init_guard = PDFIUM_INIT_LOCK
         .lock()
-        .map_err(|_| anyhow::anyhow!("Lock de inicializacao do Pdfium foi corrompido"))?;
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
 
     // Outro thread pode ter concluido enquanto aguardavamos o lock.
     if let Some(arc) = PDFIUM_INSTANCE.get() {
@@ -135,9 +135,11 @@ impl PdfEngine {
             .ok_or_else(|| anyhow::anyhow!("Caminho com caracteres inválidos"))?;
 
         let (doc, page_count) = {
+            // Um panic tratado em outro job envenena o mutex, mas o PDFium
+            // segue válido; recusar aqui bloquearia abrir outro PDF para sempre.
             let pdfium_guard = pdfium
                 .lock()
-                .map_err(|_| anyhow::anyhow!("Lock global do Pdfium foi corrompido"))?;
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
 
             // SAFETY: lifetime 'static aqui e um contorno — o doc vive junto com
             // o Arc<Mutex<Pdfium>> mantido na struct. O Drop abaixo tambem fecha

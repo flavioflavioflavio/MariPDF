@@ -65,6 +65,8 @@ pub struct PdfViewer {
     pub(crate) pending_scroll_anchor: Option<LayoutAnchor>,
     /// Salto animado em andamento (Scroll Suave ligado).
     pub(crate) scroll_tween: Option<crate::ui::scroll_motion::ScrollTween>,
+    /// Destino do salto animado, recalculado se o layout mudar no caminho.
+    pub(crate) scroll_goal: Option<crate::ui::scroll_motion::NavGoal>,
     /// Âncora mantida ao recalcular alturas/zoom.
     pub(crate) continuous_anchor: Option<LayoutAnchor>,
     pub(crate) continuous_viewport_height: f32,
@@ -119,6 +121,7 @@ impl PdfViewer {
             pending_scroll_page: None,
             pending_scroll_anchor: None,
             scroll_tween: None,
+            scroll_goal: None,
             continuous_anchor: None,
             continuous_viewport_height: 0.0,
             continuous_scroll_offset: None,
@@ -162,6 +165,7 @@ impl PdfViewer {
         self.pending_scroll_page = None;
         self.pending_scroll_anchor = None;
         self.scroll_tween = None;
+        self.scroll_goal = None;
         self.search_highlight = None;
         self.continuous_anchor = None;
         self.continuous_viewport_height = 0.0;

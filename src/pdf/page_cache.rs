@@ -42,6 +42,17 @@ pub struct LruPageCache {
     failures: VecDeque<(usize, String)>,
 }
 
+/// Um bitmap em cache só é refeito se ficou bem abaixo do que o renderer
+/// consegue entregar. Compara com a escala ATINGÍVEL (após o teto de textura
+/// e memória): comparar com a pedida re-renderizaria para sempre páginas
+/// que batem no teto.
+pub(crate) fn needs_sharper_render(cached: &RenderedPage, requested: f32) -> bool {
+    let scale = cached.scale.max(f32::EPSILON);
+    let (width_pts, height_pts) = (cached.width as f32 / scale, cached.height as f32 / scale);
+    let achievable = crate::ui::page_scale::capped_raster_scale(width_pts, height_pts, requested);
+    cached.scale < achievable * crate::ui::page_scale::UPGRADE_RATIO
+}
+
 impl LruPageCache {
     /// Cria um cache com orçamento `budget_bytes`.
     /// Render e enviado ao scheduler global do documento.
@@ -92,7 +103,7 @@ impl LruPageCache {
     /// do render) é descartado e pedido de novo.
     pub fn prefetch(&mut self, page_index: usize, scale: f32, priority: JobPriority) {
         if let Some(cached) = self.entries.get(page_index) {
-            if cached.scale >= scale * crate::ui::page_scale::UPGRADE_RATIO {
+            if !needs_sharper_render(cached, scale) {
                 return;
             }
             self.entries.retain(|page| page != page_index);

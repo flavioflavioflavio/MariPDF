@@ -117,3 +117,20 @@ fn worker_guard_turns_panics_into_errors() {
     let message = failed.unwrap_err().to_string();
     assert!(message.contains("página explodiu"), "{message}");
 }
+
+#[test]
+fn a_poisoned_pdfium_lock_does_not_block_opening_documents() {
+    let pdfium = get_pdfium().expect("PDFium embutido");
+    // Envenena o mutex global como um panic dentro de with_document faria.
+    let poison = std::sync::Arc::clone(&pdfium);
+    let _ = std::thread::spawn(move || {
+        let _guard = poison.lock().unwrap_or_else(|p| p.into_inner());
+        panic!("job explodiu segurando o lock");
+    })
+    .join();
+    assert!(pdfium.is_poisoned());
+    let engine = open(&fixture("sample.pdf")).expect("abrir depois do panic");
+    assert_eq!(engine.page_count(), 2);
+    assert!(engine.render_page(0, 0.5).is_ok());
+    pdfium.clear_poison();
+}
