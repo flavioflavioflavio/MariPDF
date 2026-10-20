@@ -34,6 +34,14 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         app.pending_select_all = false;
         app.thumb_cache = None;
         app.side_panel = SidePanelKind::None;
+        // Diálogos e estado ligados ao documento fechado.
+        app.properties = None;
+        if app.password_prompt.as_ref().is_some_and(|p| p.reload) {
+            app.password_prompt = None;
+        }
+        app.doc_password = None;
+        app.marks.clear();
+        app.nav.clear();
     }
 
     // Drena bitmaps de thumbnails prontos

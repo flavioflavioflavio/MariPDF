@@ -7,6 +7,7 @@ use crate::app::{
 use crate::pdf::text_search::SearchHit;
 use crate::t;
 use crate::ui::icons;
+use crate::ui::page_rotation::{PageMapping, Rotation};
 use crate::ui::viewer::{SearchHighlight, ViewMode};
 use eframe::egui;
 
@@ -255,7 +256,7 @@ impl MariApp {
             return;
         };
         let page = hit.page_index;
-        let fraction = hit_page_fraction(hit);
+        let fraction = hit_page_fraction(hit, self.viewer.rotation);
         self.go_to_page(ctx, page);
         if self.viewer.mode == ViewMode::Continuous {
             if let Some(fraction) = fraction {
@@ -265,11 +266,19 @@ impl MariApp {
     }
 }
 
-/// Posição vertical (0 = topo) do primeiro retângulo da ocorrência na página.
-fn hit_page_fraction(hit: &SearchHit) -> Option<f32> {
-    let [_, bottom, _, top] = *hit.rects.first()?;
-    let (_, height) = hit.page_size;
-    (height > 0.0).then(|| 1.0 - (top + bottom) * 0.5 / height)
+/// Posição vertical (0 = topo) do primeiro retângulo da ocorrência na página
+/// como ela aparece na tela, já com a rotação aplicada.
+fn hit_page_fraction(hit: &SearchHit, rotation: Rotation) -> Option<f32> {
+    let [left, bottom, right, top] = *hit.rects.first()?;
+    let (width, height) = hit.page_size;
+    if width <= 0.0 || height <= 0.0 {
+        return None;
+    }
+    // Página girada num quadrado unitário: o y na tela já é a fração.
+    let unit = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1.0, 1.0));
+    let center = PageMapping::new(unit, hit.page_size, rotation)
+        .screen_point((left + right) * 0.5, (top + bottom) * 0.5);
+    Some(center.y)
 }
 
 /// Trecho de contexto com a ocorrência em destaque.
@@ -310,6 +319,32 @@ mod tests {
             rects: vec![[0.0, 590.0, 50.0, 610.0]],
             page_size: (600.0, 800.0),
         };
-        assert_eq!(hit_page_fraction(&hit), Some(0.25));
+        assert_eq!(hit_page_fraction(&hit, Rotation::R0), Some(0.25));
+    }
+
+    #[test]
+    fn hit_fraction_follows_the_rotation() {
+        // Ocorrência no topo, perto da borda esquerda da página.
+        let hit = SearchHit {
+            page_index: 0,
+            context: String::new(),
+            match_start: 0,
+            match_end: 0,
+            rects: vec![[0.0, 780.0, 60.0, 800.0]],
+            page_size: (600.0, 800.0),
+        };
+        let near = |value: Option<f32>, expected: f32| (value.unwrap() - expected).abs() < 1e-3;
+        // 180°: o topo vai para baixo.
+        assert!(near(
+            hit_page_fraction(&hit, Rotation::R180),
+            1.0 - 10.0 / 800.0
+        ));
+        // 90° horário: a borda esquerda vira o topo.
+        assert!(near(hit_page_fraction(&hit, Rotation::R90), 30.0 / 600.0));
+        // 270°: a borda esquerda vira a base.
+        assert!(near(
+            hit_page_fraction(&hit, Rotation::R270),
+            1.0 - 30.0 / 600.0
+        ));
     }
 }

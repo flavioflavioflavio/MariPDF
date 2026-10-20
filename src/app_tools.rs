@@ -139,15 +139,19 @@ pub struct PasswordPrompt {
     pub input: String,
     /// A senha anterior foi recusada.
     pub wrong: bool,
+    /// Pedido nasceu de uma recarga automática: a nova tentativa continua
+    /// sendo recarga (mantém modo, painel, histórico e estado ao vivo).
+    pub reload: bool,
     focus_requested: bool,
 }
 
 impl PasswordPrompt {
-    pub fn new(path: PathBuf, wrong: bool) -> Self {
+    pub fn new(path: PathBuf, wrong: bool, reload: bool) -> Self {
         Self {
             path,
             input: String::new(),
             wrong,
+            reload,
             focus_requested: false,
         }
     }
@@ -328,35 +332,46 @@ impl MariApp {
                 .color(muted),
         );
         ui.add_space(2.0);
-        for &page in &self.marks {
-            let current = page == self.current_page;
-            ui.horizontal(|ui| {
-                ui.label(icons::ph(icons::BOOKMARK_SIMPLE, 13.0, ink));
-                let label = egui::RichText::new(t!("side-mark-page", page => page + 1))
-                    .size(12.5)
-                    .color(if current { ink } else { text });
-                if ui
-                    .add(egui::Label::new(label).sense(egui::Sense::click()))
-                    .on_hover_cursor(egui::CursorIcon::PointingHand)
-                    .clicked()
-                {
-                    goto = Some(page);
+        // Rolagem própria e limitada: muitos marcadores não podem empurrar o
+        // sumário (nem os próprios botões de remover) para fora do painel.
+        let max_height = (ui.available_height() * 0.35).clamp(60.0, 220.0);
+        let marks = self.marks.clone();
+        let current_page = self.current_page;
+        egui::ScrollArea::vertical()
+            .id_salt("side_marks_scroll")
+            .max_height(max_height)
+            .auto_shrink([false, true])
+            .show(ui, |ui| {
+                for &page in &marks {
+                    let current = page == current_page;
+                    ui.horizontal(|ui| {
+                        ui.label(icons::ph(icons::BOOKMARK_SIMPLE, 13.0, ink));
+                        let label = egui::RichText::new(t!("side-mark-page", page => page + 1))
+                            .size(12.5)
+                            .color(if current { ink } else { text });
+                        if ui
+                            .add(egui::Label::new(label).sense(egui::Sense::click()))
+                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                            .clicked()
+                        {
+                            goto = Some(page);
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .add(
+                                    egui::Button::new(icons::ph(icons::X, 11.0, muted))
+                                        .fill(egui::Color32::TRANSPARENT)
+                                        .stroke(egui::Stroke::NONE),
+                                )
+                                .on_hover_text(t!("side-mark-remove"))
+                                .clicked()
+                            {
+                                remove = Some(page);
+                            }
+                        });
+                    });
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .add(
-                            egui::Button::new(icons::ph(icons::X, 11.0, muted))
-                                .fill(egui::Color32::TRANSPARENT)
-                                .stroke(egui::Stroke::NONE),
-                        )
-                        .on_hover_text(t!("side-mark-remove"))
-                        .clicked()
-                    {
-                        remove = Some(page);
-                    }
-                });
             });
-        }
         if let Some(page) = remove {
             self.remove_mark(page);
         }
@@ -445,20 +460,32 @@ impl MariApp {
                     );
                 });
                 ui.add_space(10.0);
-                egui::Grid::new("props_grid")
-                    .num_columns(2)
-                    .spacing([16.0, 7.0])
+                // Metadados longos rolam; os botões ficam sempre na tela.
+                let max_height = (ctx.screen_rect().height() - 180.0).max(120.0);
+                egui::ScrollArea::vertical()
+                    .id_salt("props_scroll")
+                    .max_height(max_height)
+                    .auto_shrink([false, true])
                     .show(ui, |ui| {
-                        for (label, value) in &rows {
-                            ui.label(egui::RichText::new(label).size(12.0).color(TEXT_MUTED));
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(value).size(12.5).color(TEXT_PRIMARY),
-                                )
-                                .wrap(),
-                            );
-                            ui.end_row();
-                        }
+                        egui::Grid::new("props_grid")
+                            .num_columns(2)
+                            .spacing([16.0, 7.0])
+                            .show(ui, |ui| {
+                                for (label, value) in &rows {
+                                    ui.label(
+                                        egui::RichText::new(label).size(12.0).color(TEXT_MUTED),
+                                    );
+                                    ui.add(
+                                        egui::Label::new(
+                                            egui::RichText::new(value)
+                                                .size(12.5)
+                                                .color(TEXT_PRIMARY),
+                                        )
+                                        .wrap(),
+                                    );
+                                    ui.end_row();
+                                }
+                            });
                     });
                 ui.add_space(14.0);
                 ui.horizontal(|ui| {
@@ -557,7 +584,7 @@ impl MariApp {
         } else if submit {
             if let Some(prompt) = self.password_prompt.take() {
                 let password = prompt.input;
-                self.open_document(ctx, prompt.path, Some(password), false);
+                self.open_document(ctx, prompt.path, Some(password), prompt.reload);
             }
         }
     }

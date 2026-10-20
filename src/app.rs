@@ -299,7 +299,8 @@ impl MariApp {
             {
                 tracing::info!(path = %path.display(), "PDF pede senha");
                 let wrong = password.is_some();
-                self.password_prompt = Some(crate::app_tools::PasswordPrompt::new(path, wrong));
+                self.password_prompt =
+                    Some(crate::app_tools::PasswordPrompt::new(path, wrong, reload));
                 false
             }
             Err(e) => {
