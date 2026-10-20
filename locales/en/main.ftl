@@ -94,6 +94,7 @@ settings-windows = Windows Integration
 settings-assoc-title = Open .pdf with MariPDF
 settings-assoc-set-btn = Set as default
 settings-assoc-remove-btn = Remove
+settings-assoc-change-btn = Change in Windows
 settings-assoc-active = ✓ MariPDF is the default PDF reader
 settings-assoc-inactive = Register MariPDF to open .pdf files
 settings-assoc-choose = In Windows Settings, choose MariPDF for .pdf
@@ -181,6 +182,7 @@ page-render-failed = Could not display page { $page }
 
 ## Persistência e integração
 storage-save-failed = Could not save { $what }: { $error }
+storage-read-failed = Could not read { $what } ({ $error }); using defaults this session without overwriting the file
 storage-recovered = { $what } was corrupted and was reset to defaults (backup kept next to it)
 storage-what-settings = the settings
 storage-what-session = the reading history

@@ -123,6 +123,8 @@ impl MariApp {
                 if self.render_error.take().is_some() {
                     run.report.render_errors += 1;
                 }
+                // No modo contínuo a falha fica na página, não em render_error.
+                run.report.render_errors += std::mem::take(&mut self.viewer.continuous_failures);
                 let pages = self.page_count.max(1) as u64;
                 match run.next(9) {
                     0..=2 => {

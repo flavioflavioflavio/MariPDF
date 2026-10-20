@@ -41,7 +41,24 @@ pub fn error(message: impl Into<String>) {
     push(NoticeKind::Error, message.into());
 }
 
+pub fn has_pending() -> bool {
+    !PENDING
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .is_empty()
+}
+
+/// Retira o aviso pendente mais antigo. A UI chama quando não há toast
+/// visível, então avisos simultâneos aparecem em sequência.
+pub fn pop() -> Option<Notice> {
+    let mut pending = PENDING
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    (!pending.is_empty()).then(|| pending.remove(0))
+}
+
 /// Retira todos os avisos pendentes, do mais antigo ao mais novo.
+#[cfg(test)]
 pub fn drain() -> Vec<Notice> {
     let mut pending = PENDING
         .lock()
@@ -67,6 +84,12 @@ mod tests {
         assert_eq!(drained[0].kind, NoticeKind::Info);
         assert_eq!(drained[1].message, "dois");
         assert!(drain().is_empty());
+
+        info("a");
+        info("b");
+        assert_eq!(pop().unwrap().message, "a");
+        assert_eq!(pop().unwrap().message, "b");
+        assert!(pop().is_none());
 
         for i in 0..(MAX_PENDING + 5) {
             info(format!("{i}"));

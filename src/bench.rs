@@ -217,7 +217,15 @@ impl MariApp {
                 }
             }
             Step::Search => {
-                if !self.search.hits.is_empty() || !self.search.is_running {
+                // Zero ocorrências é válido (PDF só de imagens); falha de
+                // extração não: reprova em vez de virar "0 ocorrência(s)".
+                if self.search.failed_pages > 0 {
+                    let detail = format!(
+                        "{} página(s) com falha na extração",
+                        self.search.failed_pages
+                    );
+                    run.finish_step(false, detail, Step::Done);
+                } else if !self.search.hits.is_empty() || !self.search.is_running {
                     let detail = format!("{} ocorrência(s)", self.search.hits.len());
                     run.finish_step(true, detail, Step::Continuous);
                     self.search_open = false;

@@ -155,6 +155,7 @@ impl PdfViewer {
                     } else if let Some(error) = self.page_cache.take_failure(idx) {
                         tracing::warn!("continuous: página {} falhou: {error}", idx + 1);
                         self.page_errors.insert(idx, error);
+                        self.continuous_failures += 1;
                     }
                 }
 

@@ -206,7 +206,22 @@ pub(super) fn tab_privacy(
             ui.label(egui::RichText::new(status).size(11.0).color(color));
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if state != AssociationState::NotRegistered {
+            if state == AssociationState::Default {
+                // O UserChoice é protegido: remover o ProgID agora deixaria o
+                // .pdf apontando para um handler inexistente. O usuário troca
+                // o padrão no Windows primeiro; aí o Remover aparece.
+                let resp = action_btn(
+                    ui,
+                    &format!("  {}  ", t!("settings-assoc-change-btn")),
+                    tok.accent,
+                    tok.on_acc,
+                    tok,
+                );
+                if resp.clicked() {
+                    file_assoc::open_default_apps();
+                }
+            }
+            if state == AssociationState::Registered {
                 let resp = action_btn(
                     ui,
                     &format!("  {}  ", t!("settings-assoc-remove-btn")),

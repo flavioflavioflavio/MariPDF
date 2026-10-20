@@ -16,7 +16,11 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
 
 const RELEASES_URL: &str =
-    "https://api.github.com/repos/flavioflavioflavio/MariPDF/releases?per_page=15";
+    "https://api.github.com/repos/flavioflavioflavio/MariPDF/releases?per_page=30";
+/// A lista é paginada: a estável mais recente é consultada à parte para não
+/// sumir atrás de uma sequência de pré-releases.
+const LATEST_STABLE_URL: &str =
+    "https://api.github.com/repos/flavioflavioflavio/MariPDF/releases/latest";
 pub const RELEASES_PAGE: &str = "https://github.com/flavioflavioflavio/MariPDF/releases";
 const SUMS_NAME: &str = "SHA256SUMS.txt";
 const SIG_NAME: &str = "SHA256SUMS.txt.sig";
@@ -250,14 +254,24 @@ fn fetch_bytes(url: &str) -> Result<Vec<u8>, UpdateError> {
 
 use std::io::Read as _;
 
-fn check() -> Result<Option<Release>, UpdateError> {
-    let releases: Vec<Release> = agent()
-        .get(RELEASES_URL)
+fn fetch_json<T: serde::de::DeserializeOwned>(url: &str) -> Result<T, UpdateError> {
+    agent()
+        .get(url)
         .set("Accept", "application/vnd.github+json")
         .call()
         .map_err(|e| UpdateError::Network(e.to_string()))?
         .into_json()
-        .map_err(|e| UpdateError::Network(e.to_string()))?;
+        .map_err(|e| UpdateError::Network(e.to_string()))
+}
+
+fn check() -> Result<Option<Release>, UpdateError> {
+    let mut releases: Vec<Release> = fetch_json(RELEASES_URL)?;
+    match fetch_json::<Release>(LATEST_STABLE_URL) {
+        Ok(latest) => releases.push(latest),
+        // 404 = ainda não há release estável publicada.
+        Err(UpdateError::Network(error)) if error.contains("404") => {}
+        Err(error) => return Err(error),
+    }
     Ok(select_update(&current_version(), &releases))
 }
 
@@ -438,6 +452,18 @@ mod tests {
             select_update(&current, &releases).unwrap().tag_name,
             "v1.0.0-rc.2"
         );
+    }
+
+    #[test]
+    fn stable_found_outside_the_first_page_still_wins() {
+        // A lista só trouxe pré-releases; a estável veio do /releases/latest.
+        let mut releases: Vec<Release> = (0..30)
+            .map(|i| release(&format!("v1.2.0-rc.{i}"), true))
+            .collect();
+        releases.push(release("v1.1.0", false));
+        let current = Version::parse("1.0.0").unwrap();
+        let chosen = select_update(&current, &releases).expect("estável disponível");
+        assert_eq!(chosen.tag_name, "v1.1.0");
     }
 
     #[test]

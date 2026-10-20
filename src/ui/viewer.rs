@@ -106,6 +106,9 @@ pub struct PdfViewer {
     /// Falhas por página no modo contínuo: ficam no lugar da página, sem
     /// derrubar o documento inteiro, e não são re-pedidas em loop.
     pub(crate) page_errors: std::collections::HashMap<usize, String>,
+    /// Total de falhas de render no modo contínuo desde a última leitura
+    /// (o soak consome com `mem::take`).
+    pub(crate) continuous_failures: u64,
 }
 
 impl PdfViewer {
@@ -140,6 +143,7 @@ impl PdfViewer {
             smooth_scroll: true,
             last_error: None,
             page_errors: std::collections::HashMap::new(),
+            continuous_failures: 0,
         }
     }
 

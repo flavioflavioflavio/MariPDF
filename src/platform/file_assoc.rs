@@ -73,6 +73,13 @@ pub fn default_apps_uri() -> String {
     format!("ms-settings:defaultapps?registeredAppUser={REGISTERED_APP_NAME}")
 }
 
+/// Abre a tela de apps padrão do Windows já filtrada no MariPDF.
+pub fn open_default_apps() {
+    if let Err(error) = open::that(default_apps_uri()) {
+        tracing::warn!("associação .pdf: falha ao abrir apps padrão: {error}");
+    }
+}
+
 /// Registra o MariPDF e abre as Configurações para o usuário confirmar.
 pub fn register_pdf_association() -> anyhow::Result<()> {
     #[cfg(target_os = "windows")]

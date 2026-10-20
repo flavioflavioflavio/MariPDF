@@ -40,6 +40,7 @@ def fmt(value, digits=0):
 
 
 rows = []
+failed = []
 for name, runs in sorted(by_file.items()):
     runs.sort()
     reports = [r for _, r in runs]
@@ -58,6 +59,8 @@ for name, runs in sorted(by_file.items()):
         status = "✅ recusado" if refused else "❌"
     else:
         status = "✅" if ok else "❌"
+    if status == "❌":
+        failed.append(name)
     rows.append([
         name,
         str(reports[0].get("pages", 0)),
@@ -99,5 +102,10 @@ if incomplete:
 summary = "\n".join(lines) + "\n"
 (out_dir / "summary.md").write_text(summary, encoding="utf-8")
 print(summary)
+problems = []
 if incomplete:
-    sys.exit(f"rodadas faltando: {', '.join(incomplete)}")
+    problems.append(f"rodadas faltando: {', '.join(incomplete)}")
+if failed:
+    problems.append(f"reprovados: {', '.join(failed)}")
+if problems:
+    sys.exit("; ".join(problems))

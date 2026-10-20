@@ -94,6 +94,7 @@ settings-windows = Integração com Windows
 settings-assoc-title = Abrir .pdf com MariPDF
 settings-assoc-set-btn = Definir como padrão
 settings-assoc-remove-btn = Remover
+settings-assoc-change-btn = Trocar no Windows
 settings-assoc-active = ✓ MariPDF é o leitor padrão de PDF
 settings-assoc-inactive = Registrar o MariPDF para abrir arquivos .pdf
 settings-assoc-choose = Nas Configurações do Windows, escolha MariPDF para .pdf
@@ -181,6 +182,7 @@ page-render-failed = Não foi possível exibir a página { $page }
 
 ## Persistência e integração
 storage-save-failed = Não foi possível salvar { $what }: { $error }
+storage-read-failed = Não foi possível ler { $what } ({ $error }); usando o padrão nesta sessão sem sobrescrever o arquivo
 storage-recovered = { $what } estava corrompido e voltou ao padrão (backup guardado ao lado)
 storage-what-settings = as configurações
 storage-what-session = o histórico de leitura

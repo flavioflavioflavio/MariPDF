@@ -26,6 +26,10 @@ $files = Select-String -Path $Manifest -Pattern '^file = "(.+)"' | ForEach-Objec
 $Only = @($Only | ForEach-Object { $_ -split "," } | Where-Object { $_ })
 if ($Only.Count -gt 0) { $files = $files | Where-Object { $Only -contains $_ } }
 
+# Medir PDFs diferentes dos do manifesto invalidaria a comparação com a baseline.
+python tools/verify_corpus.py $Corpus $Manifest @files
+if ($LASTEXITCODE -ne 0) { throw "Corpus não confere com $Manifest" }
+
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $outDir = Join-Path "bench\results" $stamp
 New-Item -ItemType Directory -Force $outDir | Out-Null
@@ -59,4 +63,4 @@ Write-Host "Resultados em $outDir"
 if ($missing.Count -gt 0) {
     throw "Rodadas sem relatório (travou, crashou ou excedeu $TimeoutSec s): $($missing -join ', ')"
 }
-if ($reportExit -ne 0) { throw "bench_report.py encontrou rodadas faltando" }
+if ($reportExit -ne 0) { throw "bench_report.py: rodadas faltando ou reprovadas" }

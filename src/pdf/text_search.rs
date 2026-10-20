@@ -28,6 +28,8 @@ pub struct TextSearch {
     pub hits: Vec<SearchHit>,
     pub current_hit: usize,
     pub is_running: bool,
+    /// Páginas cuja extração de texto falhou na busca atual.
+    pub failed_pages: usize,
     scheduler: Option<DocumentWorkerHandle>,
     result_tx: Sender<JobCompletion>,
     result_rx: Receiver<JobCompletion>,
@@ -46,6 +48,7 @@ impl TextSearch {
             hits: Vec::new(),
             current_hit: 0,
             is_running: false,
+            failed_pages: 0,
             scheduler: None,
             result_tx,
             result_rx,
@@ -79,6 +82,7 @@ impl TextSearch {
         self.generation = self.generation.wrapping_add(1).max(1);
         self.next_page = 0;
         self.inflight = false;
+        self.failed_pages = 0;
         self.is_running = !self.query.is_empty() && self.scheduler.is_some() && self.page_count > 0;
         self.schedule_next();
     }
@@ -115,6 +119,7 @@ impl TextSearch {
                 }
                 JobOutcome::Failed(error) => {
                     tracing::warn!("text_search: pg {page_index}: {error}");
+                    self.failed_pages += 1;
                 }
                 JobOutcome::Cancelled => {}
                 JobOutcome::Ready(_) => {
@@ -152,6 +157,7 @@ impl TextSearch {
         self.current_hit = 0;
         self.next_page = 0;
         self.inflight = false;
+        self.failed_pages = 0;
         self.is_running = false;
     }
 

@@ -96,8 +96,30 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     result
 }
 
+/// Arquivos que existiam mas não puderam ser lidos nesta sessão.
+static UNREADABLE: std::sync::Mutex<Vec<PathBuf>> = std::sync::Mutex::new(Vec::new());
+
+fn protect(path: &Path) {
+    let mut paths = UNREADABLE.lock().unwrap_or_else(|p| p.into_inner());
+    if !paths.iter().any(|p| p == path) {
+        paths.push(path.to_path_buf());
+    }
+}
+
+fn is_protected(path: &Path) -> bool {
+    UNREADABLE
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .iter()
+        .any(|p| p == path)
+}
+
 /// Serializa e grava; em falha registra no log e avisa o usuário.
 pub fn save_toml<T: Serialize>(path: &Path, value: &T, kind: StoreKind) -> anyhow::Result<()> {
+    if is_protected(path) {
+        tracing::warn!(?kind, path = %path.display(), "estado não lido nesta sessão; gravação ignorada");
+        return Ok(());
+    }
     let result = toml::to_string_pretty(value)
         .map_err(anyhow::Error::from)
         .and_then(|text| write_atomic(path, text.as_bytes()).map_err(anyhow::Error::from));
@@ -118,7 +140,15 @@ pub fn load_toml<T: DeserializeOwned + Default>(path: &Path, kind: StoreKind) ->
         Ok(text) => text,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return T::default(),
         Err(error) => {
+            // Existe mas não pôde ser lido (ACL, bloqueio): avisa e protege o
+            // arquivo para que os padrões desta sessão não o sobrescrevam.
             tracing::warn!(?kind, path = %path.display(), "falha ao ler estado: {error}");
+            protect(path);
+            notices::error(crate::t!(
+                "storage-read-failed",
+                what => crate::t!(kind.label_key()),
+                error => error
+            ));
             return T::default();
         }
     };
