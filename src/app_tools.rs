@@ -340,13 +340,19 @@ impl MariApp {
             }
         };
         self.toast = Some(Toast::info(message, 2.0, now));
-        self.save_session();
+        self.persist_marks();
+    }
+
+    fn persist_marks(&mut self) {
+        if let Some(path) = self.current_file.clone() {
+            self.persistence.set_marks(&path, &self.marks);
+        }
     }
 
     pub(crate) fn remove_mark(&mut self, page: usize) {
         if let Ok(index) = self.marks.binary_search(&page) {
             self.marks.remove(index);
-            self.save_session();
+            self.persist_marks();
         }
     }
 

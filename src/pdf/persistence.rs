@@ -21,9 +21,6 @@ pub struct FileSession {
     /// Rotação de exibição escolhida para o documento.
     #[serde(default)]
     pub rotation: crate::ui::page_rotation::Rotation,
-    /// Páginas marcadas pelo usuário (Ctrl+D).
-    #[serde(default)]
-    pub marks: Vec<usize>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,6 +30,10 @@ struct SessionStore {
     /// Chave: caminho absoluto do arquivo PDF
     #[serde(default)]
     files: HashMap<String, FileSession>,
+    /// Marcadores do usuário por PDF. Ficam fora de `files` de propósito:
+    /// tirar dos recentes ou limpar o histórico não apaga marcadores.
+    #[serde(default)]
+    marks: HashMap<String, Vec<usize>>,
 }
 
 /// Posição, tamanho e maximização da janela entre sessões. Arquivos do formato
@@ -50,6 +51,7 @@ impl Default for SessionStore {
         Self {
             schema_version: storage::SCHEMA_VERSION,
             files: HashMap::new(),
+            marks: HashMap::new(),
         }
     }
 }
@@ -88,6 +90,26 @@ impl PersistenceManager {
         self.store.files.insert(key, session);
         if let Err(e) = try_save(&self.path, &self.store) {
             tracing::warn!("Falha ao salvar sessão: {e}");
+        }
+    }
+
+    /// Marcadores salvos do PDF (vazio se nenhum).
+    pub fn marks(&self, pdf_path: &Path) -> Vec<usize> {
+        let key = pdf_path.to_string_lossy().to_string();
+        self.store.marks.get(&key).cloned().unwrap_or_default()
+    }
+
+    /// Salva os marcadores do PDF (lista vazia remove a entrada). Independe do
+    /// histórico de recentes: marcar uma página é uma ação explícita.
+    pub fn set_marks(&mut self, pdf_path: &Path, marks: &[usize]) {
+        let key = pdf_path.to_string_lossy().to_string();
+        if marks.is_empty() {
+            self.store.marks.remove(&key);
+        } else {
+            self.store.marks.insert(key, marks.to_vec());
+        }
+        if let Err(e) = try_save(&self.path, &self.store) {
+            tracing::warn!("Falha ao salvar marcadores: {e}");
         }
     }
 
@@ -195,6 +217,34 @@ mod tests {
         assert_eq!(session.last_opened, 123);
 
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn bookmarks_survive_removing_recents_and_clearing_history() {
+        let path = std::env::temp_dir().join(format!(
+            "maripdf-marks-{}-{}.toml",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("relógio depois da época Unix")
+                .as_nanos()
+        ));
+        let mut manager = PersistenceManager {
+            path: path.clone(),
+            store: SessionStore::default(),
+        };
+        let pdf = Path::new(r"C:\docs\livro.pdf");
+        manager.save(pdf, FileSession::default());
+        manager.set_marks(pdf, &[3, 10]);
+        manager.remove_recent(pdf);
+        assert_eq!(manager.marks(pdf), vec![3, 10]);
+        manager.clear_all().expect("limpar histórico");
+        assert_eq!(manager.marks(pdf), vec![3, 10]);
+        let reloaded: SessionStore = storage::load_toml(&path, StoreKind::Session);
+        assert_eq!(reloaded.marks.len(), 1);
+        manager.set_marks(pdf, &[]);
+        assert!(manager.marks(pdf).is_empty());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

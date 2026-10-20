@@ -211,12 +211,11 @@ impl MariApp {
         tracing::info!("Abrindo: {}", path.display());
         // Na recarga o estado vem do documento aberto agora, não do histórico
         // (que pode estar desligado ou desatualizado).
-        let live = reload.then(|| FileSession {
+        let live = reload.then_some(FileSession {
             last_page: self.current_page,
             zoom: self.viewer.zoom,
             last_opened: 0,
             rotation: self.viewer.rotation,
-            marks: self.marks.clone(),
         });
         let open_started = std::time::Instant::now();
         let opened =
@@ -272,6 +271,9 @@ impl MariApp {
                     .then(|| ThumbCache::new(page_count, scheduler.clone()));
                 self.doc_password = password;
                 self.password_prompt = None;
+                // Uma cópia de página do documento anterior não pode chegar
+                // à área de transferência depois da troca.
+                self.page_copy = None;
                 self.file_watch.reset(&path);
                 self.properties = None;
                 let session = live
@@ -285,7 +287,10 @@ impl MariApp {
                     self.current_page = 0;
                     self.viewer.zoom = 1.0;
                 }
-                self.marks = session.marks.clone();
+                // Na recarga os marcadores em memória já são os atuais.
+                if !reload {
+                    self.marks = self.persistence.marks(&path);
+                }
                 self.marks.retain(|&p| p < page_count);
                 self.viewer.rotation = session.rotation;
                 engine.set_rotation(session.rotation);
@@ -336,7 +341,6 @@ impl MariApp {
                     zoom: self.viewer.zoom,
                     last_opened: now_unix,
                     rotation: self.viewer.rotation,
-                    marks: self.marks.clone(),
                 },
             );
         }

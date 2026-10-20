@@ -36,6 +36,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         app.side_panel = SidePanelKind::None;
         // Diálogos e estado ligados ao documento fechado.
         app.properties = None;
+        app.page_copy = None;
         if app.password_prompt.as_ref().is_some_and(|p| p.reload) {
             app.password_prompt = None;
         }
