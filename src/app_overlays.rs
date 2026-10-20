@@ -83,6 +83,7 @@ impl MariApp {
         }
 
         let total_hits = self.search.hits.len();
+        let failed_pages = self.search.failed_pages;
         let current_idx = self.search.current_hit;
         let is_running = self.search.is_running;
         let query_snap = self.search.query.clone();
@@ -156,6 +157,19 @@ impl MariApp {
                                     egui::RichText::new(t!("overlay-search-no-results"))
                                         .size(11.0)
                                         .color(egui::Color32::from_rgb(200, 80, 80)),
+                                );
+                            }
+
+                            if failed_pages > 0 && !is_running {
+                                // Resultado incompleto não pode parecer "sem resultados".
+                                ui.add_space(6.0);
+                                ui.label(
+                                    egui::RichText::new(t!(
+                                        "overlay-search-partial",
+                                        count => failed_pages
+                                    ))
+                                    .size(11.0)
+                                    .color(egui::Color32::from_rgb(220, 150, 60)),
                                 );
                             }
 

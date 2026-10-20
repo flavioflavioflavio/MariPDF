@@ -92,9 +92,13 @@ fn compare_prerelease(a: &str, b: &str) -> std::cmp::Ordering {
             (None, Some(_)) => return std::cmp::Ordering::Less,
             (Some(_), None) => return std::cmp::Ordering::Greater,
             (Some(x), Some(y)) => {
+                // SemVer §11: numérico compara como número e sempre
+                // precede um identificador alfanumérico.
                 let ord = match (x.parse::<u64>(), y.parse::<u64>()) {
                     (Ok(nx), Ok(ny)) => nx.cmp(&ny),
-                    _ => x.cmp(y),
+                    (Ok(_), Err(_)) => std::cmp::Ordering::Less,
+                    (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+                    (Err(_), Err(_)) => x.cmp(y),
                 };
                 if ord != std::cmp::Ordering::Equal {
                     return ord;
@@ -432,6 +436,14 @@ mod tests {
         assert!(v("0.1.0") < v("1.0.0-rc.1"));
         assert_eq!(v("1.0"), v("1.0.0"));
         assert!(Version::parse("x.y").is_none());
+    }
+
+    #[test]
+    fn numeric_prerelease_identifiers_precede_alphanumeric_ones() {
+        let v = |s| Version::parse(s).unwrap();
+        assert!(v("1.0.0-2") < v("1.0.0-1a"));
+        assert!(v("1.0.0-rc.9") < v("1.0.0-rc.a"));
+        assert!(v("1.0.0-alpha") < v("1.0.0-beta"));
     }
 
     #[test]

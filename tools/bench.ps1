@@ -24,7 +24,13 @@ if (-not (Test-Path $Exe)) { throw "Executável não encontrado: $Exe (rode carg
 $files = Select-String -Path $Manifest -Pattern '^file = "(.+)"' | ForEach-Object { $_.Matches[0].Groups[1].Value }
 # Aceita -Only a.pdf,b.pdf tanto em chamada direta quanto via `pwsh -File`.
 $Only = @($Only | ForEach-Object { $_ -split "," } | Where-Object { $_ })
-if ($Only.Count -gt 0) { $files = $files | Where-Object { $Only -contains $_ } }
+if ($Only.Count -gt 0) {
+    $unknown = @($Only | Where-Object { $files -notcontains $_ })
+    if ($unknown.Count -gt 0) { throw "Fora do manifesto: $($unknown -join ', ')" }
+    $files = $files | Where-Object { $Only -contains $_ }
+}
+$files = @($files)
+if ($files.Count -eq 0) { throw "Nenhum PDF selecionado para medir" }
 
 # Medir PDFs diferentes dos do manifesto invalidaria a comparação com a baseline.
 python tools/verify_corpus.py $Corpus $Manifest @files

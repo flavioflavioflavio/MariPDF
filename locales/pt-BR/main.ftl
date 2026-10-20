@@ -51,6 +51,7 @@ overlay-goto-label = Ir para página:
 overlay-goto-hint = Enter → confirmar  •  Esc → fechar
 overlay-search-placeholder = Buscar no PDF…
 overlay-search-no-results = Sem resultados
+overlay-search-partial = { $count } pág. não lida(s)
 overlay-search-hint = Enter → próx  •  Shift+Enter → ant  •  Esc → fechar
 
 ## Settings — cabeçalho e abas

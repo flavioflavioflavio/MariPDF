@@ -25,6 +25,7 @@ pub struct SoakReport {
     pub duration_secs: f64,
     pub actions: u64,
     pub documents_opened: u64,
+    pub open_failures: u64,
     pub render_errors: u64,
     pub samples_mb: Vec<f64>,
     pub first_quarter_mb: f64,
@@ -87,6 +88,14 @@ impl SoakRun {
         self.rng.wrapping_mul(0x2545_F491_4F6C_DD1D) % bound.max(1)
     }
 
+    pub(crate) fn record_open(&mut self, opened: bool) {
+        if opened {
+            self.report.documents_opened += 1;
+        } else {
+            self.report.open_failures += 1;
+        }
+    }
+
     fn elapsed(&self) -> f64 {
         self.started.elapsed().as_secs_f64()
     }
@@ -115,7 +124,8 @@ impl MariApp {
                 run.last_switch = now;
                 let path = run.files[run.next_file % run.files.len()].clone();
                 run.next_file += 1;
-                run.report.documents_opened += 1;
+                // documents_opened/open_failures são contados em open_file,
+                // depois do resultado real da abertura.
                 self.pending_open = Some(path);
             } else if now - run.last_action >= ACTION_INTERVAL_SECS {
                 run.last_action = now;
@@ -202,6 +212,7 @@ pub(crate) fn growth_per_hour(samples: &[f64], interval_secs: f64) -> f64 {
 /// memória não cresce continuamente.
 pub(crate) fn soak_passed(report: &SoakReport) -> bool {
     report.documents_opened > 1
+        && report.open_failures == 0
         && report.actions > 0
         && report.render_errors == 0
         && report.growth_mb_per_hour <= MAX_GROWTH_MB_PER_HOUR
@@ -274,5 +285,17 @@ mod tests {
         let ramp: Vec<f64> = (0..20).map(|i| 200.0 + i as f64).collect();
         assert!((growth_per_hour(&ramp, 5.0) - 720.0).abs() < 1e-6);
         assert_eq!(growth_per_hour(&[1.0], 5.0), 0.0);
+    }
+
+    #[test]
+    fn failed_opens_fail_the_soak() {
+        let report = SoakReport {
+            documents_opened: 8,
+            open_failures: 1,
+            actions: 3000,
+            growth_mb_per_hour: 3.0,
+            ..Default::default()
+        };
+        assert!(!soak_passed(&report));
     }
 }

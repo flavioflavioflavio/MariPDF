@@ -161,13 +161,16 @@ begin
     PartB := NextPart(B, '.');
     NA := StrToIntDef(PartA, -1);
     NB := StrToIntDef(PartB, -1);
+    { SemVer: numérico compara como número e precede o alfanumérico }
     if (NA >= 0) and (NB >= 0) then
     begin
       if NA > NB then Result := 1
       else if NA < NB then Result := -1;
     end
+    else if NA >= 0 then Result := -1
+    else if NB >= 0 then Result := 1
     else
-      Result := CompareText(PartA, PartB);
+      Result := CompareStr(PartA, PartB);
   end;
 end;
 

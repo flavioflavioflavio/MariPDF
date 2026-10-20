@@ -92,9 +92,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          $pre = if ($env:VERSION -match "-") { "--prerelease" } else { "" }
           $notes = "Rascunho gerado pelo CI. Revise as notas e publique manualmente.`n`nArtefatos: portátil, instalador por usuário (sem admin), SBOM e SHA256SUMS assinado (Ed25519)."
-          gh release create $env:TAG --verify-tag --draft $pre --title "MariPDF $env:VERSION" --notes $notes (Get-ChildItem dist -File | ForEach-Object { $_.FullName })
+          # Argumentos montados em lista: um "" vazio viraria nome de asset.
+          $ghArgs = @($env:TAG, "--verify-tag", "--draft", "--title", "MariPDF $env:VERSION", "--notes", $notes)
+          if ($env:VERSION -match "-") { $ghArgs += "--prerelease" }
+          $ghArgs += @(Get-ChildItem dist -File | ForEach-Object { $_.FullName })
+          gh release create @ghArgs
 
       - name: Artefatos do workflow
         uses: actions/upload-artifact@v4

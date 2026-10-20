@@ -47,10 +47,15 @@ pub struct LruPageCache {
 /// e memória): comparar com a pedida re-renderizaria para sempre páginas
 /// que batem no teto.
 pub(crate) fn needs_sharper_render(cached: &RenderedPage, requested: f32) -> bool {
-    let scale = cached.scale.max(f32::EPSILON);
-    let (width_pts, height_pts) = (cached.width as f32 / scale, cached.height as f32 / scale);
+    bitmap_needs_sharper(cached.width, cached.height, cached.scale, requested)
+}
+
+/// Mesma regra para qualquer bitmap (CPU ou textura já na GPU).
+pub(crate) fn bitmap_needs_sharper(width: u32, height: u32, scale: f32, requested: f32) -> bool {
+    let scale = scale.max(f32::EPSILON);
+    let (width_pts, height_pts) = (width as f32 / scale, height as f32 / scale);
     let achievable = crate::ui::page_scale::capped_raster_scale(width_pts, height_pts, requested);
-    cached.scale < achievable * crate::ui::page_scale::UPGRADE_RATIO
+    scale < achievable * crate::ui::page_scale::UPGRADE_RATIO
 }
 
 impl LruPageCache {

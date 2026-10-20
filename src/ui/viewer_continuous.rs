@@ -104,7 +104,11 @@ impl PdfViewer {
                 if !self.page_errors.contains_key(&page) {
                     let scale =
                         page_raster_scale(&self.page_layout, page, zoom, usable_width, density);
-                    self.page_cache.prefetch(page, scale, priority);
+                    // Bitmap despejado do cache de CPU mas com textura nítida
+                    // na GPU: re-renderizar só gastaria PDFium em loop.
+                    if !self.tex_cache.is_sharp_enough(page, scale) {
+                        self.page_cache.prefetch(page, scale, priority);
+                    }
                 }
             });
 
@@ -133,7 +137,8 @@ impl PdfViewer {
                             bitmap.height,
                             bitmap.scale,
                         );
-                        self.tex_cache.insert(idx, tex, bitmap.width, bitmap.height);
+                        let (width, height, scale) = (bitmap.width, bitmap.height, bitmap.scale);
+                        self.tex_cache.insert(idx, tex, width, height, scale);
                         if learned_size {
                             ctx.request_repaint();
                         }

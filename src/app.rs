@@ -182,6 +182,9 @@ impl MariApp {
         if let Some(bench) = self.bench.as_mut() {
             bench.record_open(open_started.elapsed().as_secs_f64() * 1000.0);
         }
+        if let Some(soak) = self.soak.as_mut() {
+            soak.record_open(opened.is_ok());
+        }
         match opened {
             Ok(engine) => {
                 // A troca so altera o documento atual depois que o novo PDF

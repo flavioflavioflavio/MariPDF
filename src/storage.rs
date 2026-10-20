@@ -117,8 +117,13 @@ fn is_protected(path: &Path) -> bool {
 /// Serializa e grava; em falha registra no log e avisa o usuário.
 pub fn save_toml<T: Serialize>(path: &Path, value: &T, kind: StoreKind) -> anyhow::Result<()> {
     if is_protected(path) {
-        tracing::warn!(?kind, path = %path.display(), "estado não lido nesta sessão; gravação ignorada");
-        return Ok(());
+        // O arquivo é preservado, mas quem chamou não pode achar que salvou
+        // (ex.: "Limpar histórico" mostraria sucesso e o histórico voltaria).
+        tracing::warn!(?kind, path = %path.display(), "estado não lido nesta sessão; gravação suspensa");
+        anyhow::bail!(
+            "{} não pôde ser lido nesta sessão; gravação suspensa para não sobrescrevê-lo",
+            path.display()
+        );
     }
     let result = toml::to_string_pretty(value)
         .map_err(anyhow::Error::from)

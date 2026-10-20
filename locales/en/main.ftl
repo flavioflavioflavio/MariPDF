@@ -50,6 +50,7 @@ home-search-placeholder = Search recents…
 overlay-goto-label = Go to page:
 overlay-goto-hint = Enter → confirm  •  Esc → close
 overlay-search-placeholder = Search in PDF…
+overlay-search-partial = { $count } page(s) unreadable
 overlay-search-no-results = No results
 overlay-search-hint = Enter → next  •  Shift+Enter → prev  •  Esc → close
 
