@@ -7,9 +7,7 @@ use crate::ui::page_layout::LayoutParams;
 use crate::ui::prefetch::PrefetchPlan;
 use crate::ui::scroll_motion::{instant_wheel_offset, NavGoal, ScrollTween};
 use crate::ui::viewer::{page_raster_scale, PdfViewer};
-use crate::ui::viewer_helpers::{
-    draw_page_tex, invert_rgba, paint_search_highlight, upload_texture,
-};
+use crate::ui::viewer_helpers::{draw_page_tex, paint_search_highlight, upload_texture};
 use eframe::egui;
 
 impl PdfViewer {
@@ -124,10 +122,10 @@ impl PdfViewer {
                 };
                 if needs_upload {
                     if let Some(bitmap) = self.page_cache.get(idx) {
-                        let tex = if self.invert_colors {
-                            let mut inverted = (*bitmap).clone();
-                            invert_rgba(&mut inverted.rgba);
-                            upload_texture(&ctx, &inverted, idx)
+                        let tex = if self.page_look.filters_pixels() {
+                            let mut filtered = (*bitmap).clone();
+                            crate::reader_profile::apply_filter(&mut filtered.rgba, self.page_look);
+                            upload_texture(&ctx, &filtered, idx)
                         } else {
                             upload_texture(&ctx, bitmap, idx)
                         };
@@ -191,6 +189,7 @@ impl PdfViewer {
                                 page_rect,
                                 self.search_highlight.as_ref(),
                                 Some(idx),
+                                self.rotation,
                             );
                             if self.last_page_rect == egui::Rect::NOTHING {
                                 self.last_page_rect = page_rect;

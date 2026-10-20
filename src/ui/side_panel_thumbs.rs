@@ -16,8 +16,7 @@ pub fn show_thumbs(
     color_muted: egui::Color32,
     color_text: egui::Color32,
     accent: egui::Color32,
-    invert_colors: bool,
-    page_tint: egui::Color32,
+    look: crate::reader_profile::PageLook,
 ) -> Option<usize> {
     let mut goto = None;
 
@@ -97,8 +96,7 @@ pub fn show_thumbs(
                         color_muted,
                         color_text,
                         accent,
-                        invert_colors,
-                        page_tint,
+                        look,
                         &mut goto,
                     );
                 });
@@ -120,8 +118,7 @@ fn render_thumb_item(
     color_muted: egui::Color32,
     color_text: egui::Color32,
     accent: egui::Color32,
-    invert_colors: bool,
-    page_tint: egui::Color32,
+    look: crate::reader_profile::PageLook,
     goto: &mut Option<usize>,
 ) {
     let is_current = page == current_page;
@@ -156,14 +153,10 @@ fn render_thumb_item(
             egui::Color32::from_rgba_premultiplied(0, 0, 0, 18),
         );
 
-        let tex_name = if invert_colors {
-            format!("thumb_{page}_inv")
-        } else {
-            format!("thumb_{page}")
-        };
-        let color_img = if invert_colors {
+        let tex_name = format!("thumb_{page}{}", look.key());
+        let color_img = if look.filters_pixels() {
             let mut rgba = rendered.rgba.clone();
-            crate::ui::viewer::invert_rgba(&mut rgba);
+            crate::reader_profile::apply_filter(&mut rgba, look);
             egui::ColorImage::from_rgba_unmultiplied(
                 [rendered.width as usize, rendered.height as usize],
                 &rgba,
@@ -182,7 +175,7 @@ fn render_thumb_item(
             tex.id(),
             draw_rect,
             egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-            page_tint,
+            look.tint,
         );
         ui.painter().rect_stroke(
             draw_rect,

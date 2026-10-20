@@ -6,6 +6,7 @@ use crate::pdf::document_worker::{
     DocumentJobOutput, DocumentJobTarget, JobCompletion, JobOutcome,
 };
 use crate::pdf::engine::PdfLinkInfo;
+use crate::ui::page_rotation::PageMapping;
 use crate::ui::viewer::ViewMode;
 use eframe::egui;
 
@@ -101,12 +102,27 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         (false, false, false, false);
     let (mut open_search, mut search_next, mut search_prev) = (false, false, false);
     let (mut escape, mut select_all, mut copy_text, mut open_about) = (false, false, false, false);
+    let (mut nav_back, mut nav_forward, mut rotate_cw, mut rotate_ccw) =
+        (false, false, false, false);
+    let (mut toggle_mark, mut copy_page, mut open_properties) = (false, false, false);
 
     ctx.input(|i| {
         let ctrl = i.modifiers.ctrl;
         let shift = i.modifiers.shift;
-        go_next = i.key_pressed(egui::Key::ArrowRight) || i.key_pressed(egui::Key::PageDown);
-        go_prev = i.key_pressed(egui::Key::ArrowLeft) || i.key_pressed(egui::Key::PageUp);
+        let alt = i.modifiers.alt;
+        go_next =
+            (i.key_pressed(egui::Key::ArrowRight) && !alt) || i.key_pressed(egui::Key::PageDown);
+        go_prev = (i.key_pressed(egui::Key::ArrowLeft) && !alt) || i.key_pressed(egui::Key::PageUp);
+        // Alt+← / Alt+→ e os botões laterais do mouse navegam no histórico.
+        nav_back = (alt && i.key_pressed(egui::Key::ArrowLeft))
+            || i.pointer.button_pressed(egui::PointerButton::Extra1);
+        nav_forward = (alt && i.key_pressed(egui::Key::ArrowRight))
+            || i.pointer.button_pressed(egui::PointerButton::Extra2);
+        rotate_cw = ctrl && !shift && i.key_pressed(egui::Key::R);
+        rotate_ccw = ctrl && shift && i.key_pressed(egui::Key::R);
+        toggle_mark = ctrl && i.key_pressed(egui::Key::D);
+        copy_page = ctrl && shift && i.key_pressed(egui::Key::C);
+        open_properties = alt && i.key_pressed(egui::Key::Enter);
         go_home = i.key_pressed(egui::Key::Home);
         go_end = i.key_pressed(egui::Key::End);
         toggle_fs = i.key_pressed(egui::Key::F11);
@@ -122,7 +138,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         search_prev = i.key_pressed(egui::Key::F3) && shift;
         escape = i.key_pressed(egui::Key::Escape);
         select_all = ctrl && i.key_pressed(egui::Key::A);
-        copy_text = ctrl && i.key_pressed(egui::Key::C);
+        copy_text = ctrl && !shift && i.key_pressed(egui::Key::C);
         open_about = ctrl && shift && i.key_pressed(egui::Key::I);
     });
 
@@ -227,7 +243,26 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             let c = ctx.clone();
             app.do_toggle_mode(&c);
         }
+        if nav_back {
+            app.nav_back(ctx);
+        }
+        if nav_forward {
+            app.nav_forward(ctx);
+        }
+        if rotate_cw || rotate_ccw {
+            app.rotate_view(ctx, rotate_cw);
+        }
+        if toggle_mark {
+            app.toggle_mark(ctx);
+        }
+        if copy_page {
+            app.copy_page_image(ctx);
+        }
+        if open_properties {
+            app.open_properties();
+        }
     }
+    app.poll_file_changes(ctx);
 
     if select_all && app.engine.is_some() && !app.search_open && !app.goto_open {
         app.select_all_text(ctx);
@@ -257,8 +292,8 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             let page_rect = app.viewer.last_page_rect;
             if let Some(engine) = &app.engine {
                 let page_size = engine.page_size_pts(app.current_page);
-                if let Some(link) = hit_test_link(&app.page_links, click_pos, page_rect, page_size)
-                {
+                let mapping = PageMapping::new(page_rect, page_size, app.viewer.rotation);
+                if let Some(link) = hit_test_link(&app.page_links, click_pos, &mapping) {
                     let _ = open::that(&link.uri);
                 }
             }
@@ -274,6 +309,8 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     if app.goto_open && app.engine.is_some() {
         app.ui_goto_overlay(ctx);
     }
+    app.ui_properties(ctx);
+    app.ui_password_prompt(ctx);
     app.ui_toast(ctx);
     if app.search_open && app.engine.is_some() {
         app.ui_search_bar(ctx);
@@ -317,22 +354,15 @@ fn persist_theme_change(app: &mut MariApp) {
     }
 }
 
-fn hit_test_link(
-    links: &[PdfLinkInfo],
+fn hit_test_link<'a>(
+    links: &'a [PdfLinkInfo],
     click: egui::Pos2,
-    page_rect: egui::Rect,
-    page_size: (f32, f32),
-) -> Option<&PdfLinkInfo> {
-    if !page_rect.is_positive() || !page_rect.contains(click) {
+    mapping: &PageMapping,
+) -> Option<&'a PdfLinkInfo> {
+    if !mapping.is_valid() || !mapping.rect.contains(click) {
         return None;
     }
-    let (pdf_width, pdf_height) = page_size;
-    if pdf_width <= 0.0 || pdf_height <= 0.0 {
-        return None;
-    }
-
-    let pdf_x = (click.x - page_rect.left()) / page_rect.width() * pdf_width;
-    let pdf_y = (page_rect.bottom() - click.y) / page_rect.height() * pdf_height;
+    let (pdf_x, pdf_y) = mapping.pdf_point(click);
     links.iter().find(|link| {
         let [left, bottom, right, top] = link.rect;
         pdf_x >= left && pdf_x <= right && pdf_y >= bottom && pdf_y <= top
@@ -390,6 +420,7 @@ fn apply_document_completion(app: &mut MariApp, ctx: &egui::Context, completion:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::page_rotation::Rotation;
 
     fn link(uri: &str, rect: [f32; 4]) -> PdfLinkInfo {
         PdfLinkInfo {
@@ -406,8 +437,16 @@ mod tests {
         ];
         let page = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(200.0, 400.0));
 
-        let first = hit_test_link(&links, egui::pos2(40.0, 360.0), page, (100.0, 200.0));
-        let second = hit_test_link(&links, egui::pos2(150.0, 60.0), page, (100.0, 200.0));
+        let first = hit_test_link(
+            &links,
+            egui::pos2(40.0, 360.0),
+            &PageMapping::new(page, (100.0, 200.0), Rotation::R0),
+        );
+        let second = hit_test_link(
+            &links,
+            egui::pos2(150.0, 60.0),
+            &PageMapping::new(page, (100.0, 200.0), Rotation::R0),
+        );
 
         assert_eq!(
             first.map(|link| link.uri.as_str()),
@@ -420,11 +459,32 @@ mod tests {
     }
 
     #[test]
+    fn hit_test_follows_the_page_rotation() {
+        let links = vec![link("https://corner.test", [0.0, 180.0, 20.0, 200.0])];
+        // Página 100×200 girada 90°: na tela fica 400×200 (escala 2) e o canto
+        // superior esquerdo do PDF vai para o canto superior direito.
+        let page = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(400.0, 200.0));
+        let mapping = PageMapping::new(page, (100.0, 200.0), Rotation::R90);
+        assert!(hit_test_link(&links, egui::pos2(395.0, 5.0), &mapping).is_some());
+        assert!(hit_test_link(&links, egui::pos2(5.0, 5.0), &mapping).is_none());
+    }
+
+    #[test]
     fn hit_test_rejects_clicks_outside_page_or_links() {
         let links = vec![link("https://only.test", [10.0, 10.0, 30.0, 30.0])];
         let page = egui::Rect::from_min_max(egui::pos2(10.0, 10.0), egui::pos2(210.0, 410.0));
 
-        assert!(hit_test_link(&links, egui::pos2(5.0, 5.0), page, (100.0, 200.0)).is_none());
-        assert!(hit_test_link(&links, egui::pos2(150.0, 200.0), page, (100.0, 200.0)).is_none());
+        assert!(hit_test_link(
+            &links,
+            egui::pos2(5.0, 5.0),
+            &PageMapping::new(page, (100.0, 200.0), Rotation::R0)
+        )
+        .is_none());
+        assert!(hit_test_link(
+            &links,
+            egui::pos2(150.0, 200.0),
+            &PageMapping::new(page, (100.0, 200.0), Rotation::R0)
+        )
+        .is_none());
     }
 }

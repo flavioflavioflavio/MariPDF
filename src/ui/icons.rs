@@ -69,6 +69,14 @@ pub const BOOK: &str = "\u{e0e2}"; // book — aba Leitura
 pub const SHIELD: &str = "\u{e40a}"; // shield — aba Privacidade
 pub const INFO: &str = "\u{e2ce}"; // info — sobre
 
+// ── Ferramentas de leitura ────────────────────────────────────────────────────
+
+pub const DOTS_THREE: &str = "\u{e1fe}"; // dots-three — menu Mais
+pub const ARROW_CLOCKWISE: &str = "\u{e036}"; // arrow-clockwise — girar à direita
+pub const BOOKMARK_SIMPLE: &str = "\u{e0ea}"; // bookmark-simple — marcador
+pub const COPY: &str = "\u{e1ca}"; // copy — copiar página
+pub const LOCK_KEY: &str = "\u{e2fe}"; // lock-key — PDF com senha
+
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 /// Cria um `RichText` com o ícone Phosphor solicitado.

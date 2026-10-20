@@ -50,13 +50,17 @@ pub fn show_toc(
             .auto_shrink([false; 2])
             .show_viewport(ui, |ui, viewport| {
                 ui.set_min_height(total_h);
+                // Origem do conteúdo rolável (já deslocada pelo viewport):
+                // posições absolutas a partir de 0 escondiam os primeiros
+                // itens sob o cabeçalho do painel.
+                let origin = ui.max_rect().min;
 
                 let first = ((viewport.min.y / AUTO_TOC_ITEM_H) as usize).saturating_sub(1);
                 let last = (((viewport.max.y / AUTO_TOC_ITEM_H) as usize) + 1)
                     .min(page_count.saturating_sub(1));
 
                 for p in first..=last {
-                    let y_top = p as f32 * AUTO_TOC_ITEM_H - viewport.min.y;
+                    let y_top = p as f32 * AUTO_TOC_ITEM_H;
                     let is_current = p == current_page;
                     let bg = if is_current {
                         egui::Color32::from_rgba_unmultiplied(
@@ -72,7 +76,7 @@ pub fn show_toc(
 
                     ui.allocate_new_ui(
                         egui::UiBuilder::new().max_rect(egui::Rect::from_min_size(
-                            egui::pos2(0.0, y_top),
+                            origin + egui::vec2(0.0, y_top),
                             egui::vec2(ui.available_width(), AUTO_TOC_ITEM_H),
                         )),
                         |ui| {

@@ -18,7 +18,7 @@ use std::{path::PathBuf, sync::Arc};
 pub use crate::app_color_mode::ColorMode;
 pub use crate::app_constants::{
     Toast, ACCENT_LIGHT, ACCENT_PRIMARY, BG_BASE, BG_SURFACE, BORDER_SUBTLE, MAX_ZOOM, MIN_ZOOM,
-    TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE,
+    TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE, WINE, WINE_DEEP, WINE_LIGHT,
 };
 pub use crate::app_reader::SidePanelKind;
 
@@ -98,6 +98,16 @@ pub struct MariApp {
     // Posição/tamanho da janela (BF-412)
     pub window: WindowTracker,
 
+    // Ferramentas de leitura (app_tools.rs)
+    pub nav: crate::app_tools::NavHistory,
+    pub file_watch: crate::app_tools::FileWatch,
+    /// Senha do documento aberto, só em memória (recarga automática).
+    pub doc_password: Option<String>,
+    pub password_prompt: Option<crate::app_tools::PasswordPrompt>,
+    /// Páginas marcadas pelo usuário no documento atual (ordenadas).
+    pub marks: Vec<usize>,
+    pub properties: Option<crate::app_tools::DocProperties>,
+
     // Medidor/smoke test embutido (BF-002/BF-007), só com MARIPDF_BENCH
     pub bench: Option<crate::bench::BenchRun>,
 
@@ -157,6 +167,12 @@ impl MariApp {
             about: AboutState::default(),
             frame: FrameMode::default(),
             window: WindowTracker::default(),
+            nav: Default::default(),
+            file_watch: Default::default(),
+            doc_password: None,
+            password_prompt: None,
+            marks: Vec::new(),
+            properties: None,
             bench: crate::bench::BenchRun::from_env(),
             soak: crate::soak::SoakRun::from_env(),
             showcase: crate::showcase::ShowcaseRun::from_env(),
@@ -176,9 +192,23 @@ impl MariApp {
     }
 
     pub(crate) fn open_file(&mut self, ctx: &egui::Context, path: PathBuf) {
+        self.open_document(ctx, path, None, false);
+    }
+
+    /// Abre (ou recarrega, com `reload`) um PDF. Devolve true se abriu.
+    /// Recarga mantém painel, modo e rotação; PDF com senha abre o pedido de
+    /// senha em vez de mostrar erro.
+    pub(crate) fn open_document(
+        &mut self,
+        ctx: &egui::Context,
+        path: PathBuf,
+        password: Option<String>,
+        reload: bool,
+    ) -> bool {
         tracing::info!("Abrindo: {}", path.display());
         let open_started = std::time::Instant::now();
-        let opened = get_pdfium().and_then(|p| PdfEngine::open(&path, p));
+        let opened =
+            get_pdfium().and_then(|p| PdfEngine::open_with_password(&path, p, password.as_deref()));
         if let Some(bench) = self.bench.as_mut() {
             bench.record_open(open_started.elapsed().as_secs_f64() * 1000.0);
         }
@@ -214,25 +244,51 @@ impl MariApp {
                 self.sel_anchor = None;
                 self.sel_focus = None;
                 self.pending_select_all = false;
+                let mode = self.viewer.mode;
                 self.viewer.reset();
-                self.side_panel = match self.settings.default_panel {
-                    DefaultPanel::None => SidePanelKind::None,
-                    DefaultPanel::Thumbnails => SidePanelKind::Thumbs,
-                    DefaultPanel::Toc => SidePanelKind::Toc,
-                };
+                if reload {
+                    self.viewer.mode = mode;
+                } else {
+                    self.side_panel = match self.settings.default_panel {
+                        DefaultPanel::None => SidePanelKind::None,
+                        DefaultPanel::Thumbnails => SidePanelKind::Thumbs,
+                        DefaultPanel::Toc => SidePanelKind::Toc,
+                    };
+                    self.nav.clear();
+                }
                 self.thumb_cache = (self.side_panel == SidePanelKind::Thumbs)
                     .then(|| ThumbCache::new(page_count, scheduler.clone()));
-                if let Some(session) = self.persistence.get(&path) {
+                self.doc_password = password;
+                self.file_watch.reset(&path);
+                self.properties = None;
+                let session = self.persistence.get(&path).cloned().unwrap_or_default();
+                if session.zoom > 0.0 {
                     self.viewer.zoom = session.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
                     self.current_page = session.last_page.min(page_count.saturating_sub(1));
                 } else {
                     self.current_page = 0;
                     self.viewer.zoom = 1.0;
                 }
+                self.marks = session.marks.clone();
+                self.marks.retain(|&p| p < page_count);
+                self.viewer.rotation = session.rotation;
+                engine.set_rotation(session.rotation);
                 self.viewer.init_cache(scheduler, page_count);
                 if self.viewer.mode == ViewMode::SinglePage {
                     self.render_current_page(ctx);
+                } else {
+                    self.viewer.request_continuous_page(self.current_page);
                 }
+                true
+            }
+            Err(e)
+                if e.downcast_ref::<crate::pdf::engine::PasswordRequired>()
+                    .is_some() =>
+            {
+                tracing::info!(path = %path.display(), "PDF pede senha");
+                let wrong = password.is_some();
+                self.password_prompt = Some(crate::app_tools::PasswordPrompt::new(path, wrong));
+                false
             }
             Err(e) => {
                 let msg = error_to_user_message(&e);
@@ -242,6 +298,7 @@ impl MariApp {
                     bench.record_open_failure(msg.clone());
                 }
                 self.toast = Some(Toast::error(msg, 5.0, now));
+                false
             }
         }
     }
@@ -261,6 +318,8 @@ impl MariApp {
                     last_page: self.current_page,
                     zoom: self.viewer.zoom,
                     last_opened: now_unix,
+                    rotation: self.viewer.rotation,
+                    marks: self.marks.clone(),
                 },
             );
         }
@@ -313,8 +372,16 @@ pub(crate) fn configure_visuals(ctx: &egui::Context) {
     v.window_stroke = egui::Stroke::new(1.0_f32, BORDER_SUBTLE);
     v.override_text_color = Some(TEXT_PRIMARY);
     v.widgets.inactive.bg_fill = egui::Color32::from_rgb(48, 48, 56);
-    v.widgets.hovered.bg_fill = ACCENT_PRIMARY;
-    v.widgets.active.bg_fill = ACCENT_LIGHT;
+    // Nada de azul padrão do egui: seleção, foco, cursor, links e botões
+    // nativos (hover/pressionado) usam vinho.
+    v.widgets.hovered.bg_fill = WINE;
+    v.widgets.hovered.weak_bg_fill = WINE;
+    v.widgets.active.bg_fill = WINE_DEEP;
+    v.widgets.active.weak_bg_fill = WINE_DEEP;
+    v.selection.bg_fill = WINE;
+    v.selection.stroke = egui::Stroke::new(1.0_f32, WINE_LIGHT);
+    v.text_cursor.stroke = egui::Stroke::new(2.0_f32, WINE_LIGHT);
+    v.hyperlink_color = WINE_LIGHT;
     ctx.set_visuals(v);
     ctx.style_mut(|s| {
         s.spacing.scroll.bar_width = 7.0;

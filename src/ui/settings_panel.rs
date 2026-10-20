@@ -30,6 +30,11 @@ pub fn select_about_tab(ctx: &egui::Context) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::new(TAB_ID), Tab::About));
 }
 
+/// Abre as Configurações na aba Leitura (capturas de tela).
+pub fn select_reading_tab(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new(TAB_ID), Tab::Reading));
+}
+
 /// Altura útil do conteúdo; a aba Sobre rola dentro dela.
 const CONTENT_MAX_HEIGHT: f32 = 300.0;
 

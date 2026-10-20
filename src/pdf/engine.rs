@@ -17,8 +17,39 @@
 use pdfium_render::prelude::*;
 use std::{
     path::Path,
-    sync::{Arc, Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicU8, Ordering},
+        Arc, Mutex, OnceLock,
+    },
 };
+
+use crate::ui::page_rotation::Rotation;
+
+/// O PDF pede senha (ou a senha informada está errada).
+#[derive(Debug)]
+pub struct PasswordRequired;
+
+impl std::fmt::Display for PasswordRequired {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("PDF protegido por senha (password required)")
+    }
+}
+
+impl std::error::Error for PasswordRequired {}
+
+/// Metadados exibidos em Propriedades do documento.
+#[derive(Clone, Debug, Default)]
+pub struct DocumentInfo {
+    pub title: String,
+    pub author: String,
+    pub subject: String,
+    pub keywords: String,
+    pub creator: String,
+    pub producer: String,
+    pub created: String,
+    pub modified: String,
+    pub version: String,
+}
 
 use crate::pdf::extract as engine_extract;
 
@@ -122,11 +153,24 @@ pub struct PdfEngine {
     pdfium: Arc<Mutex<Pdfium>>,
     doc: Option<PdfDocument<'static>>,
     page_count: usize,
+    /// Rotação de exibição em quartos de volta (compartilhada com o worker).
+    rotation: AtomicU8,
 }
 
 impl PdfEngine {
-    /// Abre um arquivo PDF usando pdfium.
+    /// Abre um arquivo PDF sem senha (testes).
+    #[cfg(test)]
     pub fn open(path: &Path, pdfium: Arc<Mutex<Pdfium>>) -> anyhow::Result<Self> {
+        Self::open_with_password(path, pdfium, None)
+    }
+
+    /// Abre um PDF, opcionalmente protegido. Falta de senha (ou senha errada)
+    /// vira `PasswordRequired`, para a UI pedir a senha em vez de desistir.
+    pub fn open_with_password(
+        path: &Path,
+        pdfium: Arc<Mutex<Pdfium>>,
+        password: Option<&str>,
+    ) -> anyhow::Result<Self> {
         if !path.is_file() {
             anyhow::bail!("Arquivo não encontrado (not found): {}", path.display());
         }
@@ -147,8 +191,13 @@ impl PdfEngine {
             let doc = unsafe {
                 std::mem::transmute::<PdfDocument<'_>, PdfDocument<'static>>(
                     pdfium_guard
-                        .load_pdf_from_file(path_str, None)
-                        .map_err(|e| anyhow::anyhow!("Falha ao abrir PDF: {e}"))?,
+                        .load_pdf_from_file(path_str, password)
+                        .map_err(|e| match e {
+                            PdfiumError::PdfiumLibraryInternalError(
+                                PdfiumInternalError::PasswordError,
+                            ) => anyhow::Error::new(PasswordRequired),
+                            other => anyhow::anyhow!("Falha ao abrir PDF: {other}"),
+                        })?,
                 )
             };
             let page_count = usize::from(doc.pages().len());
@@ -165,7 +214,47 @@ impl PdfEngine {
             pdfium,
             doc: Some(doc),
             page_count,
+            rotation: AtomicU8::new(0),
         })
+    }
+
+    /// Rotação de exibição aplicada aos próximos renders.
+    pub fn set_rotation(&self, rotation: Rotation) {
+        self.rotation
+            .store(rotation.quarter_turns(), Ordering::Release);
+    }
+
+    pub fn rotation(&self) -> Rotation {
+        Rotation::from_quarter_turns(self.rotation.load(Ordering::Acquire))
+    }
+
+    /// Tamanho exibido da página (com a rotação aplicada), para ajustes de zoom.
+    pub fn display_size_pts(&self, page_index: usize) -> (f32, f32) {
+        self.rotation().display_size(self.page_size_pts(page_index))
+    }
+
+    /// Metadados do documento (campos ausentes ficam vazios).
+    pub fn info(&self) -> DocumentInfo {
+        self.with_document(|doc| {
+            let tag = |kind| {
+                doc.metadata()
+                    .get(kind)
+                    .map(|t| t.value().trim().to_string())
+                    .unwrap_or_default()
+            };
+            Ok(DocumentInfo {
+                title: tag(PdfDocumentMetadataTagType::Title),
+                author: tag(PdfDocumentMetadataTagType::Author),
+                subject: tag(PdfDocumentMetadataTagType::Subject),
+                keywords: tag(PdfDocumentMetadataTagType::Keywords),
+                creator: tag(PdfDocumentMetadataTagType::Creator),
+                producer: tag(PdfDocumentMetadataTagType::Producer),
+                created: pdf_date(&tag(PdfDocumentMetadataTagType::CreationDate)),
+                modified: pdf_date(&tag(PdfDocumentMetadataTagType::ModificationDate)),
+                version: pdf_version(doc.version()),
+            })
+        })
+        .unwrap_or_default()
     }
 
     fn with_document<T>(
@@ -271,12 +360,24 @@ impl PdfEngine {
             let width_px = (width_pts * scale) as u32;
             let height_px = (height_pts * scale) as u32;
 
-            let render_cfg = PdfRenderConfig::new()
+            let rotation = self.rotation();
+            let mut render_cfg = PdfRenderConfig::new()
                 .set_target_width(width_px as i32)
                 .set_target_height(height_px as i32)
                 // PDFium usa BGRA nativamente. Este flag pede a inversao no
                 // proprio render e permite entregar RGBA sem um segundo buffer.
                 .set_reverse_byte_order(true);
+            // Só gira quando preciso: a matriz de rotação tira o PDFium do
+            // caminho de render mais rápido.
+            if rotation != Rotation::R0 {
+                // Com `true`, largura e altura do alvo trocam junto.
+                render_cfg = render_cfg.rotate(pdfium_rotation(rotation), true);
+            }
+            let (width_px, height_px) = if rotation.swaps_axes() {
+                (height_px, width_px)
+            } else {
+                (width_px, height_px)
+            };
 
             let bitmap = page
                 .render_with_config(&render_cfg)
@@ -318,6 +419,51 @@ impl PdfEngine {
     pub fn extract_bookmarks(&self) -> Vec<BookmarkEntry> {
         self.with_document(|doc| Ok(engine_extract::extract_bookmarks(doc)))
             .unwrap_or_default()
+    }
+}
+
+fn pdfium_rotation(rotation: Rotation) -> PdfPageRenderRotation {
+    match rotation {
+        Rotation::R0 => PdfPageRenderRotation::None,
+        Rotation::R90 => PdfPageRenderRotation::Degrees90,
+        Rotation::R180 => PdfPageRenderRotation::Degrees180,
+        Rotation::R270 => PdfPageRenderRotation::Degrees270,
+    }
+}
+
+fn pdf_version(version: PdfDocumentVersion) -> String {
+    match version {
+        PdfDocumentVersion::Unset => String::new(),
+        PdfDocumentVersion::Pdf1_0 => "1.0".into(),
+        PdfDocumentVersion::Pdf1_1 => "1.1".into(),
+        PdfDocumentVersion::Pdf1_2 => "1.2".into(),
+        PdfDocumentVersion::Pdf1_3 => "1.3".into(),
+        PdfDocumentVersion::Pdf1_4 => "1.4".into(),
+        PdfDocumentVersion::Pdf1_5 => "1.5".into(),
+        PdfDocumentVersion::Pdf1_6 => "1.6".into(),
+        PdfDocumentVersion::Pdf1_7 => "1.7".into(),
+        PdfDocumentVersion::Pdf2_0 => "2.0".into(),
+        PdfDocumentVersion::Other(n) => format!("{}.{}", n / 10, n % 10),
+    }
+}
+
+/// `D:20240115103000+03'00'` → `15/01/2024 10:30`. Formatos estranhos voltam
+/// como vieram.
+pub(crate) fn pdf_date(raw: &str) -> String {
+    let digits: String = raw
+        .trim_start_matches("D:")
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    if digits.len() < 8 {
+        return raw.to_string();
+    }
+    let part = |range: std::ops::Range<usize>| digits.get(range).unwrap_or("00");
+    let date = format!("{}/{}/{}", part(6..8), part(4..6), part(0..4));
+    if digits.len() >= 12 {
+        format!("{date} {}:{}", part(8..10), part(10..12))
+    } else {
+        date
     }
 }
 

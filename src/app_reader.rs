@@ -99,9 +99,10 @@ impl MariApp {
                 } else if let Some(engine) = &self.engine {
                     let pc = self.page_count;
                     let cp = self.current_page;
-                    let tint = self.color_mode.page_tint_for(self.settings.palette.0);
+                    let look = self.page_look();
+                    let tint = look.tint;
                     let border = self.color_mode.page_border();
-                    self.viewer.invert_colors = matches!(self.color_mode, ColorMode::Dark);
+                    self.viewer.page_look = look;
                     self.viewer.page_margin = self.settings.page_margin.px();
                     self.viewer.smooth_scroll = self.settings.smooth_scroll;
                     self.viewer.search_highlight = self.active_search_highlight();
@@ -293,8 +294,9 @@ impl MariApp {
                 ui.add(egui::Separator::default().spacing(6.0));
                 match self.side_panel {
                     SidePanelKind::Toc => {
+                        let mark = self.ui_marks_section(ui, panel_text, panel_muted, panel_ink);
                         let bookmarks = self.bookmarks.clone();
-                        goto_page = side_panel::show_toc(
+                        let toc = side_panel::show_toc(
                             ui,
                             &bookmarks,
                             current_page,
@@ -304,8 +306,10 @@ impl MariApp {
                             panel_muted,
                             panel_ink,
                         );
+                        goto_page = mark.or(toc);
                     }
                     SidePanelKind::Thumbs => {
+                        let look = self.page_look();
                         if let Some(ref mut tc) = self.thumb_cache {
                             goto_page = side_panel::show_thumbs(
                                 ui,
@@ -315,8 +319,7 @@ impl MariApp {
                                 panel_muted,
                                 panel_text,
                                 panel_ink,
-                                matches!(self.color_mode, ColorMode::Dark),
-                                self.color_mode.page_tint(),
+                                look,
                             );
                         }
                     }

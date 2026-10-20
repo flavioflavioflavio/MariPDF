@@ -12,6 +12,7 @@ use crate::app_color_mode::ColorMode;
 use crate::pdf::engine::TextCharInfo;
 use crate::t;
 use crate::text_selection::{line_range, ordered, selection_text, word_range};
+use crate::ui::page_rotation::PageMapping;
 use eframe::egui;
 
 impl MariApp {
@@ -72,9 +73,8 @@ impl MariApp {
         pdf_w: f32,
         pdf_h: f32,
     ) {
-        let nearest = |chars: &[TextCharInfo], pos: egui::Pos2| {
-            nearest_char(chars, pos, page_rect, pdf_w, pdf_h)
-        };
+        let mapping = PageMapping::new(page_rect, (pdf_w, pdf_h), self.viewer.rotation);
+        let nearest = |chars: &[TextCharInfo], pos: egui::Pos2| nearest_char(chars, pos, &mapping);
 
         let resp = ui.interact(
             page_rect,
@@ -161,13 +161,9 @@ impl MariApp {
         if chars.is_empty() || lo > hi {
             return;
         }
-        let char_rect = |ch: &TextCharInfo| -> egui::Rect {
-            let lx = page_rect.left() + ch.left / pdf_w * page_rect.width();
-            let rx = page_rect.left() + ch.right / pdf_w * page_rect.width();
-            let ty = page_rect.bottom() - ch.top / pdf_h * page_rect.height();
-            let by = page_rect.bottom() - ch.bottom / pdf_h * page_rect.height();
-            egui::Rect::from_min_max(egui::pos2(lx, ty), egui::pos2(rx, by))
-        };
+        let mapping = PageMapping::new(page_rect, (pdf_w, pdf_h), self.viewer.rotation);
+        let char_rect =
+            |ch: &TextCharInfo| mapping.rect_to_screen([ch.left, ch.bottom, ch.right, ch.top]);
         let mut line_rects: Vec<egui::Rect> = Vec::new();
         let mut cur_rect: Option<egui::Rect> = None;
         let mut cur_cy = f32::NAN;
@@ -192,8 +188,8 @@ impl MariApp {
         line_rects.extend(cur_rect);
 
         let hl_color = match self.color_mode {
-            ColorMode::Dark => egui::Color32::from_rgba_unmultiplied(55, 130, 255, 55),
-            _ => egui::Color32::from_rgba_unmultiplied(30, 100, 220, 65),
+            ColorMode::Dark => egui::Color32::from_rgba_unmultiplied(196, 60, 92, 70),
+            _ => egui::Color32::from_rgba_unmultiplied(122, 28, 48, 60),
         };
         let painter = ui.painter().clone();
         for r in &line_rects {
@@ -209,16 +205,10 @@ impl MariApp {
         if let Some(index) =
             self.selection_handle(ctx, ui, &painter, start, -1.0, "sel_handle_start")
         {
-            self.sel_anchor = Some(nearest_char(chars, index, page_rect, pdf_w, pdf_h));
+            self.sel_anchor = Some(nearest_char(chars, index, &mapping));
         }
         if let Some(index) = self.selection_handle(ctx, ui, &painter, end, 1.0, "sel_handle_end") {
-            self.sel_focus = Some(nearest_char(
-                &self.text_chars,
-                index,
-                page_rect,
-                pdf_w,
-                pdf_h,
-            ));
+            self.sel_focus = Some(nearest_char(&self.text_chars, index, &mapping));
         }
     }
 
@@ -233,7 +223,7 @@ impl MariApp {
         direction: f32,
         id: &str,
     ) -> Option<egui::Pos2> {
-        let color = egui::Color32::from_rgba_unmultiplied(55, 130, 255, 230);
+        let color = egui::Color32::from_rgba_unmultiplied(160, 36, 62, 235);
         let radius = 5.0_f32;
         let stem = 12.0_f32;
         let knob = egui::pos2(anchor.x, anchor.y + direction * (stem + radius));
@@ -253,16 +243,8 @@ impl MariApp {
     }
 }
 
-fn nearest_char(
-    chars: &[TextCharInfo],
-    pos: egui::Pos2,
-    page_rect: egui::Rect,
-    pdf_w: f32,
-    pdf_h: f32,
-) -> usize {
-    let nx = (pos.x - page_rect.left()) / page_rect.width().max(1.0);
-    let ny = 1.0 - (pos.y - page_rect.top()) / page_rect.height().max(1.0);
-    let (px, py) = (nx * pdf_w, ny * pdf_h);
+fn nearest_char(chars: &[TextCharInfo], pos: egui::Pos2, mapping: &PageMapping) -> usize {
+    let (px, py) = mapping.pdf_point(pos);
     chars
         .iter()
         .enumerate()

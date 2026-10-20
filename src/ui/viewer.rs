@@ -14,7 +14,6 @@ use crate::ui::page_scale;
 use crate::ui::texture_cache::GpuTextureCache;
 use eframe::egui;
 
-pub use crate::ui::viewer_helpers::invert_rgba;
 use crate::ui::viewer_helpers::{
     draw_page_tex, paint_search_highlight, show_spinner, upload_texture,
 };
@@ -89,8 +88,10 @@ pub struct PdfViewer {
     scroll_accum: f32,
     /// Indica se há renderização em andamento (usado pela Status Bar)
     pub is_loading: bool,
-    /// Se true, inverte as cores RGB do bitmap (dark mode PDF)
-    pub invert_colors: bool,
+    /// Filtro e tinta da página (perfil de cor do leitor).
+    pub page_look: crate::reader_profile::PageLook,
+    /// Rotação de exibição do documento atual.
+    pub rotation: crate::ui::page_rotation::Rotation,
     /// Pixels de bitmap por ponto de UI: densidade da tela × qualidade.
     pub render_scale: f32,
     /// Escala (px por ponto PDF) do bitmap da textura single-page atual.
@@ -135,7 +136,8 @@ impl PdfViewer {
             zoom: 1.0,
             scroll_accum: 0.0,
             is_loading: false,
-            invert_colors: false,
+            page_look: crate::reader_profile::PageLook::PLAIN,
+            rotation: crate::ui::page_rotation::Rotation::R0,
             render_scale: 1.0,
             texture_scale: 1.0,
             usable_width: 0.0,
@@ -180,7 +182,7 @@ impl PdfViewer {
         self.zoom = 1.0;
         self.scroll_accum = 0.0;
         self.is_loading = false;
-        self.invert_colors = false;
+        self.page_look = crate::reader_profile::PageLook::PLAIN;
         self.last_error = None;
     }
 
@@ -292,9 +294,7 @@ impl PdfViewer {
 
         if self.loaded_page != Some(current_page) {
             if let Some(mut page) = self.page_cache.get(current_page).cloned() {
-                if self.invert_colors {
-                    invert_rgba(&mut page.rgba);
-                }
+                crate::reader_profile::apply_filter(&mut page.rgba, self.page_look);
                 self.load_page(ctx, &page, current_page);
                 self.is_loading = false;
                 self.last_error = None;
@@ -381,6 +381,7 @@ impl PdfViewer {
                         page_rect,
                         self.search_highlight.as_ref(),
                         self.loaded_page,
+                        self.rotation,
                     );
                     ui.add_space(8.0);
                     ui.label(
@@ -419,6 +420,7 @@ impl PdfViewer {
                                 page_rect,
                                 self.search_highlight.as_ref(),
                                 self.loaded_page,
+                                self.rotation,
                             );
                         });
                         ui.add_space(self.page_margin);

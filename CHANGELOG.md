@@ -7,6 +7,30 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- Abrir PDF com senha: o app pede a senha em vez de mostrar erro (a senha
+  fica só em memória).
+- Girar a página (Ctrl+R / Ctrl+Shift+R), salvo por documento. Seleção de
+  texto, links e destaque da busca acompanham a rotação.
+- Voltar e avançar na navegação (Alt+← / Alt+→ e botões laterais do mouse)
+  depois de saltos por link, sumário, busca ou "ir para página".
+- Recarrega sozinho quando o PDF muda no disco, mantendo página, zoom e
+  rotação.
+- Propriedades do documento (Alt+Enter): arquivo, tamanho, páginas, papel,
+  título, autor, datas e versão do PDF.
+- Mostrar na pasta e copiar a página como imagem (Ctrl+Shift+C).
+- Marcadores do usuário (Ctrl+D), listados no topo do painel de sumário.
+- Menu ⋯ na barra com todas essas ações e seus atalhos.
+- Perfis de cor da página (Configurações → Leitura): Automático, Original,
+  Livro novo, Sépia, Cinza suave, Preto e branco e Noturno.
+
+### Corrigido
+
+- Sumário automático escondia os primeiros itens sob o cabeçalho do painel.
+- Azul padrão do egui (seleção de texto, foco, cursor, links e botões
+  nativos) trocado por vinho.
+
 ### Alterado
 
 - Nova identidade visual: ícone e logo do M vermelho (originais em

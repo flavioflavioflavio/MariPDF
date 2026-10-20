@@ -6,6 +6,8 @@
 // sequência de quadros de navegação para montar um GIF curto.
 
 use crate::app::MariApp;
+use crate::app_reader::SidePanelKind;
+use crate::reader_profile::ReaderProfile;
 use crate::ui::viewer::ViewMode;
 use eframe::egui;
 use std::path::PathBuf;
@@ -25,6 +27,15 @@ enum Shot {
     Settings,
     About,
     Float,
+    MoreMenu,
+    Rotated,
+    Marks,
+    Properties,
+    ProfileMono,
+    ProfileNewBook,
+    ProfileNight,
+    ReadingTab,
+    Password,
     Gif(usize),
     Done,
 }
@@ -153,10 +164,58 @@ impl MariApp {
             }
             Shot::Float => {
                 self.exit_frame_mode(ctx);
-                if self.viewer.mode == ViewMode::SinglePage {
-                    self.do_toggle_mode(ctx);
+                ctx.memory_mut(|m| m.open_popup(crate::app_toolbar::more_menu_id()));
+                Shot::MoreMenu
+            }
+            Shot::MoreMenu => {
+                ctx.memory_mut(|m| m.close_popup());
+                self.rotate_view(ctx, true);
+                Shot::Rotated
+            }
+            Shot::Rotated => {
+                self.rotate_view(ctx, false);
+                self.toggle_mark(ctx);
+                self.side_panel = SidePanelKind::Toc;
+                Shot::Marks
+            }
+            Shot::Marks => {
+                self.side_panel = SidePanelKind::None;
+                self.open_properties();
+                Shot::Properties
+            }
+            Shot::Properties => {
+                self.properties = None;
+                self.set_reader_profile(ctx, ReaderProfile::Mono);
+                Shot::ProfileMono
+            }
+            Shot::ProfileMono => {
+                self.set_reader_profile(ctx, ReaderProfile::NewBook);
+                Shot::ProfileNewBook
+            }
+            Shot::ProfileNewBook => {
+                self.set_reader_profile(ctx, ReaderProfile::Night);
+                Shot::ProfileNight
+            }
+            Shot::ProfileNight => {
+                self.set_reader_profile(ctx, ReaderProfile::Auto);
+                self.settings_open = true;
+                crate::ui::settings_panel::select_reading_tab(ctx);
+                Shot::ReadingTab
+            }
+            Shot::ReadingTab => {
+                self.settings_open = false;
+                // PDF com senha opcional: MARIPDF_SHOWCASE_LOCKED=<pdf>.
+                match std::env::var_os("MARIPDF_SHOWCASE_LOCKED") {
+                    Some(locked) => {
+                        self.open_document(ctx, locked.into(), None, false);
+                        Shot::Password
+                    }
+                    None => self.start_gif(ctx),
                 }
-                Shot::Gif(0)
+            }
+            Shot::Password => {
+                self.password_prompt = None;
+                self.start_gif(ctx)
             }
             Shot::Gif(i) if i + 1 < GIF_FRAMES => {
                 // Rolagem contínua suave por algumas páginas.
@@ -169,6 +228,20 @@ impl MariApp {
             }
             Shot::Gif(_) | Shot::Done => Shot::Done,
         }
+    }
+}
+
+impl MariApp {
+    fn set_reader_profile(&mut self, ctx: &egui::Context, profile: ReaderProfile) {
+        self.settings.reader_profile = profile;
+        self.invalidate_render(ctx);
+    }
+
+    fn start_gif(&mut self, ctx: &egui::Context) -> Shot {
+        if self.viewer.mode == ViewMode::SinglePage {
+            self.do_toggle_mode(ctx);
+        }
+        Shot::Gif(0)
     }
 }
 

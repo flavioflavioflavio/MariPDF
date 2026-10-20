@@ -73,6 +73,22 @@ enum ToolbarAction {
     Float,
     CycleTheme,
     Settings,
+    NavBack,
+    NavForward,
+    RotateCw,
+    RotateCcw,
+    ToggleMark,
+    CopyPage,
+    ShowInFolder,
+    Properties,
+}
+
+/// O que o menu Mais precisa saber para habilitar/rotular os itens.
+#[derive(Clone, Copy)]
+struct MoreState {
+    marked: bool,
+    can_back: bool,
+    can_forward: bool,
 }
 
 impl MariApp {
@@ -95,6 +111,11 @@ impl MariApp {
         let fill = surface.gamma_multiply(self.toolbar_opacity.max(0.0));
         let border = color_mode.border().gamma_multiply(tb_alpha as f32 / 255.0);
         let side_panel = self.side_panel;
+        let more = MoreState {
+            marked: self.is_marked(current_page),
+            can_back: self.nav.can_back(),
+            can_forward: self.nav.can_forward(),
+        };
         let mut actions: Vec<ToolbarAction> = Vec::new();
 
         egui::TopBottomPanel::top("toolbar")
@@ -112,6 +133,7 @@ impl MariApp {
 
                 // ── Direita: zoom · modo · Flutuante · tema/config/sobre ──
                 let mut right = zone(ui, row, egui::Layout::right_to_left(egui::Align::Center));
+                more_menu(&mut right, &tok, more, &mut actions);
                 right_zone(&mut right, &tok, color_mode, zoom_pct, mode, &mut actions);
                 let right_left = right.min_rect().left();
 
@@ -190,6 +212,14 @@ impl MariApp {
                 self.pending_rerender = true;
             }
             ToolbarAction::Settings => self.settings_open = !self.settings_open,
+            ToolbarAction::NavBack => self.nav_back(ctx),
+            ToolbarAction::NavForward => self.nav_forward(ctx),
+            ToolbarAction::RotateCw => self.rotate_view(ctx, true),
+            ToolbarAction::RotateCcw => self.rotate_view(ctx, false),
+            ToolbarAction::ToggleMark => self.toggle_mark(ctx),
+            ToolbarAction::CopyPage => self.copy_page_image(ctx),
+            ToolbarAction::ShowInFolder => self.show_in_folder(),
+            ToolbarAction::Properties => self.open_properties(),
         }
     }
 
@@ -306,6 +336,149 @@ fn page_group(
 }
 
 /// Desenhada da direita para a esquerda: o último item fica mais à esquerda.
+/// Menu ⋯ na ponta direita com as ferramentas de leitura.
+fn more_menu(ui: &mut egui::Ui, tok: &Tok, state: MoreState, actions: &mut Vec<ToolbarAction>) {
+    let button =
+        tool_button(ui, icons::DOTS_THREE, false, true, tok).on_hover_text(t!("toolbar-more-hint"));
+    let popup_id = more_menu_id();
+    if button.clicked() {
+        ui.memory_mut(|m| m.toggle_popup(popup_id));
+    }
+    egui::popup::popup_below_widget(
+        ui,
+        popup_id,
+        &button,
+        egui::PopupCloseBehavior::CloseOnClick,
+        |ui| {
+            ui.set_min_width(300.0);
+            ui.spacing_mut().button_padding = egui::vec2(8.0, 6.0);
+            let mark_label = if state.marked {
+                t!("menu-mark-remove")
+            } else {
+                t!("menu-mark-add")
+            };
+            let items = [
+                (
+                    icons::ARROW_LEFT,
+                    t!("menu-back"),
+                    SHORTCUT_BACK,
+                    state.can_back,
+                    ToolbarAction::NavBack,
+                ),
+                (
+                    icons::ARROW_RIGHT,
+                    t!("menu-forward"),
+                    SHORTCUT_FORWARD,
+                    state.can_forward,
+                    ToolbarAction::NavForward,
+                ),
+                (
+                    icons::ARROW_CLOCKWISE,
+                    t!("menu-rotate-cw"),
+                    SHORTCUT_ROTATE_CW,
+                    true,
+                    ToolbarAction::RotateCw,
+                ),
+                (
+                    icons::ARROW_COUNTER_CW,
+                    t!("menu-rotate-ccw"),
+                    SHORTCUT_ROTATE_CCW,
+                    true,
+                    ToolbarAction::RotateCcw,
+                ),
+                (
+                    icons::BOOKMARK_SIMPLE,
+                    mark_label,
+                    SHORTCUT_MARK,
+                    true,
+                    ToolbarAction::ToggleMark,
+                ),
+                (
+                    icons::COPY,
+                    t!("menu-copy-page"),
+                    SHORTCUT_COPY_PAGE,
+                    true,
+                    ToolbarAction::CopyPage,
+                ),
+                (
+                    icons::FOLDER_OPEN,
+                    t!("menu-show-in-folder"),
+                    "",
+                    true,
+                    ToolbarAction::ShowInFolder,
+                ),
+                (
+                    icons::INFO,
+                    t!("menu-properties"),
+                    SHORTCUT_PROPERTIES,
+                    true,
+                    ToolbarAction::Properties,
+                ),
+            ];
+            for (index, (glyph, label, shortcut, enabled, action)) in items.into_iter().enumerate()
+            {
+                if index == 2 || index == 4 || index == 6 {
+                    ui.separator();
+                }
+                if menu_item(ui, tok, glyph, &label, shortcut, enabled) {
+                    actions.push(action);
+                }
+            }
+        },
+    );
+}
+
+/// Id global do popup (o roteiro de capturas também o abre).
+pub(crate) fn more_menu_id() -> egui::Id {
+    egui::Id::new("toolbar_more_menu")
+}
+
+const SHORTCUT_BACK: &str = "Alt+←";
+const SHORTCUT_FORWARD: &str = "Alt+→";
+const SHORTCUT_ROTATE_CW: &str = "Ctrl+R";
+const SHORTCUT_ROTATE_CCW: &str = "Ctrl+Shift+R";
+const SHORTCUT_MARK: &str = "Ctrl+D";
+const SHORTCUT_COPY_PAGE: &str = "Ctrl+Shift+C";
+const SHORTCUT_PROPERTIES: &str = "Alt+Enter";
+
+fn menu_item(
+    ui: &mut egui::Ui,
+    tok: &Tok,
+    glyph: &str,
+    label: &str,
+    shortcut: &str,
+    enabled: bool,
+) -> bool {
+    let color = if enabled { tok.text } else { tok.subtle };
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        glyph,
+        0.0,
+        egui::TextFormat {
+            font_id: egui::FontId::new(15.0, egui::FontFamily::Name("Icons".into())),
+            color: if enabled { tok.icon } else { tok.subtle },
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job.append(
+        label,
+        10.0,
+        egui::TextFormat {
+            font_id: egui::FontId::proportional(13.0),
+            color,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    let button = egui::Button::new(job)
+        .fill(egui::Color32::TRANSPARENT)
+        .stroke(egui::Stroke::NONE)
+        .shortcut_text(egui::RichText::new(shortcut).size(11.0).color(tok.subtle))
+        .min_size(egui::vec2(ui.available_width(), 0.0));
+    ui.add_enabled(enabled, button).clicked()
+}
+
 fn right_zone(
     ui: &mut egui::Ui,
     tok: &Tok,

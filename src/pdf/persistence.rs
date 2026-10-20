@@ -18,6 +18,12 @@ pub struct FileSession {
     /// Timestamp Unix do último acesso (para ordenar recentes)
     #[serde(default)]
     pub last_opened: u64,
+    /// Rotação de exibição escolhida para o documento.
+    #[serde(default)]
+    pub rotation: crate::ui::page_rotation::Rotation,
+    /// Páginas marcadas pelo usuário (Ctrl+D).
+    #[serde(default)]
+    pub marks: Vec<usize>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -173,6 +179,7 @@ mod tests {
                 last_page: 42,
                 zoom: 1.75,
                 last_opened: 123,
+                ..Default::default()
             },
         );
 
@@ -210,6 +217,7 @@ mod tests {
                 last_page: 1,
                 zoom: 1.0,
                 last_opened: 1,
+                ..Default::default()
             },
         );
         assert_eq!(manager.store.files.len(), 1);
