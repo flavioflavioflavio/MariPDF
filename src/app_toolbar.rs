@@ -34,6 +34,7 @@ struct Tok {
     text: egui::Color32,
     subtle: egui::Color32,
     accent: egui::Color32,
+    ink: egui::Color32,
     hover: egui::Color32,
     group_fill: egui::Color32,
     border: egui::Color32,
@@ -46,6 +47,7 @@ impl Tok {
             text: cm.text_primary(),
             subtle: cm.text_subtle(),
             accent: cm.accent_for(palette),
+            ink: cm.accent_ink_for(palette),
             hover: cm.surface_hover(),
             group_fill: cm.statusbar_for(palette),
             border: cm.border(),
@@ -469,7 +471,7 @@ fn tool_button(
     };
     let color = match (enabled, active) {
         (false, _) => tok.subtle,
-        (true, true) => tok.accent,
+        (true, true) => tok.ink,
         (true, false) if resp.hovered() => tok.text,
         (true, false) => tok.icon,
     };

@@ -21,11 +21,11 @@ impl MariApp {
                         egui::Color32::from_rgba_unmultiplied(230, 200, 200, (255.0 * alpha) as u8),
                     ),
                     ToastKind::Info => (
-                        egui::Color32::from_rgba_unmultiplied(15, 20, 35, (245.0 * alpha) as u8),
-                        egui::Color32::from_rgba_unmultiplied(120, 80, 220, (200.0 * alpha) as u8),
+                        egui::Color32::from_rgba_unmultiplied(24, 24, 30, (245.0 * alpha) as u8),
+                        egui::Color32::from_rgba_unmultiplied(70, 70, 84, (200.0 * alpha) as u8),
                         "✓",
-                        egui::Color32::from_rgba_unmultiplied(167, 139, 250, (255.0 * alpha) as u8),
-                        egui::Color32::from_rgba_unmultiplied(210, 200, 240, (255.0 * alpha) as u8),
+                        egui::Color32::from_rgba_unmultiplied(110, 200, 140, (255.0 * alpha) as u8),
+                        egui::Color32::from_rgba_unmultiplied(225, 225, 232, (255.0 * alpha) as u8),
                     ),
                 };
                 egui::Area::new(egui::Id::new("toast"))

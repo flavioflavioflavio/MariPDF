@@ -99,7 +99,7 @@ pub fn show_settings_panel(
                         ui.label(
                             egui::RichText::new(icons::GEAR)
                                 .size(18.0)
-                                .color(tok.accent)
+                                .color(tok.ink)
                                 .family(egui::FontFamily::Name("Icons".into())),
                         );
                         ui.add_space(10.0);
@@ -163,7 +163,7 @@ pub fn show_settings_panel(
                                 egui::Color32::TRANSPARENT
                             };
                             let fg_text = if is_active { tok.text } else { tok.subtle };
-                            let fg_icon = if is_active { tok.accent } else { tok.subtle };
+                            let fg_icon = if is_active { tok.ink } else { tok.subtle };
                             let r = egui::Frame::new()
                                 .fill(tab_bg)
                                 .corner_radius(egui::CornerRadius {

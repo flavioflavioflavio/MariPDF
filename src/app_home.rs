@@ -13,7 +13,8 @@ use std::path::{Path, PathBuf};
 /// Largura da coluna de conteúdo.
 const COLUMN_MIN: f32 = 340.0;
 const COLUMN_MAX: f32 = 560.0;
-const LOGO_SIZE: f32 = 72.0;
+/// Altura exibida da logo horizontal (o PNG tem 3× para alta densidade).
+const LOGO_HEIGHT: f32 = 44.0;
 const CTA_SIZE: egui::Vec2 = egui::vec2(220.0, 42.0);
 const ROW_HEIGHT: f32 = 58.0;
 const ROW_PAD_X: f32 = 14.0;
@@ -30,6 +31,8 @@ struct HomeColors {
     muted: egui::Color32,
     subtle: egui::Color32,
     accent: egui::Color32,
+    /// Acento como cor de ícone/texto (coral no escuro).
+    ink: egui::Color32,
     on_accent: egui::Color32,
     danger: egui::Color32,
     divider: f32,
@@ -54,6 +57,7 @@ impl HomeColors {
             muted: cm.text_muted(),
             subtle: cm.text_subtle(),
             accent,
+            ink: cm.accent_ink_for(palette),
             on_accent: readable_on(accent),
             danger: cm.danger(),
             divider: cm.divider_width(),
@@ -126,7 +130,7 @@ impl MariApp {
                     .show(ui, |ui| {
                         // Sem recentes o hero fica no centro óptico; com
                         // recentes, sobe para dar lugar à lista.
-                        let hero_height = 260.0;
+                        let hero_height = 200.0;
                         let list_height = if recents.is_empty() {
                             0.0
                         } else {
@@ -181,16 +185,8 @@ impl MariApp {
     /// Logo, nome, tagline, CTA e dica de arrastar.
     fn home_hero(&mut self, ui: &mut egui::Ui, colors: &HomeColors, column: f32) {
         ui.vertical_centered(|ui| {
-            let logo = home_logo(ui.ctx());
-            ui.add(egui::Image::new(&logo).fit_to_exact_size(egui::vec2(LOGO_SIZE, LOGO_SIZE)));
-            ui.add_space(14.0);
-            ui.label(
-                egui::RichText::new("MariPDF")
-                    .size(34.0)
-                    .color(colors.text)
-                    .family(egui::FontFamily::Name("Title".into())),
-            );
-            ui.add_space(2.0);
+            ui.add(brand_logo(ui.ctx(), LOGO_HEIGHT));
+            ui.add_space(12.0);
             ui.label(
                 egui::RichText::new(crate::t!("app-tagline"))
                     .size(13.0)
@@ -242,7 +238,7 @@ impl MariApp {
 
             ui.add_space(12.0);
             let (hint, color) = if self.drop_zone_hovered {
-                (crate::t!("home-drop-release"), colors.accent)
+                (crate::t!("home-drop-release"), colors.ink)
             } else {
                 (crate::t!("home-drop-hint"), colors.muted)
             };
@@ -251,18 +247,26 @@ impl MariApp {
     }
 }
 
-/// Logo embutido (cantos já transparentes), carregado uma vez por contexto.
-pub(crate) fn home_logo(ctx: &egui::Context) -> egui::TextureHandle {
-    let id = egui::Id::new("home_logo_texture");
+/// Logo horizontal da marca na altura pedida, mantendo a proporção.
+pub(crate) fn brand_logo(ctx: &egui::Context, height: f32) -> egui::Image<'static> {
+    let texture = logo_texture(ctx);
+    let [w, h] = texture.size();
+    let width = height * w as f32 / h.max(1) as f32;
+    egui::Image::new(&texture).fit_to_exact_size(egui::vec2(width, height))
+}
+
+/// Logo embutida (fundo transparente), carregada uma vez por contexto.
+fn logo_texture(ctx: &egui::Context) -> egui::TextureHandle {
+    let id = egui::Id::new("brand_logo_texture");
     if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
         return texture;
     }
-    let image = image::load_from_memory(include_bytes!("../assets/logo-home.png"))
+    let image = image::load_from_memory(include_bytes!("../assets/logo-horizontal.png"))
         .map(|img| img.to_rgba8())
         .unwrap_or_else(|_| image::RgbaImage::new(1, 1));
     let size = [image.width() as usize, image.height() as usize];
     let color_image = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
-    let texture = ctx.load_texture("home_logo", color_image, egui::TextureOptions::LINEAR);
+    let texture = ctx.load_texture("brand_logo", color_image, egui::TextureOptions::LINEAR);
     ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
     texture
 }
@@ -375,7 +379,7 @@ fn recent_row(
         egui::Align2::CENTER_CENTER,
         icons::FILE_PDF,
         egui::FontId::new(19.0, egui::FontFamily::Name("Icons".into())),
-        colors.accent,
+        colors.ink,
     );
 
     // Página onde parou (pílula) e espaço reservado para o X

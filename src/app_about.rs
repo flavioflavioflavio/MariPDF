@@ -14,7 +14,7 @@ const EVOMIND_URL: &str = "https://evomind.app/investors";
 /// o link não aparece — o README pede para não enviar valores a links antigos.
 const DONATION_URL: Option<&str> = None;
 
-const LOGO_SIZE: f32 = 52.0;
+const LOGO_HEIGHT: f32 = 30.0;
 
 #[derive(Default)]
 pub struct AboutState {
@@ -26,27 +26,13 @@ impl AboutState {
         let version = env!("CARGO_PKG_VERSION");
 
         // ── Identidade ──────────────────────────────────────────────────────
-        ui.horizontal(|ui| {
-            let logo = crate::app_home::home_logo(ui.ctx());
-            ui.add(egui::Image::new(&logo).fit_to_exact_size(egui::vec2(LOGO_SIZE, LOGO_SIZE)));
-            ui.add_space(6.0);
-            ui.vertical(|ui| {
-                ui.add_space(4.0);
-                ui.label(
-                    egui::RichText::new("MariPDF")
-                        .font(egui::FontId::new(
-                            22.0,
-                            egui::FontFamily::Name("Title".into()),
-                        ))
-                        .color(tok.text),
-                );
-                ui.label(
-                    egui::RichText::new(t!("about-version", version => version))
-                        .size(12.0)
-                        .color(tok.muted),
-                );
-            });
-        });
+        ui.add_space(2.0);
+        ui.add(crate::app_home::brand_logo(ui.ctx(), LOGO_HEIGHT));
+        ui.label(
+            egui::RichText::new(t!("about-version", version => version))
+                .size(12.0)
+                .color(tok.muted),
+        );
         ui.add_space(4.0);
         ui.label(
             egui::RichText::new(t!("about-desc"))
@@ -57,13 +43,13 @@ impl AboutState {
         // ── Dedicatória ─────────────────────────────────────────────────────
         ui.add_space(6.0);
         egui::Frame::new()
-            .fill(tok.accent.gamma_multiply(0.10))
+            .fill(tok.accent.gamma_multiply(0.12))
             .corner_radius(egui::CornerRadius::same(10))
             .inner_margin(egui::Margin::symmetric(14, 10))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("♥").size(15.0).color(tok.accent));
+                    ui.label(egui::RichText::new("♥").size(15.0).color(tok.ink));
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new(t!("about-dedication"))
@@ -101,7 +87,7 @@ impl AboutState {
                 if index > 0 {
                     ui.label(egui::RichText::new("·").color(tok.subtle));
                 }
-                let link = ui.link(egui::RichText::new(label).size(12.5).color(tok.accent));
+                let link = ui.link(egui::RichText::new(label).size(12.5).color(tok.ink));
                 if link.on_hover_text(url).clicked() {
                     let _ = open::that(url);
                 }
@@ -112,7 +98,7 @@ impl AboutState {
                     .link(
                         egui::RichText::new(t!("about-donate"))
                             .size(12.5)
-                            .color(tok.accent),
+                            .color(tok.ink),
                     )
                     .clicked()
                 {

@@ -93,21 +93,21 @@ impl ColorMode {
     pub fn accent_for(&self, palette: u8) -> egui::Color32 {
         match self {
             Self::Dark => match palette {
-                // Carvão usa o violeta da marca (o mesmo do ícone).
+                // Carvão usa o vermelho da marca.
                 0 => crate::app_constants::ACCENT_PRIMARY,
                 1 => egui::Color32::from_rgb(88, 166, 255),
                 2 => egui::Color32::from_rgb(192, 132, 252),
                 _ => egui::Color32::from_rgb(74, 222, 128),
             },
             Self::Light => match palette {
-                0 => egui::Color32::from_rgb(109, 64, 217),
+                0 => crate::app_constants::ACCENT_PRIMARY,
                 1 => egui::Color32::from_rgb(37, 130, 246),
                 2 => egui::Color32::from_rgb(147, 51, 234),
                 _ => egui::Color32::from_rgb(22, 163, 74),
             },
             Self::Sepia => match palette {
-                // Pergaminho: violeta da marca aquecido para o sépia.
-                0 => egui::Color32::from_rgb(122, 62, 150),
+                // Pergaminho: vermelho da marca.
+                0 => crate::app_constants::ACCENT_PRIMARY,
                 1 => egui::Color32::from_rgb(217, 119, 6),
                 2 => egui::Color32::from_rgb(146, 64, 14),
                 _ => egui::Color32::from_rgb(190, 24, 93),
@@ -116,6 +116,18 @@ impl ColorMode {
     }
     pub fn accent(&self) -> egui::Color32 {
         self.accent_for(0)
+    }
+    /// Acento para ícones e textos (primeiro plano). No escuro, o vermelho de
+    /// preenchimento some no fundo; usa o coral do logo. Os demais acentos do
+    /// escuro já são claros, e nos temas claros o próprio acento é legível.
+    pub fn accent_ink_for(&self, palette: u8) -> egui::Color32 {
+        match (self, palette) {
+            (Self::Dark, 0) => crate::app_constants::ACCENT_LIGHT,
+            _ => self.accent_for(palette),
+        }
+    }
+    pub fn accent_ink(&self) -> egui::Color32 {
+        self.accent_ink_for(0)
     }
     pub fn on_accent(&self) -> egui::Color32 {
         egui::Color32::WHITE

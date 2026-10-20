@@ -1,7 +1,7 @@
 // app_reader.rs — UI do leitor PDF: área central, status bar e side panel
 // Toolbar extraída para app_toolbar.rs. Seleção de texto para app_text_sel.rs.
 
-use crate::app::{MariApp, ACCENT_LIGHT, ACCENT_PRIMARY};
+use crate::app::{MariApp, ACCENT_LIGHT};
 use crate::app_color_mode::ColorMode;
 use crate::ui::icons;
 use crate::ui::side_panel;
@@ -265,6 +265,7 @@ impl MariApp {
             SidePanelKind::None => String::new(),
         };
         let panel_bg = color_mode.surface_for(self.settings.palette.0);
+        let panel_ink = color_mode.accent_ink_for(self.settings.palette.0);
         let panel_bord = color_mode.border();
         let panel_text = color_mode.text_primary();
         let panel_muted = color_mode.text_muted();
@@ -301,7 +302,7 @@ impl MariApp {
                             panel_bg,
                             panel_text,
                             panel_muted,
-                            ACCENT_PRIMARY,
+                            panel_ink,
                         );
                     }
                     SidePanelKind::Thumbs => {
@@ -313,7 +314,7 @@ impl MariApp {
                                 panel_bg,
                                 panel_muted,
                                 panel_text,
-                                ACCENT_PRIMARY,
+                                panel_ink,
                                 matches!(self.color_mode, ColorMode::Dark),
                                 self.color_mode.page_tint(),
                             );

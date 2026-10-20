@@ -199,7 +199,7 @@ pub(super) fn tab_privacy(
                     .color(tok.text),
             );
             let (status, color) = match state {
-                AssociationState::Default => (t!("settings-assoc-active"), tok.accent),
+                AssociationState::Default => (t!("settings-assoc-active"), tok.ink),
                 AssociationState::Registered => (t!("settings-assoc-pending"), tok.muted),
                 AssociationState::NotRegistered => (t!("settings-assoc-inactive"), tok.muted),
             };
@@ -287,7 +287,7 @@ fn clear_history_row(ui: &mut egui::Ui, persistence: &mut PersistenceManager, to
     let (desc, desc_color) = match state {
         ClearHistoryState::Idle => (t!("settings-clear-history-desc"), tok.muted),
         ClearHistoryState::Confirming => (t!("settings-clear-history-confirm"), tok.danger),
-        ClearHistoryState::Done(_) => (t!("settings-clear-history-done"), tok.accent),
+        ClearHistoryState::Done(_) => (t!("settings-clear-history-done"), tok.ink),
         ClearHistoryState::Failed(_) => (t!("settings-clear-history-failed"), tok.danger),
     };
 
