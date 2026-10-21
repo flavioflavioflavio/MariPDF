@@ -293,7 +293,11 @@ impl MariApp {
                 // Uma cópia de página do documento anterior não pode chegar
                 // à área de transferência depois da troca.
                 self.page_copy = None;
-                self.file_watch.reset(&path);
+                // Na recarga o carimbo já é o da versão que a thread abriu; ler
+                // o disco agora engoliria uma edição feita durante a recarga.
+                if !reload {
+                    self.file_watch.reset(&path);
+                }
                 self.properties = None;
                 self.properties_rx = None;
                 let session = live
@@ -313,6 +317,9 @@ impl MariApp {
                 }
                 self.marks.retain(|&p| p < page_count);
                 self.viewer.rotation = session.rotation;
+                self.viewer
+                    .page_layout
+                    .set_axes_swapped(session.rotation.swaps_axes());
                 engine.set_rotation(session.rotation);
                 self.viewer.init_cache(scheduler, page_count);
                 if self.viewer.mode == ViewMode::SinglePage {

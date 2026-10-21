@@ -174,6 +174,8 @@ pub struct DocProperties {
     pub info: DocumentInfo,
     pub file_size: u64,
     pub page_size_pts: (f32, f32),
+    /// Página cujo tamanho foi lido (descarta se o usuário já saiu dela).
+    pub page: usize,
 }
 
 impl MariApp {
@@ -214,8 +216,12 @@ impl MariApp {
     ) {
         self.viewer.rotation = rotation;
         engine.set_rotation(rotation);
-        // Alturas aprendidas valem para a orientação antiga.
-        self.viewer.page_layout.clear();
+        // Dimensões aprendidas trocam de eixo junto com a rotação.
+        self.viewer
+            .page_layout
+            .set_axes_swapped(rotation.swaps_axes());
+        // 4) Uma cópia pedida antes de girar sairia na orientação errada.
+        self.page_copy = None;
         self.invalidate_render(ctx);
         if let (Some(worker), Some(_)) = (&self.document_worker, &self.thumb_cache) {
             self.thumb_cache = Some(crate::pdf::thumb_cache::ThumbCache::new(
@@ -501,6 +507,7 @@ impl MariApp {
                     info: engine.info(),
                     file_size: std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0),
                     page_size_pts: engine.page_size_pts(page),
+                    page,
                 });
                 repaint.request_repaint();
             });
@@ -511,14 +518,19 @@ impl MariApp {
     }
 
     /// Mostra as propriedades quando a leitura termina.
-    pub(crate) fn poll_properties(&mut self) {
+    pub(crate) fn poll_properties(&mut self, ctx: &egui::Context) {
         let Some(rx) = &self.properties_rx else {
             return;
         };
         match rx.try_recv() {
-            Ok(props) => {
+            Ok(props) if props.page == self.current_page => {
                 self.properties = Some(props);
                 self.properties_rx = None;
+            }
+            // Página mudou durante a leitura: lê de novo para a atual.
+            Ok(_) => {
+                self.properties_rx = None;
+                self.open_properties(ctx);
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
             Err(std::sync::mpsc::TryRecvError::Disconnected) => self.properties_rx = None,

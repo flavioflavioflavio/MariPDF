@@ -281,7 +281,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     }
     app.poll_file_changes(ctx);
     app.poll_page_copy(ctx);
-    app.poll_properties();
+    app.poll_properties(ctx);
 
     if select_all && app.engine.is_some() && !app.search_open && !app.goto_open {
         app.select_all_text(ctx);

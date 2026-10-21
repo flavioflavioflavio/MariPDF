@@ -1,6 +1,6 @@
 // ui/page_layout.rs — Índice virtual de offsets e alturas das páginas.
 
-pub(crate) const DEFAULT_PAGE_WIDTH: f32 = 595.0;
+const DEFAULT_PAGE_WIDTH: f32 = 595.0;
 const DEFAULT_PAGE_HEIGHT: f32 = 842.0;
 
 #[derive(Clone, Copy, Debug)]
@@ -31,6 +31,8 @@ pub(crate) struct PageLayout {
     total_height: f32,
     params: Option<LayoutParams>,
     dirty: bool,
+    /// Rotação de 90°/270° ativa: a estimativa padrão é A4 deitada.
+    axes_swapped: bool,
 }
 
 impl PageLayout {
@@ -42,7 +44,32 @@ impl PageLayout {
             total_height: 0.0,
             params: None,
             dirty: true,
+            axes_swapped: false,
         }
+    }
+
+    /// Tamanho estimado de uma página ainda não renderizada (A4 na
+    /// orientação exibida).
+    pub fn default_size(&self) -> (f32, f32) {
+        if self.axes_swapped {
+            (DEFAULT_PAGE_HEIGHT, DEFAULT_PAGE_WIDTH)
+        } else {
+            (DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT)
+        }
+    }
+
+    /// Acompanha a rotação: ao trocar entre retrato e paisagem, as dimensões
+    /// já aprendidas e a estimativa padrão trocam de eixo (sem esquecer o que
+    /// foi medido, para a barra de rolagem não pular).
+    pub fn set_axes_swapped(&mut self, swapped: bool) {
+        if self.axes_swapped == swapped {
+            return;
+        }
+        self.axes_swapped = swapped;
+        for size in self.page_sizes_pts.iter_mut().flatten() {
+            *size = (size.1, size.0);
+        }
+        self.dirty = true;
     }
 
     pub fn clear(&mut self) {
@@ -114,7 +141,7 @@ impl PageLayout {
         let mut top = params.margin;
         for page in 0..self.page_sizes_pts.len() {
             let (page_width, page_height) =
-                self.page_sizes_pts[page].unwrap_or((DEFAULT_PAGE_WIDTH, DEFAULT_PAGE_HEIGHT));
+                self.page_sizes_pts[page].unwrap_or(self.default_size());
             let natural_width = page_width * crate::ui::page_scale::display_scale(params.zoom);
             let display_width = natural_width.min(usable_width);
             let display_height = page_height * display_width / page_width.max(1.0);

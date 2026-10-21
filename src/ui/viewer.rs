@@ -446,7 +446,7 @@ pub(crate) fn page_raster_scale(
     let page_width = layout
         .page_size_pts(page)
         .map(|(width, _)| width)
-        .or(Some(crate::ui::page_layout::DEFAULT_PAGE_WIDTH));
+        .or(Some(layout.default_size().0));
     let zoom = page_scale::effective_zoom(zoom, page_width, usable_width);
     page_scale::raster_scale(zoom, density)
 }
