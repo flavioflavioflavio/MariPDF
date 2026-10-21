@@ -324,7 +324,12 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             if let Some(engine) = &app.engine {
                 let page_size = engine.page_size_pts(app.current_page);
                 let mapping = PageMapping::new(page_rect, page_size, app.viewer.rotation);
-                if let Some(link) = hit_test_link(&app.page_links, click_pos, &mapping) {
+                // O clique na fita de marcador é dela, não do link embaixo.
+                let on_ribbon =
+                    crate::ui::viewer_helpers::ribbon_hot_rect(page_rect).contains(click_pos);
+                if let Some(link) =
+                    hit_test_link(&app.page_links, click_pos, &mapping).filter(|_| !on_ribbon)
+                {
                     match link.page {
                         // Link interno: salto registrado no histórico.
                         Some(page) => {

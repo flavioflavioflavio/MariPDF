@@ -138,6 +138,16 @@ const COPY_SCALE: f32 = 2.0;
 
 // ── Senha ─────────────────────────────────────────────────────────────────────
 
+/// Resultado da cópia de página preparado fora da UI.
+pub enum PageCopy {
+    Ready {
+        page: usize,
+        image: egui::ColorImage,
+    },
+    Failed,
+    Cancelled,
+}
+
 /// Recarga automática aguardando a abertura feita numa thread.
 pub struct PendingReload {
     path: PathBuf,
@@ -317,26 +327,57 @@ impl MariApp {
         let Some(worker) = &self.document_worker else {
             return;
         };
-        let (tx, rx) = std::sync::mpsc::channel();
+        let (job_tx, job_rx) = std::sync::mpsc::channel();
         let page = self.current_page;
-        if worker
+        if !worker
             .handle()
-            .request_render(page, COPY_SCALE, JobPriority::Immediate, tx)
+            .request_render(page, COPY_SCALE, JobPriority::Immediate, job_tx)
         {
-            self.page_copy = Some(rx);
-        } else {
             let now = ctx.input(|i| i.time);
             self.toast = Some(Toast::error(t!("toast-page-copy-failed"), 4.0, now));
+            return;
+        }
+        // A conversão para imagem (até ~160 MB em páginas enormes) também
+        // fica fora da UI: uma thread espera o render, monta a imagem e só
+        // entrega o resultado pronto.
+        let (tx, rx) = std::sync::mpsc::channel();
+        let repaint = ctx.clone();
+        let spawned = std::thread::Builder::new()
+            .name("maripdf-copy-page".into())
+            .spawn(move || {
+                let result = match job_rx.recv().map(|completion| completion.outcome) {
+                    Ok(JobOutcome::Ready(DocumentJobOutput::Render {
+                        page_index, page, ..
+                    })) => PageCopy::Ready {
+                        page: page_index,
+                        image: egui::ColorImage::from_rgba_unmultiplied(
+                            [page.width as usize, page.height as usize],
+                            &page.rgba,
+                        ),
+                    },
+                    Ok(JobOutcome::Failed(error)) => {
+                        tracing::warn!("copiar página: {error}");
+                        PageCopy::Failed
+                    }
+                    Ok(JobOutcome::Ready(_)) => PageCopy::Failed,
+                    Ok(JobOutcome::Cancelled) | Err(_) => PageCopy::Cancelled,
+                };
+                let _ = tx.send(result);
+                repaint.request_repaint();
+            });
+        match spawned {
+            Ok(_) => self.page_copy = Some(rx),
+            Err(error) => tracing::warn!("copiar página: {error}"),
         }
     }
 
-    /// Entrega a cópia da página quando o render termina.
+    /// Publica na área de transferência a imagem já pronta.
     pub(crate) fn poll_page_copy(&mut self, ctx: &egui::Context) {
         let Some(rx) = &self.page_copy else {
             return;
         };
-        let completion = match rx.try_recv() {
-            Ok(completion) => completion,
+        let result = match rx.try_recv() {
+            Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 self.page_copy = None;
@@ -345,30 +386,19 @@ impl MariApp {
         };
         self.page_copy = None;
         let now = ctx.input(|i| i.time);
-        match completion.outcome {
-            JobOutcome::Ready(DocumentJobOutput::Render {
-                page_index, page, ..
-            }) => {
-                let image = egui::ColorImage::from_rgba_unmultiplied(
-                    [page.width as usize, page.height as usize],
-                    &page.rgba,
-                );
+        match result {
+            PageCopy::Ready { page, image } => {
                 ctx.copy_image(image);
                 self.toast = Some(Toast::info(
-                    t!("toast-page-copied", page => page_index + 1),
+                    t!("toast-page-copied", page => page + 1),
                     2.5,
                     now,
                 ));
             }
-            JobOutcome::Cancelled => {}
-            JobOutcome::Failed(error) => {
-                tracing::warn!("copiar página: {error}");
+            PageCopy::Failed => {
                 self.toast = Some(Toast::error(t!("toast-page-copy-failed"), 4.0, now));
             }
-            JobOutcome::Ready(_) => {
-                tracing::warn!("copiar página: resultado de tipo inesperado");
-                self.toast = Some(Toast::error(t!("toast-page-copy-failed"), 4.0, now));
-            }
+            PageCopy::Cancelled => {}
         }
     }
 

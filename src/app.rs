@@ -112,7 +112,7 @@ pub struct MariApp {
     /// Leitura de propriedades em andamento (thread à parte).
     pub properties_rx: Option<std::sync::mpsc::Receiver<crate::app_tools::DocProperties>>,
     /// Cópia da página em andamento no worker.
-    pub page_copy: Option<std::sync::mpsc::Receiver<crate::pdf::document_worker::JobCompletion>>,
+    pub page_copy: Option<std::sync::mpsc::Receiver<crate::app_tools::PageCopy>>,
 
     // Medidor/smoke test embutido (BF-002/BF-007), só com MARIPDF_BENCH
     pub bench: Option<crate::bench::BenchRun>,

@@ -57,6 +57,23 @@ pub(crate) fn paint_ribbon(
     }
 }
 
+/// Desenho da fita no canto superior direito da página.
+fn ribbon_shape(page_rect: egui::Rect) -> egui::Rect {
+    let width = (page_rect.width() * 0.035).clamp(12.0, 22.0);
+    let height = width * 1.6;
+    let right = page_rect.right() - width * 0.9;
+    egui::Rect::from_min_max(
+        egui::pos2(right - width, page_rect.top()),
+        egui::pos2(right, page_rect.top() + height),
+    )
+}
+
+/// Área clicável da fita. Também usada para que um clique nela nunca siga
+/// um link do PDF que esteja embaixo.
+pub(crate) fn ribbon_hot_rect(page_rect: egui::Rect) -> egui::Rect {
+    ribbon_shape(page_rect).expand2(egui::vec2(10.0, 8.0))
+}
+
 /// Fita de marcador no canto superior direito da página: cheia quando a
 /// página está marcada, contorno discreto com o mouse sobre a página. Devolve
 /// true quando clicada (marcar/desmarcar).
@@ -70,14 +87,8 @@ pub(crate) fn page_ribbon(
     if !page_rect.is_positive() {
         return false;
     }
-    let width = (page_rect.width() * 0.035).clamp(12.0, 22.0);
-    let height = width * 1.6;
-    let right = page_rect.right() - width * 0.9;
-    let shape = egui::Rect::from_min_max(
-        egui::pos2(right - width, page_rect.top()),
-        egui::pos2(right, page_rect.top() + height),
-    );
-    let hot = shape.expand2(egui::vec2(10.0, 8.0));
+    let shape = ribbon_shape(page_rect);
+    let hot = ribbon_hot_rect(page_rect);
     let response = ui.interact(
         hot,
         egui::Id::new(("page_ribbon", page)),
