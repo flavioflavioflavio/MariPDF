@@ -320,6 +320,7 @@ impl MariApp {
                                 panel_text,
                                 panel_ink,
                                 look,
+                                self.viewer.rotation.swaps_axes(),
                             );
                         }
                     }

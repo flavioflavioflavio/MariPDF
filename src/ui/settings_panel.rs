@@ -35,10 +35,13 @@ pub fn select_about_tab(ctx: &egui::Context) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::new(TAB_ID), Tab::About));
 }
 
-/// Espaço vertical de cabeçalho, abas, rodapé e margens da janela; o
-/// conteúdo das abas rola no que sobra da tela.
-const CHROME_HEIGHT: f32 = 300.0;
-const CONTENT_MIN_HEIGHT: f32 = 220.0;
+/// Altura da janela: acompanha a tela, dentro destes limites.
+const WINDOW_MIN_HEIGHT: f32 = 380.0;
+const WINDOW_MAX_HEIGHT: f32 = 680.0;
+/// Espaço vertical de cabeçalho, abas e rodapé dentro da janela; o conteúdo
+/// das abas rola no que sobra.
+const CHROME_HEIGHT: f32 = 230.0;
+const CONTENT_MIN_HEIGHT: f32 = 140.0;
 
 // ── Ponto de entrada público ──────────────────────────────────────────────────
 
@@ -76,13 +79,19 @@ pub fn show_settings_panel(
     let tab_id = egui::Id::new(TAB_ID);
     let mut active_tab: Tab = ctx.data(|d| d.get_temp(tab_id).unwrap_or_default());
 
+    // A janela tem altura fixa derivada da tela, e a rolagem das abas é
+    // derivada da janela: o rodapé e o botão Fechar nunca saem dela.
+    let window_height =
+        (ctx.screen_rect().height() - 96.0).clamp(WINDOW_MIN_HEIGHT, WINDOW_MAX_HEIGHT);
+    let content_max_height = (window_height - CHROME_HEIGHT).max(CONTENT_MIN_HEIGHT);
+
     egui::Window::new("settings_wnd")
         .title_bar(false)
         .resizable(false)
         .collapsible(false)
         .movable(true)
-        .default_pos(ctx.screen_rect().center() - egui::vec2(250.0, 220.0))
-        .fixed_size(egui::vec2(500.0, 440.0))
+        .default_pos(ctx.screen_rect().center() - egui::vec2(250.0, window_height / 2.0))
+        .fixed_size(egui::vec2(500.0, window_height))
         .frame(outer_frame)
         .show(ctx, |ui| {
             // ── Header ───────────────────────────────────────────────────────
@@ -225,11 +234,9 @@ pub fn show_settings_panel(
                     ui.spacing_mut().button_padding = egui::vec2(16.0, 8.0);
                     ui.spacing_mut().item_spacing = egui::vec2(8.0, 10.0);
 
-                    let max_height =
-                        (ui.ctx().screen_rect().height() - CHROME_HEIGHT).max(CONTENT_MIN_HEIGHT);
                     egui::ScrollArea::vertical()
                         .id_salt(("settings_content", active_tab))
-                        .max_height(max_height)
+                        .max_height(content_max_height)
                         .auto_shrink([false, true])
                         .show(ui, |ui| match active_tab {
                             Tab::Appearance => tab_appearance(

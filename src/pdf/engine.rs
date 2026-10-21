@@ -373,11 +373,6 @@ impl PdfEngine {
                 // Com `true`, largura e altura do alvo trocam junto.
                 render_cfg = render_cfg.rotate(pdfium_rotation(rotation), true);
             }
-            let (width_px, height_px) = if rotation.swaps_axes() {
-                (height_px, width_px)
-            } else {
-                (width_px, height_px)
-            };
 
             let bitmap = page
                 .render_with_config(&render_cfg)
@@ -386,11 +381,22 @@ impl PdfEngine {
             // Com reverse_byte_order, `as_rgba_bytes()` devolve diretamente o
             // Vec copiado do bitmap, sem nova alocacao ou varredura por pixel.
             let rgba = bitmap.as_rgba_bytes();
+            // Dimensões reais do bitmap: com rotação o PDFium recalcula o alvo
+            // e o arredondamento pode diferir em 1 px do tamanho pedido. Um
+            // RGBA que não bate com largura × altura derruba o upload.
+            let (width, height) = (bitmap.width().max(0) as u32, bitmap.height().max(0) as u32);
+            if rgba.len() != width as usize * height as usize * 4 {
+                anyhow::bail!(
+                    "Página {}: bitmap {width}×{height} com {} bytes",
+                    page_index + 1,
+                    rgba.len()
+                );
+            }
 
             Ok(RenderedPage {
                 scale,
-                width: width_px,
-                height: height_px,
+                width,
+                height,
                 rgba,
             })
         })

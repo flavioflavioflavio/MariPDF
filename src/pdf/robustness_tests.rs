@@ -174,6 +174,24 @@ fn rotated_render_swaps_width_and_height() {
 }
 
 #[test]
+fn rendered_dimensions_always_match_the_pixels() {
+    use crate::ui::page_rotation::Rotation;
+    let engine = open(&fixture("sample.pdf")).expect("abrir");
+    for rotation in [Rotation::R0, Rotation::R90, Rotation::R180, Rotation::R270] {
+        engine.set_rotation(rotation);
+        // Escalas "quebradas" expõem diferenças de arredondamento do PDFium.
+        for scale in [0.37, 1.0, 1.4613, 2.0731, 2.9] {
+            let page = engine.render_page(0, scale).expect("render");
+            assert_eq!(
+                page.rgba.len(),
+                (page.width * page.height * 4) as usize,
+                "{rotation:?} escala {scale}"
+            );
+        }
+    }
+}
+
+#[test]
 fn document_info_and_pdf_dates() {
     let engine = open(&fixture("sample.pdf")).expect("abrir");
     let info = engine.info();

@@ -17,6 +17,7 @@ pub fn show_thumbs(
     color_text: egui::Color32,
     accent: egui::Color32,
     look: crate::reader_profile::PageLook,
+    axes_swapped: bool,
 ) -> Option<usize> {
     let mut goto = None;
 
@@ -30,7 +31,14 @@ pub fn show_thumbs(
     let label_area_h = 26.0_f32;
     let gap = 12.0_f32;
 
-    let fallback_img_h = (avail_w * 297.0 / 210.0).min(320.0);
+    // Miniatura ainda não renderizada: A4 na orientação exibida (deitada
+    // com 90°/270°), para a barra de rolagem não inflar e pular.
+    let aspect = if axes_swapped {
+        210.0 / 297.0
+    } else {
+        297.0 / 210.0
+    };
+    let fallback_img_h = (avail_w * aspect).min(320.0);
 
     let img_heights: Vec<f32> = (0..page_count)
         .map(|p| {

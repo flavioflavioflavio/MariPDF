@@ -293,6 +293,11 @@ impl MariApp {
                 // Uma cópia de página do documento anterior não pode chegar
                 // à área de transferência depois da troca.
                 self.page_copy = None;
+                // Abertura manual vence uma recarga ainda em andamento (que
+                // traria uma versão mais velha do mesmo arquivo).
+                if !reload {
+                    self.pending_reload = None;
+                }
                 // Na recarga o carimbo já é o da versão que a thread abriu; ler
                 // o disco agora engoliria uma edição feita durante a recarga.
                 if !reload {
