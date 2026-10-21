@@ -34,6 +34,7 @@ struct Tok {
     text: egui::Color32,
     subtle: egui::Color32,
     accent: egui::Color32,
+    ink: egui::Color32,
     hover: egui::Color32,
     group_fill: egui::Color32,
     border: egui::Color32,
@@ -46,6 +47,7 @@ impl Tok {
             text: cm.text_primary(),
             subtle: cm.text_subtle(),
             accent: cm.accent_for(palette),
+            ink: cm.accent_ink_for(palette),
             hover: cm.surface_hover(),
             group_fill: cm.statusbar_for(palette),
             border: cm.border(),
@@ -71,7 +73,6 @@ enum ToolbarAction {
     Float,
     CycleTheme,
     Settings,
-    About,
 }
 
 impl MariApp {
@@ -189,7 +190,6 @@ impl MariApp {
                 self.pending_rerender = true;
             }
             ToolbarAction::Settings => self.settings_open = !self.settings_open,
-            ToolbarAction::About => self.about.open = !self.about.open,
         }
     }
 
@@ -314,12 +314,6 @@ fn right_zone(
     mode: ViewMode,
     actions: &mut Vec<ToolbarAction>,
 ) {
-    if tool_button(ui, icons::INFO, false, true, tok)
-        .on_hover_text(t!("toolbar-about-hint"))
-        .clicked()
-    {
-        actions.push(ToolbarAction::About);
-    }
     if tool_button(ui, icons::GEAR, false, true, tok)
         .on_hover_text(t!("toolbar-settings-hint"))
         .clicked()
@@ -477,7 +471,7 @@ fn tool_button(
     };
     let color = match (enabled, active) {
         (false, _) => tok.subtle,
-        (true, true) => tok.accent,
+        (true, true) => tok.ink,
         (true, false) if resp.hovered() => tok.text,
         (true, false) => tok.icon,
     };

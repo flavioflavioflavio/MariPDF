@@ -279,9 +279,9 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         app.ui_search_bar(ctx);
     }
     if open_about {
-        app.about.open = !app.about.open;
+        app.settings_open = true;
+        crate::ui::settings_panel::select_about_tab(ctx);
     }
-    app.about.show(ctx);
     if app.settings_open {
         let effects = crate::ui::settings_panel::show_settings_panel(
             ctx,
@@ -290,6 +290,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
             &mut app.persistence,
             &mut app.color_mode,
             app.system_prefers_dark,
+            &mut app.about,
         );
         if effects.font_reload {
             crate::apply_font_settings(ctx, app.settings.font);

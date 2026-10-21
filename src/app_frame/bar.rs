@@ -57,6 +57,7 @@ impl MariApp {
             strong: cm.text_primary(),
             hover: cm.surface_hover(),
             accent: cm.accent_for(palette),
+            ink: cm.accent_ink_for(palette),
         };
         let mut action = None;
 
@@ -147,7 +148,7 @@ impl MariApp {
         } else {
             t!("frame-pan-off")
         };
-        let hand_color = if pan_on { colors.accent } else { colors.icon };
+        let hand_color = if pan_on { colors.ink } else { colors.icon };
         action = action.or(button(
             ui,
             icons::ph(icons::HAND, 14.0, hand_color),
@@ -156,7 +157,7 @@ impl MariApp {
             FrameAction::TogglePan,
         ));
         let pin_color = if self.frame.always_on_top {
-            colors.accent
+            colors.ink
         } else {
             colors.icon
         };
@@ -186,6 +187,7 @@ struct BarColors {
     strong: egui::Color32,
     hover: egui::Color32,
     accent: egui::Color32,
+    ink: egui::Color32,
 }
 
 /// Botão redondo discreto: fundo só no hover ou quando ativo.

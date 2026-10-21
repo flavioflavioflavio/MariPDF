@@ -7,6 +7,26 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Alterado
+
+- Nova identidade visual: ícone e logo do M vermelho (originais em
+  `assets/brand/`, gerados por `tools/make_brand.py`). Ícone novo no app, no
+  .exe e no instalador.
+- Home redesenhada: logo horizontal, botão de abrir com ícone, recentes num único
+  bloco alinhado (ícone, nome, pasta com o final visível, página onde parou) e
+  remoção que só aparece no hover. Rodapé de atalhos centralizado.
+- Acento da marca passa a ser o vermelho #AF0C0C (antes laranja) na paleta
+  padrão dos temas escuro, claro e sépia. Ícones e textos em destaque usam o
+  coral do logo (#F15855) no tema escuro, onde o vermelho ficaria ilegível.
+- Toast informativo neutro (verde), para não se confundir com o de erro.
+- *Sobre* agora é uma aba das Configurações (`Ctrl+Shift+I` abre direto nela);
+  o botão ⓘ avulso saiu da barra de ferramentas.
+
+### Corrigido
+
+- Bordas translúcidas apareciam brancas nos temas claro e sépia (cor
+  premultiplicada inválida).
+
 ## [1.0.0-rc.1] — 2026-10-19
 
 Primeira release candidate da v1.0. Fecha o roadmap Blazing Fast (BF-0 a BF-7);

@@ -89,7 +89,7 @@ pub struct MariApp {
     pub settings: AppSettings,
     pub settings_open: bool,
 
-    // About dialog
+    // Aba Sobre das Configurações (estado da verificação de atualização)
     pub about: AboutState,
 
     // Modo Flutuante (BF-415)
@@ -312,7 +312,7 @@ pub(crate) fn configure_visuals(ctx: &egui::Context) {
     v.window_corner_radius = egui::CornerRadius::same(12);
     v.window_stroke = egui::Stroke::new(1.0_f32, BORDER_SUBTLE);
     v.override_text_color = Some(TEXT_PRIMARY);
-    v.widgets.inactive.bg_fill = egui::Color32::from_rgb(65, 48, 128);
+    v.widgets.inactive.bg_fill = egui::Color32::from_rgb(48, 48, 56);
     v.widgets.hovered.bg_fill = ACCENT_PRIMARY;
     v.widgets.active.bg_fill = ACCENT_LIGHT;
     ctx.set_visuals(v);

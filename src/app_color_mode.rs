@@ -26,11 +26,13 @@ impl ColorMode {
             Self::Sepia => egui::Color32::from_rgb(242, 232, 207),
         }
     }
+    /// Translúcidas em RGBA não multiplicado: em premultiplicado, RGB acima
+    /// do alfa vira cor aditiva e a borda aparecia branca nos temas claros.
     pub fn border(&self) -> egui::Color32 {
         match self {
             Self::Dark => egui::Color32::from_rgb(40, 40, 50),
-            Self::Light => egui::Color32::from_rgba_premultiplied(120, 120, 110, 28),
-            Self::Sepia => egui::Color32::from_rgba_premultiplied(120, 90, 40, 28),
+            Self::Light => egui::Color32::from_rgba_unmultiplied(120, 120, 110, 28),
+            Self::Sepia => egui::Color32::from_rgba_unmultiplied(120, 90, 40, 28),
         }
     }
     pub fn divider_width(&self) -> f32 {
@@ -41,9 +43,9 @@ impl ColorMode {
     }
     pub fn page_border(&self) -> egui::Color32 {
         match self {
-            Self::Dark => egui::Color32::from_rgba_premultiplied(255, 255, 255, 12),
-            Self::Light => egui::Color32::from_rgba_premultiplied(0, 0, 0, 18),
-            Self::Sepia => egui::Color32::from_rgba_premultiplied(80, 50, 10, 22),
+            Self::Dark => egui::Color32::from_rgba_unmultiplied(255, 255, 255, 12),
+            Self::Light => egui::Color32::from_rgba_unmultiplied(0, 0, 0, 18),
+            Self::Sepia => egui::Color32::from_rgba_unmultiplied(80, 50, 10, 22),
         }
     }
     pub fn text_primary(&self) -> egui::Color32 {
@@ -91,19 +93,21 @@ impl ColorMode {
     pub fn accent_for(&self, palette: u8) -> egui::Color32 {
         match self {
             Self::Dark => match palette {
-                0 => egui::Color32::from_rgb(255, 106, 26),
+                // Carvão usa o vermelho da marca.
+                0 => crate::app_constants::ACCENT_PRIMARY,
                 1 => egui::Color32::from_rgb(88, 166, 255),
                 2 => egui::Color32::from_rgb(192, 132, 252),
                 _ => egui::Color32::from_rgb(74, 222, 128),
             },
             Self::Light => match palette {
-                0 => egui::Color32::from_rgb(220, 85, 20),
+                0 => crate::app_constants::ACCENT_PRIMARY,
                 1 => egui::Color32::from_rgb(37, 130, 246),
                 2 => egui::Color32::from_rgb(147, 51, 234),
                 _ => egui::Color32::from_rgb(22, 163, 74),
             },
             Self::Sepia => match palette {
-                0 => egui::Color32::from_rgb(200, 80, 20),
+                // Pergaminho: vermelho da marca.
+                0 => crate::app_constants::ACCENT_PRIMARY,
                 1 => egui::Color32::from_rgb(217, 119, 6),
                 2 => egui::Color32::from_rgb(146, 64, 14),
                 _ => egui::Color32::from_rgb(190, 24, 93),
@@ -112,6 +116,18 @@ impl ColorMode {
     }
     pub fn accent(&self) -> egui::Color32 {
         self.accent_for(0)
+    }
+    /// Acento para ícones e textos (primeiro plano). No escuro, o vermelho de
+    /// preenchimento some no fundo; usa o coral do logo. Os demais acentos do
+    /// escuro já são claros, e nos temas claros o próprio acento é legível.
+    pub fn accent_ink_for(&self, palette: u8) -> egui::Color32 {
+        match (self, palette) {
+            (Self::Dark, 0) => crate::app_constants::ACCENT_LIGHT,
+            _ => self.accent_for(palette),
+        }
+    }
+    pub fn accent_ink(&self) -> egui::Color32 {
+        self.accent_ink_for(0)
     }
     pub fn on_accent(&self) -> egui::Color32 {
         egui::Color32::WHITE

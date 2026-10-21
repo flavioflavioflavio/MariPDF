@@ -143,12 +143,11 @@ impl MariApp {
                 Shot::Settings
             }
             Shot::Settings => {
-                self.settings_open = false;
-                self.about.open = true;
+                crate::ui::settings_panel::select_about_tab(ctx);
                 Shot::About
             }
             Shot::About => {
-                self.about.open = false;
+                self.settings_open = false;
                 self.enter_frame_mode(ctx);
                 Shot::Float
             }

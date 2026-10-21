@@ -1,7 +1,9 @@
 // app_overlays.rs — Overlays flutuantes: GoTo Page e Search Bar
 // Extraído de app.rs (L1971-2138). Funções chamadas diretamente em app::MariApp.
 
-use crate::app::{MariApp, ACCENT_PRIMARY, BG_SURFACE, TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE};
+use crate::app::{
+    MariApp, ACCENT_LIGHT, ACCENT_PRIMARY, BG_SURFACE, TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE,
+};
 use crate::pdf::text_search::SearchHit;
 use crate::t;
 use crate::ui::icons;
@@ -20,7 +22,7 @@ impl MariApp {
             .show(ctx, |ui| {
                 egui::Frame::new()
                     .fill(BG_SURFACE)
-                    .stroke(egui::Stroke::new(1.5_f32, ACCENT_PRIMARY))
+                    .stroke(egui::Stroke::new(1.5_f32, ACCENT_LIGHT))
                     .corner_radius(egui::CornerRadius::same(10))
                     .shadow(egui::Shadow {
                         color: egui::Color32::from_rgba_premultiplied(0, 0, 0, 120),
@@ -101,7 +103,7 @@ impl MariApp {
             .show(ctx, |ui| {
                 egui::Frame::new()
                     .fill(BG_SURFACE)
-                    .stroke(egui::Stroke::new(1.5_f32, ACCENT_PRIMARY))
+                    .stroke(egui::Stroke::new(1.5_f32, ACCENT_LIGHT))
                     .corner_radius(egui::CornerRadius::same(10))
                     .shadow(egui::Shadow {
                         color: egui::Color32::from_rgba_premultiplied(0, 0, 0, 140),

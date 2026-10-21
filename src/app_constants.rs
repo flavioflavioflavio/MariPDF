@@ -6,8 +6,12 @@ use eframe::egui;
 // ── Paleta base (Dark) ────────────────────────────────────────────────────────
 pub const BG_BASE: egui::Color32 = egui::Color32::from_rgb(14, 14, 16);
 pub const BG_SURFACE: egui::Color32 = egui::Color32::from_rgb(22, 22, 26);
-pub const ACCENT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(255, 106, 26);
-pub const ACCENT_LIGHT: egui::Color32 = egui::Color32::from_rgb(255, 165, 80);
+/// Vermelho da marca (#AF0C0C) para preenchimentos: botões, chips, seleção.
+/// Texto branco sobre ele tem contraste 7.2:1.
+pub const ACCENT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(175, 12, 12);
+/// Coral do logo (#F15855): ícones e textos em destaque sobre fundo escuro,
+/// onde o vermelho de preenchimento ficaria ilegível.
+pub const ACCENT_LIGHT: egui::Color32 = egui::Color32::from_rgb(241, 88, 85);
 pub const TEXT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(250, 250, 252);
 pub const TEXT_MUTED: egui::Color32 = egui::Color32::from_rgb(120, 120, 140);
 pub const TEXT_SUBTLE: egui::Color32 = egui::Color32::from_rgb(70, 70, 85);

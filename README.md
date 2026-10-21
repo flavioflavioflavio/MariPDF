@@ -90,7 +90,7 @@ Get-FileHash .\MariPDF-<versão>-setup.exe -Algorithm SHA256
 # compare com SHA256SUMS.txt (assinado com Ed25519 — ver doc/10_distribuicao.md)
 ```
 
-O botão *Sobre → Verificar atualizações* baixa a versão nova. O instalador só
+O botão *Configurações → Sobre → Verificar atualizações* baixa a versão nova. O instalador só
 roda se a assinatura e o hash conferirem.
 
 ## Build local

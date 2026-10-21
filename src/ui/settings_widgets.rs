@@ -14,6 +14,8 @@ pub struct Tokens {
     pub muted: egui::Color32,
     pub subtle: egui::Color32,
     pub accent: egui::Color32,
+    /// Acento como cor de ícone/texto (ver ColorMode::accent_ink_for).
+    pub ink: egui::Color32,
     pub on_acc: egui::Color32,
     pub danger: egui::Color32,
     pub dw: f32,
@@ -32,6 +34,7 @@ impl Tokens {
             muted: cm.text_muted(),
             subtle: cm.text_subtle(),
             accent: cm.accent(),
+            ink: cm.accent_ink(),
             on_acc: cm.on_accent(),
             danger: cm.danger(),
             dw: cm.divider_width(),
