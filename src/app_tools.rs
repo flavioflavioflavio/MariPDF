@@ -138,6 +138,13 @@ const COPY_SCALE: f32 = 2.0;
 
 // ── Senha ─────────────────────────────────────────────────────────────────────
 
+/// Recarga automática aguardando a abertura feita numa thread.
+pub struct PendingReload {
+    path: PathBuf,
+    password: Option<String>,
+    rx: std::sync::mpsc::Receiver<anyhow::Result<crate::pdf::engine::PdfEngine>>,
+}
+
 pub struct PasswordPrompt {
     pub path: PathBuf,
     pub input: String,
@@ -227,7 +234,9 @@ impl MariApp {
     /// Recarrega o documento quando o arquivo muda no disco (LaTeX,
     /// exportações), mantendo página, zoom e rotação.
     pub(crate) fn poll_file_changes(&mut self, ctx: &egui::Context) {
-        if self.engine.is_none() || self.password_prompt.is_some() {
+        self.poll_pending_reload(ctx);
+        if self.engine.is_none() || self.password_prompt.is_some() || self.pending_reload.is_some()
+        {
             return;
         }
         let Some(path) = self.current_file.clone() else {
@@ -237,10 +246,60 @@ impl MariApp {
         ctx.request_repaint_after(std::time::Duration::from_secs_f64(WATCH_INTERVAL_SECS));
         if self.file_watch.changed(&path, now) {
             tracing::info!(path = %path.display(), "arquivo mudou no disco: recarregando");
-            let password = self.doc_password.clone();
-            if self.open_document(ctx, path, password, true) {
-                self.toast = Some(Toast::info(t!("toast-reloaded"), 2.5, now));
+            self.start_reload(ctx, path);
+        }
+    }
+
+    /// Abre a nova versão numa thread: o PDFium é serializado por um mutex
+    /// global e um job pesado do worker travaria a janela durante a recarga.
+    fn start_reload(&mut self, ctx: &egui::Context, path: PathBuf) {
+        let password = self.doc_password.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let repaint = ctx.clone();
+        let (thread_path, thread_password) = (path.clone(), password.clone());
+        let spawned = std::thread::Builder::new()
+            .name("maripdf-reload".into())
+            .spawn(move || {
+                let opened = crate::pdf::engine::get_pdfium().and_then(|pdfium| {
+                    crate::pdf::engine::PdfEngine::open_with_password(
+                        &thread_path,
+                        pdfium,
+                        thread_password.as_deref(),
+                    )
+                });
+                let _ = tx.send(opened);
+                repaint.request_repaint();
+            });
+        match spawned {
+            Ok(_) => {
+                self.pending_reload = Some(PendingReload { path, password, rx });
             }
+            Err(error) => tracing::warn!("recarga: {error}"),
+        }
+    }
+
+    fn poll_pending_reload(&mut self, ctx: &egui::Context) {
+        let Some(pending) = &self.pending_reload else {
+            return;
+        };
+        let opened = match pending.rx.try_recv() {
+            Ok(opened) => opened,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                self.pending_reload = None;
+                return;
+            }
+        };
+        let Some(pending) = self.pending_reload.take() else {
+            return;
+        };
+        // O usuário pode ter aberto outro arquivo enquanto a recarga rodava.
+        if self.current_file.as_deref() != Some(pending.path.as_path()) {
+            return;
+        }
+        let now = ctx.input(|i| i.time);
+        if self.install_document(ctx, pending.path, pending.password, true, opened) {
+            self.toast = Some(Toast::info(t!("toast-reloaded"), 2.5, now));
         }
     }
 

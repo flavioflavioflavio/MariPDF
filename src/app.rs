@@ -107,6 +107,8 @@ pub struct MariApp {
     /// Páginas marcadas pelo usuário no documento atual (ordenadas).
     pub marks: Vec<usize>,
     pub properties: Option<crate::app_tools::DocProperties>,
+    /// Recarga automática em andamento numa thread à parte.
+    pub pending_reload: Option<crate::app_tools::PendingReload>,
     /// Leitura de propriedades em andamento (thread à parte).
     pub properties_rx: Option<std::sync::mpsc::Receiver<crate::app_tools::DocProperties>>,
     /// Cópia da página em andamento no worker.
@@ -177,6 +179,7 @@ impl MariApp {
             password_prompt: None,
             marks: Vec::new(),
             properties: None,
+            pending_reload: None,
             properties_rx: None,
             page_copy: None,
             bench: crate::bench::BenchRun::from_env(),
@@ -212,14 +215,6 @@ impl MariApp {
         reload: bool,
     ) -> bool {
         tracing::info!("Abrindo: {}", path.display());
-        // Na recarga o estado vem do documento aberto agora, não do histórico
-        // (que pode estar desligado ou desatualizado).
-        let live = reload.then_some(FileSession {
-            last_page: self.current_page,
-            zoom: self.viewer.zoom,
-            last_opened: 0,
-            rotation: self.viewer.rotation,
-        });
         let open_started = std::time::Instant::now();
         let opened =
             get_pdfium().and_then(|p| PdfEngine::open_with_password(&path, p, password.as_deref()));
@@ -229,6 +224,27 @@ impl MariApp {
         if let Some(soak) = self.soak.as_mut() {
             soak.record_open(opened.is_ok());
         }
+        self.install_document(ctx, path, password, reload, opened)
+    }
+
+    /// Instala o resultado de uma abertura (feita aqui ou numa thread de
+    /// recarga). Devolve true se o documento entrou.
+    pub(crate) fn install_document(
+        &mut self,
+        ctx: &egui::Context,
+        path: PathBuf,
+        password: Option<String>,
+        reload: bool,
+        opened: anyhow::Result<PdfEngine>,
+    ) -> bool {
+        // Na recarga o estado vem do documento aberto agora, não do histórico
+        // (que pode estar desligado ou desatualizado).
+        let live = reload.then_some(FileSession {
+            last_page: self.current_page,
+            zoom: self.viewer.zoom,
+            last_opened: 0,
+            rotation: self.viewer.rotation,
+        });
         match opened {
             Ok(engine) => {
                 // A troca so altera o documento atual depois que o novo PDF

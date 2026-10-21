@@ -37,6 +37,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         // Diálogos e estado ligados ao documento fechado.
         app.properties = None;
         app.properties_rx = None;
+        app.pending_reload = None;
         app.page_copy = None;
         if app.password_prompt.as_ref().is_some_and(|p| p.reload) {
             app.password_prompt = None;
@@ -115,9 +116,9 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     let (mut nav_back, mut nav_forward, mut rotate_cw, mut rotate_ccw) =
         (false, false, false, false);
     let (mut toggle_mark, mut copy_page, mut open_properties) = (false, false, false);
-    // Com o campo de senha aberto, setas/Home/End editam o texto: nenhum
-    // atalho do leitor pode mexer no documento por baixo.
-    let modal = app.password_prompt.is_some();
+    // Com um diálogo aberto (senha, propriedades), setas/Home/End pertencem a
+    // ele: nenhum atalho do leitor pode mexer no documento por baixo.
+    let modal = app.password_prompt.is_some() || app.properties.is_some();
 
     ctx.input(|i| {
         if modal {
