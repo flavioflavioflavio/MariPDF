@@ -111,6 +111,66 @@ pub fn chip(ui: &mut egui::Ui, label: &str, selected: bool, tok: &Tokens) -> egu
     resp
 }
 
+/// Opção de página: miniatura (papel + linhas de texto) com o nome embaixo.
+pub fn page_chip(
+    ui: &mut egui::Ui,
+    label: &str,
+    paper: egui::Color32,
+    ink: egui::Color32,
+    selected: bool,
+    tok: &Tokens,
+) -> egui::Response {
+    let size = egui::vec2(84.0, 86.0);
+    let (rect, resp) = ui.allocate_exact_size(size, egui::Sense::click());
+    let hover = ui
+        .ctx()
+        .animate_bool_with_time(resp.id, resp.hovered(), 0.12);
+    let painter = ui.painter();
+    let border = if selected {
+        egui::Stroke::new(2.0_f32, tok.accent)
+    } else {
+        egui::Stroke::new(tok.dw * 1.2, lerp_color(tok.bord, tok.accent, hover * 0.45))
+    };
+    painter.rect_filled(rect, egui::CornerRadius::same(10), tok.surf);
+    painter.rect_stroke(
+        rect,
+        egui::CornerRadius::same(10),
+        border,
+        egui::StrokeKind::Inside,
+    );
+
+    // Mini página com quatro linhas de "texto".
+    let page = egui::Rect::from_min_size(rect.min + egui::vec2(18.0, 10.0), egui::vec2(48.0, 50.0));
+    painter.rect_filled(page, egui::CornerRadius::same(3), paper);
+    painter.rect_stroke(
+        page,
+        egui::CornerRadius::same(3),
+        egui::Stroke::new(1.0_f32, tok.bord),
+        egui::StrokeKind::Outside,
+    );
+    for (row, width) in [(0, 32.0), (1, 26.0), (2, 30.0), (3, 18.0)] {
+        let y = page.top() + 10.0 + row as f32 * 9.0;
+        painter.line_segment(
+            [
+                egui::pos2(page.left() + 8.0, y),
+                egui::pos2(page.left() + 8.0 + width, y),
+            ],
+            egui::Stroke::new(2.0_f32, ink),
+        );
+    }
+    painter.text(
+        egui::pos2(rect.center().x, rect.bottom() - 13.0),
+        egui::Align2::CENTER_CENTER,
+        label,
+        egui::FontId::proportional(11.5),
+        if selected { tok.text } else { tok.muted },
+    );
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp
+}
+
 /// Botão de ação primário com hover escurecido + cursor hand
 pub fn action_btn(
     ui: &mut egui::Ui,

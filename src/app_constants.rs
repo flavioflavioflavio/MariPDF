@@ -12,6 +12,12 @@ pub const ACCENT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(175, 12, 12);
 /// Coral do logo (#F15855): ícones e textos em destaque sobre fundo escuro,
 /// onde o vermelho de preenchimento ficaria ilegível.
 pub const ACCENT_LIGHT: egui::Color32 = egui::Color32::from_rgb(241, 88, 85);
+/// Vinho dos controles nativos do egui (seleção, foco, botões no hover),
+/// no lugar do azul padrão.
+pub const WINE: egui::Color32 = egui::Color32::from_rgb(122, 28, 48);
+pub const WINE_DEEP: egui::Color32 = egui::Color32::from_rgb(96, 20, 36);
+/// Vinho claro para traços e links sobre fundo escuro.
+pub const WINE_LIGHT: egui::Color32 = egui::Color32::from_rgb(226, 140, 156);
 pub const TEXT_PRIMARY: egui::Color32 = egui::Color32::from_rgb(250, 250, 252);
 pub const TEXT_MUTED: egui::Color32 = egui::Color32::from_rgb(120, 120, 140);
 pub const TEXT_SUBTLE: egui::Color32 = egui::Color32::from_rgb(70, 70, 85);

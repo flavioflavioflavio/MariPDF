@@ -134,3 +134,72 @@ fn a_poisoned_pdfium_lock_does_not_block_opening_documents() {
     assert!(engine.render_page(0, 0.5).is_ok());
     pdfium.clear_poison();
 }
+
+#[test]
+fn encrypted_pdf_opens_with_the_right_password_only() {
+    use super::engine::PasswordRequired;
+    let path = fixture("encrypted.pdf");
+    let pdfium = || get_pdfium().expect("PDFium embutido");
+    let missing = PdfEngine::open_with_password(&path, pdfium(), None)
+        .err()
+        .unwrap();
+    assert!(missing.downcast_ref::<PasswordRequired>().is_some());
+    let wrong = PdfEngine::open_with_password(&path, pdfium(), Some("errada"))
+        .err()
+        .unwrap();
+    assert!(wrong.downcast_ref::<PasswordRequired>().is_some());
+    let engine = PdfEngine::open_with_password(&path, pdfium(), Some("segredo"))
+        .expect("senha correta abre");
+    assert!(engine.page_count() > 0);
+    assert!(engine.render_page(0, 0.5).is_ok());
+}
+
+#[test]
+fn rotated_render_swaps_width_and_height() {
+    use crate::ui::page_rotation::Rotation;
+    let engine = open(&fixture("sample.pdf")).expect("abrir");
+    let upright = engine.render_page(0, 0.5).expect("render");
+    engine.set_rotation(Rotation::R90);
+    let turned = engine.render_page(0, 0.5).expect("render girado");
+    assert_eq!(
+        (turned.width, turned.height),
+        (upright.height, upright.width)
+    );
+    assert_eq!(
+        turned.rgba.len(),
+        (turned.width * turned.height * 4) as usize
+    );
+    let (w, h) = engine.page_size_pts(0);
+    assert_eq!(engine.display_size_pts(0), (h, w));
+}
+
+#[test]
+fn rendered_dimensions_always_match_the_pixels() {
+    use crate::ui::page_rotation::Rotation;
+    let engine = open(&fixture("sample.pdf")).expect("abrir");
+    for rotation in [Rotation::R0, Rotation::R90, Rotation::R180, Rotation::R270] {
+        engine.set_rotation(rotation);
+        // Escalas "quebradas" expõem diferenças de arredondamento do PDFium.
+        for scale in [0.37, 1.0, 1.4613, 2.0731, 2.9] {
+            let page = engine.render_page(0, scale).expect("render");
+            assert_eq!(
+                page.rgba.len(),
+                (page.width * page.height * 4) as usize,
+                "{rotation:?} escala {scale}"
+            );
+        }
+    }
+}
+
+#[test]
+fn document_info_and_pdf_dates() {
+    let engine = open(&fixture("sample.pdf")).expect("abrir");
+    let info = engine.info();
+    assert!(!info.version.is_empty(), "versão do PDF");
+    assert_eq!(
+        super::engine::pdf_date("D:20240115103000+03'00'"),
+        "15/01/2024 10:30"
+    );
+    assert_eq!(super::engine::pdf_date("D:20240115"), "15/01/2024");
+    assert_eq!(super::engine::pdf_date("ontem"), "ontem");
+}

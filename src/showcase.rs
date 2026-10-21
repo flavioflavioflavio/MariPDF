@@ -6,6 +6,8 @@
 // sequência de quadros de navegação para montar um GIF curto.
 
 use crate::app::MariApp;
+use crate::app_reader::SidePanelKind;
+use crate::reader_profile::{DarkPage, PageChoice};
 use crate::ui::viewer::ViewMode;
 use eframe::egui;
 use std::path::PathBuf;
@@ -25,6 +27,15 @@ enum Shot {
     Settings,
     About,
     Float,
+    MoreMenu,
+    Rotated,
+    Marks,
+    Properties,
+    PageWarm,
+    PageDeep,
+    PageNight,
+    Appearance,
+    Password,
     Gif(usize),
     Done,
 }
@@ -114,6 +125,8 @@ impl MariApp {
             || shot == Shot::Home;
         match shot {
             Shot::Home => true,
+            // Propriedades são lidas em segundo plano: espera o diálogo.
+            Shot::Properties => self.properties.is_some(),
             Shot::Search => !self.search.hits.is_empty() && page_ready,
             _ => page_ready && self.engine.is_some(),
         }
@@ -153,10 +166,70 @@ impl MariApp {
             }
             Shot::Float => {
                 self.exit_frame_mode(ctx);
-                if self.viewer.mode == ViewMode::SinglePage {
-                    self.do_toggle_mode(ctx);
+                ctx.memory_mut(|m| m.open_popup(crate::app_toolbar::more_menu_id()));
+                Shot::MoreMenu
+            }
+            Shot::MoreMenu => {
+                ctx.memory_mut(|m| m.close_popup());
+                self.rotate_view(ctx, true);
+                Shot::Rotated
+            }
+            Shot::Rotated => {
+                self.rotate_view(ctx, false);
+                // Algumas páginas marcadas: fita na página, miniaturas,
+                // trilho de marcas e a lista aberta na barra.
+                for page in [0, 2, 40, 77] {
+                    if !self.is_marked(page) {
+                        self.toggle_mark_page(ctx, page);
+                    }
                 }
-                Shot::Gif(0)
+                if self.side_panel != SidePanelKind::Thumbs {
+                    self.toggle_side_panel(SidePanelKind::Thumbs);
+                }
+                ctx.memory_mut(|m| m.open_popup(crate::app_toolbar::marks_menu_id()));
+                Shot::Marks
+            }
+            Shot::Marks => {
+                ctx.memory_mut(|m| m.close_popup());
+                self.side_panel = SidePanelKind::None;
+                self.open_properties(ctx);
+                Shot::Properties
+            }
+            Shot::Properties => {
+                self.properties = None;
+                // As páginas abaixo são do tema escuro: força o tema para elas
+                // aparecerem de fato, qualquer que seja o tema inicial.
+                self.color_mode = crate::app_color_mode::ColorMode::Dark;
+                self.set_page(ctx, PageChoice::Dark(DarkPage::WarmNight));
+                Shot::PageWarm
+            }
+            Shot::PageWarm => {
+                self.set_page(ctx, PageChoice::Dark(DarkPage::Deep));
+                Shot::PageDeep
+            }
+            Shot::PageDeep => {
+                self.set_page(ctx, PageChoice::Dark(DarkPage::Night));
+                Shot::PageNight
+            }
+            Shot::PageNight => {
+                self.settings_open = true;
+                crate::ui::settings_panel::select_appearance_tab(ctx);
+                Shot::Appearance
+            }
+            Shot::Appearance => {
+                self.settings_open = false;
+                // PDF com senha opcional: MARIPDF_SHOWCASE_LOCKED=<pdf>.
+                match std::env::var_os("MARIPDF_SHOWCASE_LOCKED") {
+                    Some(locked) => {
+                        self.open_document(ctx, locked.into(), None, false);
+                        Shot::Password
+                    }
+                    None => self.start_gif(ctx),
+                }
+            }
+            Shot::Password => {
+                self.password_prompt = None;
+                self.start_gif(ctx)
             }
             Shot::Gif(i) if i + 1 < GIF_FRAMES => {
                 // Rolagem contínua suave por algumas páginas.
@@ -169,6 +242,20 @@ impl MariApp {
             }
             Shot::Gif(_) | Shot::Done => Shot::Done,
         }
+    }
+}
+
+impl MariApp {
+    fn set_page(&mut self, ctx: &egui::Context, choice: PageChoice) {
+        choice.apply(&mut self.settings.page_styles);
+        self.invalidate_render(ctx);
+    }
+
+    fn start_gif(&mut self, ctx: &egui::Context) -> Shot {
+        if self.viewer.mode == ViewMode::SinglePage {
+            self.do_toggle_mode(ctx);
+        }
+        Shot::Gif(0)
     }
 }
 

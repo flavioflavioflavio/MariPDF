@@ -194,7 +194,8 @@ impl MariApp {
     pub(crate) fn ui_frame(&mut self, ctx: &egui::Context) {
         let color_mode = self.color_mode;
         let palette = self.settings.palette.0;
-        self.viewer.invert_colors = matches!(color_mode, crate::app::ColorMode::Dark);
+        let look = self.page_look();
+        self.viewer.page_look = look;
         self.viewer.search_highlight = self.active_search_highlight();
         self.viewer
             .sync_single_texture(ctx, self.current_page, self.page_count);
@@ -229,7 +230,7 @@ impl MariApp {
                     let aspect = tex.size_vec2().x / tex.size_vec2().y.max(1.0);
                     let base = fit_rect(inner, aspect);
                     let page_rect = zoomed_page_rect(base, self.frame.zoom, self.frame.pan);
-                    let tint = color_mode.page_tint_for(palette);
+                    let tint = look.tint;
                     ui.painter().with_clip_rect(inner).image(
                         tex.id(),
                         page_rect,
@@ -243,6 +244,7 @@ impl MariApp {
                         page_rect,
                         self.viewer.search_highlight.as_ref(),
                         self.viewer.loaded_page,
+                        self.viewer.rotation,
                     );
                     self.viewer.last_page_rect = page_rect;
                     base_rect = Some((base, aspect));
@@ -465,11 +467,11 @@ impl MariApp {
             }
             FrameAction::Next if self.current_page + 1 < self.page_count => {
                 let page = self.current_page + 1;
-                self.go_to_page(ctx, page);
+                self.turn_page(ctx, page);
             }
             FrameAction::Prev if self.current_page > 0 => {
                 let page = self.current_page - 1;
-                self.go_to_page(ctx, page);
+                self.turn_page(ctx, page);
             }
             FrameAction::Next | FrameAction::Prev => {}
             FrameAction::GoTo => {

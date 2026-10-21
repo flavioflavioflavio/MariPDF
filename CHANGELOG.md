@@ -7,6 +7,40 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Adicionado
+
+- Abrir PDF com senha: o app pede a senha em vez de mostrar erro (a senha
+  fica só em memória).
+- Girar a página (Ctrl+R / Ctrl+Shift+R), salvo por documento. Seleção de
+  texto, links e destaque da busca acompanham a rotação.
+- Voltar e avançar na navegação (Alt+← / Alt+→ e botões laterais do mouse)
+  depois de saltos por link, sumário, busca ou "ir para página".
+- Recarrega sozinho quando o PDF muda no disco, mantendo página, zoom e
+  rotação.
+- Propriedades do documento (Alt+Enter): arquivo, tamanho, páginas, papel,
+  título, autor, datas e versão do PDF.
+- Mostrar na pasta e copiar a página como imagem (Ctrl+Shift+C).
+- Marcadores de página: fita no canto da própria página (clique marca e
+  desmarca), botão na barra com a lista (ir, remover), F2 / Shift+F2 para a
+  próxima ou a anterior, fita nas miniaturas, trilho de marcas na lateral do
+  modo contínuo e lista no topo do painel de sumário. Ctrl+D continua
+  valendo, e os marcadores sobrevivem a limpar o histórico.
+- Menu ⋯ na barra com todas essas ações e seus atalhos.
+- Página de cada tema (Configurações → Aparência), sempre coerente com ele:
+  escuro tem Noturno, Noturno quente e Preto profundo; claro tem Original,
+  Livro novo, Cinza suave e Preto e branco; sépia tem Sépia, Papel antigo e
+  Sépia suave. A escolha fica guardada por tema e o seletor mostra uma
+  miniatura de cada página.
+- Conteúdo das Configurações rola dentro da janela em telas baixas.
+
+### Corrigido
+
+- Rolar as miniaturas ou o sumário também virava a página do documento (e
+  Ctrl+roda dava zoom) mesmo com o mouse fora do leitor.
+- Sumário automático escondia os primeiros itens sob o cabeçalho do painel.
+- Azul padrão do egui (seleção de texto, foco, cursor, links e botões
+  nativos) trocado por vinho.
+
 ### Alterado
 
 - Nova identidade visual: ícone e logo do M vermelho (originais em

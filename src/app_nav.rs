@@ -6,6 +6,15 @@ use crate::ui::viewer::ViewMode;
 use eframe::egui;
 
 impl MariApp {
+    /// Visual da página segundo o perfil de cor escolhido e o tema atual.
+    pub(crate) fn page_look(&self) -> crate::reader_profile::PageLook {
+        crate::reader_profile::page_look(
+            self.settings.page_styles,
+            self.color_mode,
+            self.settings.palette.0,
+        )
+    }
+
     pub fn render_current_page(&mut self, ctx: &egui::Context) {
         if self.engine.is_none() {
             return;
@@ -24,7 +33,20 @@ impl MariApp {
         ctx.request_repaint();
     }
 
+    /// Vai para a página; saltos entram no histórico de Voltar/Avançar.
     pub fn go_to_page(&mut self, ctx: &egui::Context, page: usize) {
+        let page = page.min(self.page_count.saturating_sub(1));
+        self.nav.record(self.current_page, page);
+        self.go_to_page_untracked(ctx, page);
+    }
+
+    /// Virar página (anterior/próxima, roda, setas): não entra no histórico.
+    pub(crate) fn turn_page(&mut self, ctx: &egui::Context, page: usize) {
+        self.go_to_page_untracked(ctx, page);
+    }
+
+    /// Navegação sem registrar no histórico (o próprio Voltar/Avançar).
+    pub(crate) fn go_to_page_untracked(&mut self, ctx: &egui::Context, page: usize) {
         let page = page.min(self.page_count.saturating_sub(1));
         if self.current_page == page
             && self.viewer.mode == ViewMode::SinglePage
@@ -83,7 +105,7 @@ impl MariApp {
 
     pub fn fit_width(&mut self, ctx: &egui::Context) {
         let Some(engine) = &self.engine else { return };
-        let (page_w, _) = engine.page_size_pts(self.current_page);
+        let (page_w, _) = engine.display_size_pts(self.current_page);
         let margin = self.settings.page_margin.px() * 2.0;
         let usable = (self.available_width - margin).max(100.0);
         self.set_zoom(
@@ -94,7 +116,7 @@ impl MariApp {
 
     pub fn fit_page(&mut self, ctx: &egui::Context) {
         let Some(engine) = &self.engine else { return };
-        let (page_w, page_h) = engine.page_size_pts(self.current_page);
+        let (page_w, page_h) = engine.display_size_pts(self.current_page);
         let margin = self.settings.page_margin.px() * 2.0;
         let usable_w = (self.available_width - margin).max(100.0);
         let usable_h = (ctx.screen_rect().height() - margin).max(100.0);

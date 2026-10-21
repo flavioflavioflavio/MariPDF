@@ -96,16 +96,25 @@ impl MariApp {
                                 .color(egui::Color32::from_rgb(239, 68, 68)),
                         );
                     });
-                } else if let Some(engine) = &self.engine {
+                } else if let Some(engine) = self.engine.clone() {
                     let pc = self.page_count;
                     let cp = self.current_page;
-                    let tint = self.color_mode.page_tint_for(self.settings.palette.0);
+                    let look = self.page_look();
+                    let tint = look.tint;
                     let border = self.color_mode.page_border();
-                    self.viewer.invert_colors = matches!(self.color_mode, ColorMode::Dark);
+                    self.viewer.page_look = look;
                     self.viewer.page_margin = self.settings.page_margin.px();
                     self.viewer.smooth_scroll = self.settings.smooth_scroll;
                     self.viewer.search_highlight = self.active_search_highlight();
+                    self.viewer.marks = self.marks.clone();
+                    self.viewer.mark_color = crate::app_constants::ACCENT_PRIMARY;
                     self.viewer.show(ui, cp, pc, tint, border);
+                    if let Some(page) = self.viewer.mark_toggle.take() {
+                        self.toggle_mark_page(ctx, page);
+                    }
+                    if let Some(page) = self.viewer.mark_jump.take() {
+                        self.go_to_page(ctx, page);
+                    }
 
                     if self.viewer.mode == ViewMode::Continuous {
                         if let Some(visible_page) = self.viewer.dominant_continuous_page() {
@@ -143,6 +152,13 @@ impl MariApp {
                         if self.text_chars_page == cp && !self.text_chars.is_empty() {
                             let (pdf_w, pdf_h) = engine.page_size_pts(cp);
                             self.handle_text_selection(ctx, ui, page_rect, pdf_w, pdf_h);
+                        }
+                        // Depois da seleção de texto: a fita recebe o clique.
+                        let marked = self.is_marked(cp);
+                        let color = crate::app_constants::ACCENT_PRIMARY;
+                        if crate::ui::viewer_helpers::page_ribbon(ui, page_rect, cp, marked, color)
+                        {
+                            self.toggle_mark_page(ctx, cp);
                         }
                     }
                 }
@@ -293,8 +309,9 @@ impl MariApp {
                 ui.add(egui::Separator::default().spacing(6.0));
                 match self.side_panel {
                     SidePanelKind::Toc => {
+                        let mark = self.ui_marks_section(ui, panel_text, panel_muted, panel_ink);
                         let bookmarks = self.bookmarks.clone();
-                        goto_page = side_panel::show_toc(
+                        let toc = side_panel::show_toc(
                             ui,
                             &bookmarks,
                             current_page,
@@ -304,8 +321,11 @@ impl MariApp {
                             panel_muted,
                             panel_ink,
                         );
+                        goto_page = mark.or(toc);
                     }
                     SidePanelKind::Thumbs => {
+                        let look = self.page_look();
+                        let marks = self.marks.clone();
                         if let Some(ref mut tc) = self.thumb_cache {
                             goto_page = side_panel::show_thumbs(
                                 ui,
@@ -315,8 +335,9 @@ impl MariApp {
                                 panel_muted,
                                 panel_text,
                                 panel_ink,
-                                matches!(self.color_mode, ColorMode::Dark),
-                                self.color_mode.page_tint(),
+                                look,
+                                self.viewer.rotation.swaps_axes(),
+                                &marks,
                             );
                         }
                     }

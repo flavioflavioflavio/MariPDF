@@ -16,8 +16,9 @@ pub fn show_thumbs(
     color_muted: egui::Color32,
     color_text: egui::Color32,
     accent: egui::Color32,
-    invert_colors: bool,
-    page_tint: egui::Color32,
+    look: crate::reader_profile::PageLook,
+    axes_swapped: bool,
+    marks: &[usize],
 ) -> Option<usize> {
     let mut goto = None;
 
@@ -31,7 +32,14 @@ pub fn show_thumbs(
     let label_area_h = 26.0_f32;
     let gap = 12.0_f32;
 
-    let fallback_img_h = (avail_w * 297.0 / 210.0).min(320.0);
+    // Miniatura ainda não renderizada: A4 na orientação exibida (deitada
+    // com 90°/270°), para a barra de rolagem não inflar e pular.
+    let aspect = if axes_swapped {
+        210.0 / 297.0
+    } else {
+        297.0 / 210.0
+    };
+    let fallback_img_h = (avail_w * aspect).min(320.0);
 
     let img_heights: Vec<f32> = (0..page_count)
         .map(|p| {
@@ -97,8 +105,8 @@ pub fn show_thumbs(
                         color_muted,
                         color_text,
                         accent,
-                        invert_colors,
-                        page_tint,
+                        look,
+                        marks.binary_search(&p).is_ok(),
                         &mut goto,
                     );
                 });
@@ -120,8 +128,8 @@ fn render_thumb_item(
     color_muted: egui::Color32,
     color_text: egui::Color32,
     accent: egui::Color32,
-    invert_colors: bool,
-    page_tint: egui::Color32,
+    look: crate::reader_profile::PageLook,
+    marked: bool,
     goto: &mut Option<usize>,
 ) {
     let is_current = page == current_page;
@@ -156,14 +164,10 @@ fn render_thumb_item(
             egui::Color32::from_rgba_premultiplied(0, 0, 0, 18),
         );
 
-        let tex_name = if invert_colors {
-            format!("thumb_{page}_inv")
-        } else {
-            format!("thumb_{page}")
-        };
-        let color_img = if invert_colors {
+        let tex_name = format!("thumb_{page}{}", look.key());
+        let color_img = if look.filters_pixels() {
             let mut rgba = rendered.rgba.clone();
-            crate::ui::viewer::invert_rgba(&mut rgba);
+            crate::reader_profile::apply_filter(&mut rgba, look);
             egui::ColorImage::from_rgba_unmultiplied(
                 [rendered.width as usize, rendered.height as usize],
                 &rgba,
@@ -182,7 +186,7 @@ fn render_thumb_item(
             tex.id(),
             draw_rect,
             egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-            page_tint,
+            look.tint,
         );
         ui.painter().rect_stroke(
             draw_rect,
@@ -190,6 +194,18 @@ fn render_thumb_item(
             egui::Stroke::new(border_w, border_color),
             egui::StrokeKind::Outside,
         );
+        if marked {
+            let ribbon = egui::Rect::from_min_size(
+                egui::pos2(draw_rect.right() - 16.0, draw_rect.top()),
+                egui::vec2(10.0, 16.0),
+            );
+            crate::ui::viewer_helpers::paint_ribbon(
+                ui.painter(),
+                ribbon,
+                crate::app_constants::ACCENT_PRIMARY,
+                true,
+            );
+        }
     } else {
         let placeholder_color = egui::Color32::from_rgba_unmultiplied(
             (color_panel_bg.r() as i16 + 18).min(255) as u8,

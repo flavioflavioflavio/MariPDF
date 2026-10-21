@@ -8,7 +8,7 @@ use crate::ui::prefetch::PrefetchPlan;
 use crate::ui::scroll_motion::{instant_wheel_offset, NavGoal, ScrollTween};
 use crate::ui::viewer::{page_raster_scale, PdfViewer};
 use crate::ui::viewer_helpers::{
-    draw_page_tex, invert_rgba, paint_search_highlight, upload_texture,
+    draw_page_tex, page_ribbon, paint_search_highlight, upload_texture,
 };
 use eframe::egui;
 
@@ -26,8 +26,9 @@ impl PdfViewer {
             return;
         }
 
-        // Ctrl+Scroll → zoom
+        // Ctrl+Scroll → zoom (só com o mouse sobre o leitor)
         let ctrl = ui.input(|i| i.modifiers.ctrl);
+        let over_reader = ui.rect_contains_pointer(ui.max_rect());
         let scroll_y = ui.input(|i| {
             if self.smooth_scroll {
                 i.smooth_scroll_delta.y
@@ -35,7 +36,7 @@ impl PdfViewer {
                 i.raw_scroll_delta.y
             }
         });
-        if ctrl && scroll_y != 0.0 {
+        if ctrl && over_reader && scroll_y != 0.0 {
             self.zoom_delta = scroll_y.signum() * 0.15;
         }
 
@@ -67,7 +68,7 @@ impl PdfViewer {
             scroll_area = scroll_area.vertical_scroll_offset(offset);
         }
 
-        scroll_area.show_viewport(ui, |ui, viewport| {
+        let scroll_output = scroll_area.show_viewport(ui, |ui, viewport| {
             ui.set_min_height(total_h);
 
             let (first_visible, last_visible) = self
@@ -124,10 +125,10 @@ impl PdfViewer {
                 };
                 if needs_upload {
                     if let Some(bitmap) = self.page_cache.get(idx) {
-                        let tex = if self.invert_colors {
-                            let mut inverted = (*bitmap).clone();
-                            invert_rgba(&mut inverted.rgba);
-                            upload_texture(&ctx, &inverted, idx)
+                        let tex = if self.page_look.filters_pixels() {
+                            let mut filtered = (*bitmap).clone();
+                            crate::reader_profile::apply_filter(&mut filtered.rgba, self.page_look);
+                            upload_texture(&ctx, &filtered, idx)
                         } else {
                             upload_texture(&ctx, bitmap, idx)
                         };
@@ -191,7 +192,12 @@ impl PdfViewer {
                                 page_rect,
                                 self.search_highlight.as_ref(),
                                 Some(idx),
+                                self.rotation,
                             );
+                            let marked = self.marks.binary_search(&idx).is_ok();
+                            if page_ribbon(ui, page_rect, idx, marked, self.mark_color) {
+                                self.mark_toggle = Some(idx);
+                            }
                             if self.last_page_rect == egui::Rect::NOTHING {
                                 self.last_page_rect = page_rect;
                             }
@@ -219,6 +225,7 @@ impl PdfViewer {
                 });
             }
         });
+        self.paint_mark_rail(ui, scroll_output.inner_rect);
     }
 }
 
@@ -398,6 +405,43 @@ impl PdfViewer {
             NavGoal::Anchor(anchor) => self
                 .page_layout
                 .scroll_offset_for_anchor(anchor, self.continuous_viewport_height),
+        }
+    }
+
+    /// Trilho de marcas: um risco por página marcada na lateral do leitor,
+    /// na altura proporcional da página no documento. Clicar leva até ela.
+    fn paint_mark_rail(&mut self, ui: &mut egui::Ui, rect: egui::Rect) {
+        let total = self.page_layout.total_height();
+        if self.marks.is_empty() || total <= 0.0 || !rect.is_positive() {
+            return;
+        }
+        let x = rect.right() - 14.0;
+        let marks = self.marks.clone();
+        for page in marks {
+            let fraction = (self.page_layout.page_top(page) / total).clamp(0.0, 1.0);
+            let y = (rect.top() + fraction * rect.height())
+                .clamp(rect.top() + 4.0, rect.bottom() - 4.0);
+            let tick = egui::Rect::from_center_size(egui::pos2(x, y), egui::vec2(10.0, 4.0));
+            let response = ui
+                .interact(
+                    tick.expand(4.0),
+                    egui::Id::new(("mark_rail", page)),
+                    egui::Sense::click(),
+                )
+                .on_hover_text(crate::t!("side-mark-page", page => page + 1));
+            let color = if response.hovered() {
+                self.mark_color
+            } else {
+                self.mark_color.gamma_multiply(0.8)
+            };
+            ui.painter()
+                .rect_filled(tick, egui::CornerRadius::same(2), color);
+            if response.hovered() {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+            }
+            if response.clicked() {
+                self.mark_jump = Some(page);
+            }
         }
     }
 }

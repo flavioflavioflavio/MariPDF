@@ -83,13 +83,6 @@ impl ColorMode {
             Self::Sepia => Self::Dark,
         }
     }
-    pub fn page_tint(&self) -> egui::Color32 {
-        match self {
-            Self::Dark => egui::Color32::WHITE,
-            Self::Light => egui::Color32::from_rgb(245, 245, 252),
-            Self::Sepia => egui::Color32::from_rgb(255, 235, 185),
-        }
-    }
     pub fn accent_for(&self, palette: u8) -> egui::Color32 {
         match self {
             Self::Dark => match palette {

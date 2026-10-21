@@ -80,3 +80,22 @@ fn unseen_pages_are_still_capped_by_an_estimated_width() {
         "página nunca vista não pode pedir o zoom cheio"
     );
 }
+
+#[test]
+fn quarter_turn_swaps_learned_sizes_and_the_estimate() {
+    let mut layout = PageLayout::new();
+    layout.ensure_page_count(3);
+    layout.observe_bitmap(0, 595, 842, 1.0);
+    layout.rebuild(params());
+    let portrait_total = layout.total_height();
+
+    layout.set_axes_swapped(true);
+    assert_eq!(layout.page_size_pts(0), Some((842.0, 595.0)));
+    assert_eq!(layout.default_size(), (842.0, 595.0));
+    assert!(layout.rebuild(params()));
+    // Páginas deitadas ficam mais baixas: nada de estimativa em retrato.
+    assert!(layout.total_height() < portrait_total * 0.8);
+
+    layout.set_axes_swapped(false);
+    assert_eq!(layout.page_size_pts(0), Some((595.0, 842.0)));
+}

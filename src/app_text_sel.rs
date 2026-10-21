@@ -12,6 +12,7 @@ use crate::app_color_mode::ColorMode;
 use crate::pdf::engine::TextCharInfo;
 use crate::t;
 use crate::text_selection::{line_range, ordered, selection_text, word_range};
+use crate::ui::page_rotation::PageMapping;
 use eframe::egui;
 
 impl MariApp {
@@ -72,9 +73,8 @@ impl MariApp {
         pdf_w: f32,
         pdf_h: f32,
     ) {
-        let nearest = |chars: &[TextCharInfo], pos: egui::Pos2| {
-            nearest_char(chars, pos, page_rect, pdf_w, pdf_h)
-        };
+        let mapping = PageMapping::new(page_rect, (pdf_w, pdf_h), self.viewer.rotation);
+        let nearest = |chars: &[TextCharInfo], pos: egui::Pos2| nearest_char(chars, pos, &mapping);
 
         let resp = ui.interact(
             page_rect,
@@ -161,64 +161,48 @@ impl MariApp {
         if chars.is_empty() || lo > hi {
             return;
         }
-        let char_rect = |ch: &TextCharInfo| -> egui::Rect {
-            let lx = page_rect.left() + ch.left / pdf_w * page_rect.width();
-            let rx = page_rect.left() + ch.right / pdf_w * page_rect.width();
-            let ty = page_rect.bottom() - ch.top / pdf_h * page_rect.height();
-            let by = page_rect.bottom() - ch.bottom / pdf_h * page_rect.height();
-            egui::Rect::from_min_max(egui::pos2(lx, ty), egui::pos2(rx, by))
-        };
-        let mut line_rects: Vec<egui::Rect> = Vec::new();
-        let mut cur_rect: Option<egui::Rect> = None;
-        let mut cur_cy = f32::NAN;
-        const LINE_MERGE_PX: f32 = 5.0;
-        for ch in &chars[lo..=hi] {
-            let r = char_rect(ch);
-            if r.width() <= 0.0 || r.height() <= 0.0 {
-                continue;
-            }
-            let cy = r.center().y;
-            match cur_rect {
-                Some(rect) if (cy - cur_cy).abs() <= LINE_MERGE_PX => {
-                    cur_rect = Some(rect.union(r));
-                }
-                previous => {
-                    line_rects.extend(previous);
-                    cur_rect = Some(r);
-                    cur_cy = cy;
-                }
-            }
-        }
-        line_rects.extend(cur_rect);
+        let mapping = PageMapping::new(page_rect, (pdf_w, pdf_h), self.viewer.rotation);
+        // Linhas agrupadas no espaço do PDF (independe da rotação) e só
+        // depois levadas para a tela.
+        let pdf_lines = selection_lines(&chars[lo..=hi]);
+        let line_rects: Vec<egui::Rect> = pdf_lines
+            .iter()
+            .map(|line| mapping.rect_to_screen(*line))
+            .collect();
 
         let hl_color = match self.color_mode {
-            ColorMode::Dark => egui::Color32::from_rgba_unmultiplied(55, 130, 255, 55),
-            _ => egui::Color32::from_rgba_unmultiplied(30, 100, 220, 65),
+            ColorMode::Dark => egui::Color32::from_rgba_unmultiplied(196, 60, 92, 70),
+            _ => egui::Color32::from_rgba_unmultiplied(122, 28, 48, 60),
         };
         let painter = ui.painter().clone();
         for r in &line_rects {
             painter.rect_filled(*r, egui::CornerRadius::ZERO, hl_color);
         }
 
-        // Alças de seleção para ajustar início e fim.
-        let (Some(first_r), Some(last_r)) = (line_rects.first(), line_rects.last()) else {
+        // Alças no início (canto superior esquerdo da 1ª linha, haste para
+        // cima) e no fim (canto inferior direito da última, haste para baixo),
+        // tudo em coordenadas do PDF e levado pela rotação.
+        let (Some(first), Some(last)) = (pdf_lines.first(), pdf_lines.last()) else {
             return;
         };
-        let start = egui::pos2(first_r.left(), first_r.top());
-        let end = egui::pos2(last_r.right(), last_r.bottom());
-        if let Some(index) =
-            self.selection_handle(ctx, ui, &painter, start, -1.0, "sel_handle_start")
-        {
-            self.sel_anchor = Some(nearest_char(chars, index, page_rect, pdf_w, pdf_h));
+        let start = mapping.screen_point(first[0], first[3]);
+        let up = mapping.screen_point(first[0], first[3] + 1.0) - start;
+        let end = mapping.screen_point(last[2], last[1]);
+        let down = mapping.screen_point(last[2], last[1] - 1.0) - end;
+        if let Some(index) = self.selection_handle(
+            ctx,
+            ui,
+            &painter,
+            start,
+            up.normalized(),
+            "sel_handle_start",
+        ) {
+            self.sel_anchor = Some(nearest_char(chars, index, &mapping));
         }
-        if let Some(index) = self.selection_handle(ctx, ui, &painter, end, 1.0, "sel_handle_end") {
-            self.sel_focus = Some(nearest_char(
-                &self.text_chars,
-                index,
-                page_rect,
-                pdf_w,
-                pdf_h,
-            ));
+        if let Some(index) =
+            self.selection_handle(ctx, ui, &painter, end, down.normalized(), "sel_handle_end")
+        {
+            self.sel_focus = Some(nearest_char(&self.text_chars, index, &mapping));
         }
     }
 
@@ -230,15 +214,15 @@ impl MariApp {
         ui: &mut egui::Ui,
         painter: &egui::Painter,
         anchor: egui::Pos2,
-        direction: f32,
+        direction: egui::Vec2,
         id: &str,
     ) -> Option<egui::Pos2> {
-        let color = egui::Color32::from_rgba_unmultiplied(55, 130, 255, 230);
+        let color = egui::Color32::from_rgba_unmultiplied(160, 36, 62, 235);
         let radius = 5.0_f32;
         let stem = 12.0_f32;
-        let knob = egui::pos2(anchor.x, anchor.y + direction * (stem + radius));
+        let knob = anchor + direction * (stem + radius);
         painter.line_segment(
-            [anchor, egui::pos2(anchor.x, anchor.y + direction * stem)],
+            [anchor, anchor + direction * stem],
             egui::Stroke::new(2.0_f32, color),
         );
         painter.circle_filled(knob, radius, color);
@@ -253,16 +237,40 @@ impl MariApp {
     }
 }
 
-fn nearest_char(
-    chars: &[TextCharInfo],
-    pos: egui::Pos2,
-    page_rect: egui::Rect,
-    pdf_w: f32,
-    pdf_h: f32,
-) -> usize {
-    let nx = (pos.x - page_rect.left()) / page_rect.width().max(1.0);
-    let ny = 1.0 - (pos.y - page_rect.top()) / page_rect.height().max(1.0);
-    let (px, py) = (nx * pdf_w, ny * pdf_h);
+/// Agrupa caracteres em linhas pelo centro vertical no PDF e devolve o
+/// retângulo `[left, bottom, right, top]` de cada linha.
+fn selection_lines(chars: &[TextCharInfo]) -> Vec<[f32; 4]> {
+    const LINE_MERGE_PTS: f32 = 3.0;
+    let mut lines: Vec<[f32; 4]> = Vec::new();
+    let mut current: Option<([f32; 4], f32)> = None;
+    for ch in chars {
+        if ch.right <= ch.left || ch.top <= ch.bottom {
+            continue;
+        }
+        let rect = [ch.left, ch.bottom, ch.right, ch.top];
+        let center = (ch.bottom + ch.top) * 0.5;
+        current = match current {
+            Some((line, line_center)) if (center - line_center).abs() <= LINE_MERGE_PTS => Some((
+                [
+                    line[0].min(rect[0]),
+                    line[1].min(rect[1]),
+                    line[2].max(rect[2]),
+                    line[3].max(rect[3]),
+                ],
+                line_center,
+            )),
+            previous => {
+                lines.extend(previous.map(|(line, _)| line));
+                Some((rect, center))
+            }
+        };
+    }
+    lines.extend(current.map(|(line, _)| line));
+    lines
+}
+
+fn nearest_char(chars: &[TextCharInfo], pos: egui::Pos2, mapping: &PageMapping) -> usize {
+    let (px, py) = mapping.pdf_point(pos);
     chars
         .iter()
         .enumerate()
@@ -273,4 +281,43 @@ fn nearest_char(
         })
         .map(|(i, _)| i)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::page_rotation::Rotation;
+
+    fn ch(left: f32, bottom: f32) -> TextCharInfo {
+        TextCharInfo {
+            ch: 'a',
+            left,
+            bottom,
+            right: left + 6.0,
+            top: bottom + 10.0,
+        }
+    }
+
+    #[test]
+    fn lines_are_grouped_in_pdf_space() {
+        let chars = [ch(10.0, 700.0), ch(16.0, 700.5), ch(10.0, 680.0)];
+        let lines = selection_lines(&chars);
+        assert_eq!(
+            lines,
+            vec![[10.0, 700.0, 22.0, 710.5], [10.0, 680.0, 16.0, 690.0]]
+        );
+    }
+
+    #[test]
+    fn start_handle_points_away_from_the_text_in_every_rotation() {
+        let page = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 600.0));
+        for rotation in [Rotation::R0, Rotation::R90, Rotation::R180, Rotation::R270] {
+            let m = PageMapping::new(page, (600.0, 600.0), rotation);
+            let start = m.screen_point(10.0, 710.0 - 110.0);
+            let up = (m.screen_point(10.0, 601.0) - start).normalized();
+            // A haste aponta para fora da linha: o centro do glifo fica atrás.
+            let glyph_center = m.screen_point(13.0, 595.0);
+            assert!((glyph_center - start).dot(up) < 0.0, "{rotation:?}");
+        }
+    }
 }

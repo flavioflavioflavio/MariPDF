@@ -18,7 +18,7 @@ use std::{path::PathBuf, sync::Arc};
 pub use crate::app_color_mode::ColorMode;
 pub use crate::app_constants::{
     Toast, ACCENT_LIGHT, ACCENT_PRIMARY, BG_BASE, BG_SURFACE, BORDER_SUBTLE, MAX_ZOOM, MIN_ZOOM,
-    TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE,
+    TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE, WINE, WINE_DEEP, WINE_LIGHT,
 };
 pub use crate::app_reader::SidePanelKind;
 
@@ -98,6 +98,22 @@ pub struct MariApp {
     // Posição/tamanho da janela (BF-412)
     pub window: WindowTracker,
 
+    // Ferramentas de leitura (app_tools.rs)
+    pub nav: crate::app_tools::NavHistory,
+    pub file_watch: crate::app_tools::FileWatch,
+    /// Senha do documento aberto, só em memória (recarga automática).
+    pub doc_password: Option<String>,
+    pub password_prompt: Option<crate::app_tools::PasswordPrompt>,
+    /// Páginas marcadas pelo usuário no documento atual (ordenadas).
+    pub marks: Vec<usize>,
+    pub properties: Option<crate::app_tools::DocProperties>,
+    /// Recarga automática em andamento numa thread à parte.
+    pub pending_reload: Option<crate::app_tools::PendingReload>,
+    /// Leitura de propriedades em andamento (thread à parte).
+    pub properties_rx: Option<std::sync::mpsc::Receiver<crate::app_tools::DocProperties>>,
+    /// Cópia da página em andamento no worker.
+    pub page_copy: Option<std::sync::mpsc::Receiver<crate::app_tools::PageCopy>>,
+
     // Medidor/smoke test embutido (BF-002/BF-007), só com MARIPDF_BENCH
     pub bench: Option<crate::bench::BenchRun>,
 
@@ -157,6 +173,15 @@ impl MariApp {
             about: AboutState::default(),
             frame: FrameMode::default(),
             window: WindowTracker::default(),
+            nav: Default::default(),
+            file_watch: Default::default(),
+            doc_password: None,
+            password_prompt: None,
+            marks: Vec::new(),
+            properties: None,
+            pending_reload: None,
+            properties_rx: None,
+            page_copy: None,
             bench: crate::bench::BenchRun::from_env(),
             soak: crate::soak::SoakRun::from_env(),
             showcase: crate::showcase::ShowcaseRun::from_env(),
@@ -176,15 +201,56 @@ impl MariApp {
     }
 
     pub(crate) fn open_file(&mut self, ctx: &egui::Context, path: PathBuf) {
+        self.open_document(ctx, path, None, false);
+    }
+
+    /// Abre (ou recarrega, com `reload`) um PDF. Devolve true se abriu.
+    /// Recarga mantém painel, modo e rotação; PDF com senha abre o pedido de
+    /// senha em vez de mostrar erro.
+    pub(crate) fn open_document(
+        &mut self,
+        ctx: &egui::Context,
+        path: PathBuf,
+        password: Option<String>,
+        reload: bool,
+    ) -> bool {
         tracing::info!("Abrindo: {}", path.display());
+        if !reload {
+            // Abertura manual (com ou sem senha) vence uma recarga em
+            // andamento: o resultado dela não pode instalar outro documento
+            // nem fechar um pedido de senha do arquivo que o usuário pediu.
+            self.pending_reload = None;
+        }
         let open_started = std::time::Instant::now();
-        let opened = get_pdfium().and_then(|p| PdfEngine::open(&path, p));
+        let opened =
+            get_pdfium().and_then(|p| PdfEngine::open_with_password(&path, p, password.as_deref()));
         if let Some(bench) = self.bench.as_mut() {
             bench.record_open(open_started.elapsed().as_secs_f64() * 1000.0);
         }
         if let Some(soak) = self.soak.as_mut() {
             soak.record_open(opened.is_ok());
         }
+        self.install_document(ctx, path, password, reload, opened)
+    }
+
+    /// Instala o resultado de uma abertura (feita aqui ou numa thread de
+    /// recarga). Devolve true se o documento entrou.
+    pub(crate) fn install_document(
+        &mut self,
+        ctx: &egui::Context,
+        path: PathBuf,
+        password: Option<String>,
+        reload: bool,
+        opened: anyhow::Result<PdfEngine>,
+    ) -> bool {
+        // Na recarga o estado vem do documento aberto agora, não do histórico
+        // (que pode estar desligado ou desatualizado).
+        let live = reload.then_some(FileSession {
+            last_page: self.current_page,
+            zoom: self.viewer.zoom,
+            last_opened: 0,
+            rotation: self.viewer.rotation,
+        });
         match opened {
             Ok(engine) => {
                 // A troca so altera o documento atual depois que o novo PDF
@@ -205,7 +271,15 @@ impl MariApp {
                 self.engine = Some(Arc::clone(&engine));
                 self.document_worker = Some(document_worker);
                 self.current_file = Some(path.clone());
+                // Recarga com a busca aberta: refaz a mesma busca no documento
+                // novo em vez de mostrar "sem resultados" de uma busca que não
+                // rodou.
+                let rerun_query = (reload && self.search_open && !self.search.query.is_empty())
+                    .then(|| self.search.query.clone());
                 self.search.attach_document(scheduler.clone(), page_count);
+                if let Some(query) = rerun_query {
+                    self.search.start(&query);
+                }
                 self.render_error = None;
                 self.page_links.clear();
                 self.links_page = usize::MAX;
@@ -214,25 +288,75 @@ impl MariApp {
                 self.sel_anchor = None;
                 self.sel_focus = None;
                 self.pending_select_all = false;
+                let mode = self.viewer.mode;
                 self.viewer.reset();
-                self.side_panel = match self.settings.default_panel {
-                    DefaultPanel::None => SidePanelKind::None,
-                    DefaultPanel::Thumbnails => SidePanelKind::Thumbs,
-                    DefaultPanel::Toc => SidePanelKind::Toc,
-                };
+                if reload {
+                    self.viewer.mode = mode;
+                } else {
+                    self.side_panel = match self.settings.default_panel {
+                        DefaultPanel::None => SidePanelKind::None,
+                        DefaultPanel::Thumbnails => SidePanelKind::Thumbs,
+                        DefaultPanel::Toc => SidePanelKind::Toc,
+                    };
+                    self.nav.clear();
+                }
                 self.thumb_cache = (self.side_panel == SidePanelKind::Thumbs)
                     .then(|| ThumbCache::new(page_count, scheduler.clone()));
-                if let Some(session) = self.persistence.get(&path) {
+                self.doc_password = password;
+                self.password_prompt = None;
+                // Uma cópia de página do documento anterior não pode chegar
+                // à área de transferência depois da troca.
+                self.page_copy = None;
+                // Abertura manual vence uma recarga ainda em andamento (que
+                // traria uma versão mais velha do mesmo arquivo).
+                if !reload {
+                    self.pending_reload = None;
+                }
+                // Na recarga o carimbo já é o da versão que a thread abriu; ler
+                // o disco agora engoliria uma edição feita durante a recarga.
+                if !reload {
+                    self.file_watch.reset(&path);
+                }
+                self.properties = None;
+                self.properties_rx = None;
+                let session = live
+                    .clone()
+                    .or_else(|| self.persistence.get(&path).cloned())
+                    .unwrap_or_default();
+                if session.zoom > 0.0 {
                     self.viewer.zoom = session.zoom.clamp(MIN_ZOOM, MAX_ZOOM);
                     self.current_page = session.last_page.min(page_count.saturating_sub(1));
                 } else {
                     self.current_page = 0;
                     self.viewer.zoom = 1.0;
                 }
+                // Na recarga os marcadores em memória já são os atuais.
+                if !reload {
+                    self.marks = self.persistence.marks(&path);
+                }
+                self.marks.retain(|&p| p < page_count);
+                self.viewer.rotation = session.rotation;
+                self.viewer
+                    .page_layout
+                    .set_axes_swapped(session.rotation.swaps_axes());
+                engine.set_rotation(session.rotation);
                 self.viewer.init_cache(scheduler, page_count);
                 if self.viewer.mode == ViewMode::SinglePage {
                     self.render_current_page(ctx);
+                } else {
+                    self.viewer.request_continuous_page(self.current_page);
                 }
+                true
+            }
+            Err(e)
+                if e.downcast_ref::<crate::pdf::engine::PasswordRequired>()
+                    .is_some() =>
+            {
+                tracing::info!(path = %path.display(), "PDF pede senha");
+                let wrong = password.is_some();
+                self.password_prompt =
+                    Some(crate::app_tools::PasswordPrompt::new(path, wrong, reload));
+                false
             }
             Err(e) => {
                 let msg = error_to_user_message(&e);
@@ -242,6 +366,7 @@ impl MariApp {
                     bench.record_open_failure(msg.clone());
                 }
                 self.toast = Some(Toast::error(msg, 5.0, now));
+                false
             }
         }
     }
@@ -261,6 +386,7 @@ impl MariApp {
                     last_page: self.current_page,
                     zoom: self.viewer.zoom,
                     last_opened: now_unix,
+                    rotation: self.viewer.rotation,
                 },
             );
         }
@@ -313,8 +439,16 @@ pub(crate) fn configure_visuals(ctx: &egui::Context) {
     v.window_stroke = egui::Stroke::new(1.0_f32, BORDER_SUBTLE);
     v.override_text_color = Some(TEXT_PRIMARY);
     v.widgets.inactive.bg_fill = egui::Color32::from_rgb(48, 48, 56);
-    v.widgets.hovered.bg_fill = ACCENT_PRIMARY;
-    v.widgets.active.bg_fill = ACCENT_LIGHT;
+    // Nada de azul padrão do egui: seleção, foco, cursor, links e botões
+    // nativos (hover/pressionado) usam vinho.
+    v.widgets.hovered.bg_fill = WINE;
+    v.widgets.hovered.weak_bg_fill = WINE;
+    v.widgets.active.bg_fill = WINE_DEEP;
+    v.widgets.active.weak_bg_fill = WINE_DEEP;
+    v.selection.bg_fill = WINE;
+    v.selection.stroke = egui::Stroke::new(1.0_f32, WINE_LIGHT);
+    v.text_cursor.stroke = egui::Stroke::new(2.0_f32, WINE_LIGHT);
+    v.hyperlink_color = WINE_LIGHT;
     ctx.set_visuals(v);
     ctx.style_mut(|s| {
         s.spacing.scroll.bar_width = 7.0;
