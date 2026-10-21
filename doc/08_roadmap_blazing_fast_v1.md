@@ -1,7 +1,7 @@
 # MariPDF — Roadmap Blazing Fast e v1.0 Redonda
 
 > Criado em: 2026-07-13  
-> Atualizado em: 2026-10-19 (1.0.0-rc.1)
+> Atualizado em: 2026-10-20 (1.0.0-rc.2)
 > Baseado em: auditoria do código, documentação, build release, testes e Clippy  
 > Documento complementar ao roadmap histórico `04_roadmap.md`
 

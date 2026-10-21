@@ -7,6 +7,11 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] — 2026-10-20
+
+Segunda release candidate: nova identidade visual, Home redesenhada e as
+ferramentas de leitura do dia a dia.
+
 ### Adicionado
 
 - Abrir PDF com senha: o app pede a senha em vez de mostrar erro (a senha
