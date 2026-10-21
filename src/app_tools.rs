@@ -389,10 +389,15 @@ impl MariApp {
     }
 
     pub(crate) fn toggle_mark(&mut self, ctx: &egui::Context) {
-        if self.engine.is_none() {
+        let page = self.current_page;
+        self.toggle_mark_page(ctx, page);
+    }
+
+    /// Marca ou desmarca `page` (fita na página, Ctrl+D, menu).
+    pub(crate) fn toggle_mark_page(&mut self, ctx: &egui::Context, page: usize) {
+        if self.engine.is_none() || page >= self.page_count {
             return;
         }
-        let page = self.current_page;
         let now = ctx.input(|i| i.time);
         let message = match self.marks.binary_search(&page) {
             Ok(index) => {
@@ -411,6 +416,35 @@ impl MariApp {
     fn persist_marks(&mut self) {
         if let Some(path) = self.current_file.clone() {
             self.persistence.set_marks(&path, &self.marks);
+        }
+    }
+
+    /// Próxima marca depois da página atual (dá a volta no fim).
+    pub(crate) fn next_mark(&mut self, ctx: &egui::Context) {
+        let current = self.current_page;
+        let target = self
+            .marks
+            .iter()
+            .copied()
+            .find(|&p| p > current)
+            .or_else(|| self.marks.first().copied());
+        if let Some(page) = target.filter(|&p| p != current) {
+            self.go_to_page(ctx, page);
+        }
+    }
+
+    /// Marca anterior à página atual (dá a volta no começo).
+    pub(crate) fn prev_mark(&mut self, ctx: &egui::Context) {
+        let current = self.current_page;
+        let target = self
+            .marks
+            .iter()
+            .rev()
+            .copied()
+            .find(|&p| p < current)
+            .or_else(|| self.marks.last().copied());
+        if let Some(page) = target.filter(|&p| p != current) {
+            self.go_to_page(ctx, page);
         }
     }
 

@@ -18,6 +18,7 @@ pub fn show_thumbs(
     accent: egui::Color32,
     look: crate::reader_profile::PageLook,
     axes_swapped: bool,
+    marks: &[usize],
 ) -> Option<usize> {
     let mut goto = None;
 
@@ -105,6 +106,7 @@ pub fn show_thumbs(
                         color_text,
                         accent,
                         look,
+                        marks.binary_search(&p).is_ok(),
                         &mut goto,
                     );
                 });
@@ -127,6 +129,7 @@ fn render_thumb_item(
     color_text: egui::Color32,
     accent: egui::Color32,
     look: crate::reader_profile::PageLook,
+    marked: bool,
     goto: &mut Option<usize>,
 ) {
     let is_current = page == current_page;
@@ -191,6 +194,18 @@ fn render_thumb_item(
             egui::Stroke::new(border_w, border_color),
             egui::StrokeKind::Outside,
         );
+        if marked {
+            let ribbon = egui::Rect::from_min_size(
+                egui::pos2(draw_rect.right() - 16.0, draw_rect.top()),
+                egui::vec2(10.0, 16.0),
+            );
+            crate::ui::viewer_helpers::paint_ribbon(
+                ui.painter(),
+                ribbon,
+                crate::app_constants::ACCENT_PRIMARY,
+                true,
+            );
+        }
     } else {
         let placeholder_color = egui::Color32::from_rgba_unmultiplied(
             (color_panel_bg.r() as i16 + 18).min(255) as u8,

@@ -116,6 +116,7 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
     let (mut nav_back, mut nav_forward, mut rotate_cw, mut rotate_ccw) =
         (false, false, false, false);
     let (mut toggle_mark, mut copy_page, mut open_properties) = (false, false, false);
+    let (mut next_mark, mut prev_mark) = (false, false);
     // Com um diálogo aberto (senha, propriedades), setas/Home/End pertencem a
     // ele: nenhum atalho do leitor pode mexer no documento por baixo.
     let modal = app.password_prompt.is_some() || app.properties.is_some();
@@ -140,6 +141,8 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         toggle_mark = ctrl && i.key_pressed(egui::Key::D);
         copy_page = ctrl && shift && i.key_pressed(egui::Key::C);
         open_properties = alt && i.key_pressed(egui::Key::Enter);
+        next_mark = i.key_pressed(egui::Key::F2) && !shift;
+        prev_mark = i.key_pressed(egui::Key::F2) && shift;
         go_home = i.key_pressed(egui::Key::Home);
         go_end = i.key_pressed(egui::Key::End);
         toggle_fs = i.key_pressed(egui::Key::F11);
@@ -271,6 +274,12 @@ pub(crate) fn run(app: &mut MariApp, ctx: &egui::Context) {
         }
         if toggle_mark {
             app.toggle_mark(ctx);
+        }
+        if next_mark {
+            app.next_mark(ctx);
+        }
+        if prev_mark {
+            app.prev_mark(ctx);
         }
         if copy_page {
             app.copy_page_image(ctx);

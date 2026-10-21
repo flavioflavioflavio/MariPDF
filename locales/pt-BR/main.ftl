@@ -268,3 +268,10 @@ password-hint = Senha
 password-wrong = Senha incorreta. Tente de novo.
 password-open = Abrir
 btn-cancel = Cancelar
+
+# Marcadores
+ribbon-add-hint = Marcar página (Ctrl+D)
+ribbon-remove-hint = Desmarcar página
+toolbar-marks-hint = Marcadores
+marks-empty = Nenhuma página marcada. Clique na fita no canto da página ou use Ctrl+D.
+marks-nav-hint = F2 próxima marca  ·  Shift+F2 anterior

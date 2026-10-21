@@ -92,6 +92,12 @@ pub struct PdfViewer {
     pub page_look: crate::reader_profile::PageLook,
     /// Rotação de exibição do documento atual.
     pub rotation: crate::ui::page_rotation::Rotation,
+    /// Páginas marcadas (ordenadas) e cor da fita, definidas pelo app.
+    pub marks: Vec<usize>,
+    pub mark_color: egui::Color32,
+    /// Pedidos para o app: alternar a marca de uma página, ir para uma marca.
+    pub mark_toggle: Option<usize>,
+    pub mark_jump: Option<usize>,
     /// Pixels de bitmap por ponto de UI: densidade da tela × qualidade.
     pub render_scale: f32,
     /// Escala (px por ponto PDF) do bitmap da textura single-page atual.
@@ -138,6 +144,10 @@ impl PdfViewer {
             is_loading: false,
             page_look: crate::reader_profile::PageLook::PLAIN,
             rotation: crate::ui::page_rotation::Rotation::R0,
+            marks: Vec::new(),
+            mark_color: egui::Color32::WHITE,
+            mark_toggle: None,
+            mark_jump: None,
             render_scale: 1.0,
             texture_scale: 1.0,
             usable_width: 0.0,
@@ -321,6 +331,9 @@ impl PdfViewer {
         // Lê AMBOS os deltas antes de qualquer widget consumir o evento:
         //   • scroll_delta     = valor bruto por frame (1 notch = ~50px, instantâneo)
         //   • smooth_scroll_delta = suavizado ao longo de vários frames
+        // A roda só vale com o mouse sobre a área do leitor: rolar as
+        // miniaturas ou o sumário não pode virar a página.
+        let hovered = ui.rect_contains_pointer(ui.max_rect());
         let (ctrl, raw_y, smooth_y) = ui.input(|i| {
             (
                 i.modifiers.ctrl,
@@ -333,7 +346,9 @@ impl PdfViewer {
             )
         });
 
-        if ctrl {
+        if !hovered {
+            // Roda fora do leitor (painel lateral): nada a fazer aqui.
+        } else if ctrl {
             // Ctrl + Scroll → zoom (usa smooth para não dar solavancos)
             if smooth_y != 0.0 {
                 self.zoom_delta = smooth_y.signum() * 0.15;

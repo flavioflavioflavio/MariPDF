@@ -174,11 +174,21 @@ impl MariApp {
             }
             Shot::Rotated => {
                 self.rotate_view(ctx, false);
-                self.toggle_mark(ctx);
-                self.side_panel = SidePanelKind::Toc;
+                // Algumas páginas marcadas: fita na página, miniaturas,
+                // trilho de marcas e a lista aberta na barra.
+                for page in [0, 2, 40, 77] {
+                    if !self.is_marked(page) {
+                        self.toggle_mark_page(ctx, page);
+                    }
+                }
+                if self.side_panel != SidePanelKind::Thumbs {
+                    self.toggle_side_panel(SidePanelKind::Thumbs);
+                }
+                ctx.memory_mut(|m| m.open_popup(crate::app_toolbar::marks_menu_id()));
                 Shot::Marks
             }
             Shot::Marks => {
+                ctx.memory_mut(|m| m.close_popup());
                 self.side_panel = SidePanelKind::None;
                 self.open_properties(ctx);
                 Shot::Properties

@@ -81,6 +81,8 @@ enum ToolbarAction {
     CopyPage,
     ShowInFolder,
     Properties,
+    MarkJump(usize),
+    MarkRemove(usize),
 }
 
 /// O que o menu Mais precisa saber para habilitar/rotular os itens.
@@ -116,6 +118,7 @@ impl MariApp {
             can_back: self.nav.can_back(),
             can_forward: self.nav.can_forward(),
         };
+        let marks = self.marks.clone();
         let mut actions: Vec<ToolbarAction> = Vec::new();
 
         egui::TopBottomPanel::top("toolbar")
@@ -134,6 +137,7 @@ impl MariApp {
                 // ── Direita: zoom · modo · Flutuante · tema/config/sobre ──
                 let mut right = zone(ui, row, egui::Layout::right_to_left(egui::Align::Center));
                 more_menu(&mut right, &tok, more, &mut actions);
+                marks_menu(&mut right, &tok, &marks, current_page, &mut actions);
                 right_zone(&mut right, &tok, color_mode, zoom_pct, mode, &mut actions);
                 let right_left = right.min_rect().left();
 
@@ -220,10 +224,12 @@ impl MariApp {
             ToolbarAction::CopyPage => self.copy_page_image(ctx),
             ToolbarAction::ShowInFolder => self.show_in_folder(),
             ToolbarAction::Properties => self.open_properties(ctx),
+            ToolbarAction::MarkJump(page) => self.go_to_page(ctx, page),
+            ToolbarAction::MarkRemove(page) => self.remove_mark(page),
         }
     }
 
-    fn toggle_side_panel(&mut self, kind: SidePanelKind) {
+    pub(crate) fn toggle_side_panel(&mut self, kind: SidePanelKind) {
         self.side_panel = if self.side_panel == kind {
             SidePanelKind::None
         } else {
@@ -426,6 +432,119 @@ fn more_menu(ui: &mut egui::Ui, tok: &Tok, state: MoreState, actions: &mut Vec<T
             }
         },
     );
+}
+
+/// Botão de marcadores: destaca quando a página atual está marcada e abre a
+/// lista (marcar/desmarcar a atual, ir para uma marca, remover).
+fn marks_menu(
+    ui: &mut egui::Ui,
+    tok: &Tok,
+    marks: &[usize],
+    current_page: usize,
+    actions: &mut Vec<ToolbarAction>,
+) {
+    let marked = marks.binary_search(&current_page).is_ok();
+    let button = tool_button(ui, icons::BOOKMARK_SIMPLE, marked, true, tok)
+        .on_hover_text(t!("toolbar-marks-hint"));
+    let popup_id = marks_menu_id();
+    if button.clicked() {
+        ui.memory_mut(|m| m.toggle_popup(popup_id));
+    }
+    egui::popup::popup_below_widget(
+        ui,
+        popup_id,
+        &button,
+        egui::PopupCloseBehavior::CloseOnClickOutside,
+        |ui| {
+            ui.set_min_width(240.0);
+            ui.spacing_mut().button_padding = egui::vec2(8.0, 6.0);
+            let toggle_label = if marked {
+                t!("menu-mark-remove")
+            } else {
+                t!("menu-mark-add")
+            };
+            if menu_item(
+                ui,
+                tok,
+                icons::BOOKMARK_SIMPLE,
+                &toggle_label,
+                SHORTCUT_MARK,
+                true,
+            ) {
+                actions.push(ToolbarAction::ToggleMark);
+            }
+            ui.separator();
+            if marks.is_empty() {
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(t!("marks-empty"))
+                            .size(12.0)
+                            .color(tok.subtle),
+                    )
+                    .wrap(),
+                );
+            } else {
+                egui::ScrollArea::vertical()
+                    .id_salt("toolbar_marks_scroll")
+                    .max_height(260.0)
+                    .show(ui, |ui| {
+                        for &page in marks {
+                            ui.horizontal(|ui| {
+                                let color = if page == current_page {
+                                    tok.ink
+                                } else {
+                                    tok.text
+                                };
+                                let label =
+                                    egui::RichText::new(t!("side-mark-page", page => page + 1))
+                                        .size(13.0)
+                                        .color(color);
+                                if ui
+                                    .add(
+                                        egui::Button::new(label)
+                                            .fill(egui::Color32::TRANSPARENT)
+                                            .stroke(egui::Stroke::NONE),
+                                    )
+                                    .clicked()
+                                {
+                                    actions.push(ToolbarAction::MarkJump(page));
+                                }
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui
+                                            .add(
+                                                egui::Button::new(icons::ph(
+                                                    icons::X,
+                                                    11.0,
+                                                    tok.subtle,
+                                                ))
+                                                .fill(egui::Color32::TRANSPARENT)
+                                                .stroke(egui::Stroke::NONE),
+                                            )
+                                            .on_hover_text(t!("side-mark-remove"))
+                                            .clicked()
+                                        {
+                                            actions.push(ToolbarAction::MarkRemove(page));
+                                        }
+                                    },
+                                );
+                            });
+                        }
+                    });
+            }
+            ui.add_space(4.0);
+            ui.label(
+                egui::RichText::new(t!("marks-nav-hint"))
+                    .size(10.5)
+                    .color(tok.subtle),
+            );
+        },
+    );
+}
+
+pub(crate) fn marks_menu_id() -> egui::Id {
+    egui::Id::new("toolbar_marks_menu")
 }
 
 /// Id global do popup (o roteiro de capturas também o abre).

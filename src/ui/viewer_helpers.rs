@@ -17,6 +17,97 @@ pub(super) fn pdf_rect_to_screen(
     PageMapping::new(page_rect, page_size, rotation).rect_to_screen(rect)
 }
 
+/// Desenha a fita de marcador (retângulo com o corte em V embaixo) em
+/// `rect`. Cheia quando marcada; só contorno quando é uma prévia.
+pub(crate) fn paint_ribbon(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    color: egui::Color32,
+    filled: bool,
+) {
+    let notch = egui::pos2(rect.center().x, rect.bottom() - rect.height() * 0.28);
+    if filled {
+        // Polígono côncavo dividido em duas partes convexas.
+        painter.add(egui::Shape::convex_polygon(
+            vec![
+                rect.left_top(),
+                rect.right_top(),
+                rect.right_bottom(),
+                notch,
+            ],
+            color,
+            egui::Stroke::NONE,
+        ));
+        painter.add(egui::Shape::convex_polygon(
+            vec![rect.left_top(), notch, rect.left_bottom()],
+            color,
+            egui::Stroke::NONE,
+        ));
+    } else {
+        painter.add(egui::Shape::closed_line(
+            vec![
+                rect.left_top(),
+                rect.right_top(),
+                rect.right_bottom(),
+                notch,
+                rect.left_bottom(),
+            ],
+            egui::Stroke::new(1.5_f32, color),
+        ));
+    }
+}
+
+/// Fita de marcador no canto superior direito da página: cheia quando a
+/// página está marcada, contorno discreto com o mouse sobre a página. Devolve
+/// true quando clicada (marcar/desmarcar).
+pub(crate) fn page_ribbon(
+    ui: &mut egui::Ui,
+    page_rect: egui::Rect,
+    page: usize,
+    marked: bool,
+    color: egui::Color32,
+) -> bool {
+    if !page_rect.is_positive() {
+        return false;
+    }
+    let width = (page_rect.width() * 0.035).clamp(12.0, 22.0);
+    let height = width * 1.6;
+    let right = page_rect.right() - width * 0.9;
+    let shape = egui::Rect::from_min_max(
+        egui::pos2(right - width, page_rect.top()),
+        egui::pos2(right, page_rect.top() + height),
+    );
+    let hot = shape.expand2(egui::vec2(10.0, 8.0));
+    let response = ui.interact(
+        hot,
+        egui::Id::new(("page_ribbon", page)),
+        egui::Sense::click(),
+    );
+    let over_page = ui.rect_contains_pointer(page_rect);
+    let painter = ui.painter();
+    if marked {
+        let fill = if response.hovered() {
+            color.gamma_multiply(0.85)
+        } else {
+            color
+        };
+        paint_ribbon(painter, shape, fill, true);
+    } else if response.hovered() {
+        paint_ribbon(painter, shape, color.gamma_multiply(0.45), true);
+    } else if over_page {
+        paint_ribbon(painter, shape, color.gamma_multiply(0.55), false);
+    }
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    let hint = if marked {
+        crate::t!("ribbon-remove-hint")
+    } else {
+        crate::t!("ribbon-add-hint")
+    };
+    response.on_hover_text(hint).clicked()
+}
+
 /// Pinta a ocorrência ativa da busca se ela pertence à página desenhada.
 pub(crate) fn paint_search_highlight(
     ui: &egui::Ui,

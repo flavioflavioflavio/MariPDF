@@ -268,3 +268,10 @@ password-hint = Password
 password-wrong = Wrong password. Try again.
 password-open = Open
 btn-cancel = Cancel
+
+# Bookmarks
+ribbon-add-hint = Bookmark page (Ctrl+D)
+ribbon-remove-hint = Remove bookmark
+toolbar-marks-hint = Bookmarks
+marks-empty = No bookmarked pages. Click the ribbon on the page corner or press Ctrl+D.
+marks-nav-hint = F2 next bookmark  ·  Shift+F2 previous

@@ -20,7 +20,11 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 - Propriedades do documento (Alt+Enter): arquivo, tamanho, páginas, papel,
   título, autor, datas e versão do PDF.
 - Mostrar na pasta e copiar a página como imagem (Ctrl+Shift+C).
-- Marcadores do usuário (Ctrl+D), listados no topo do painel de sumário.
+- Marcadores de página: fita no canto da própria página (clique marca e
+  desmarca), botão na barra com a lista (ir, remover), F2 / Shift+F2 para a
+  próxima ou a anterior, fita nas miniaturas, trilho de marcas na lateral do
+  modo contínuo e lista no topo do painel de sumário. Ctrl+D continua
+  valendo, e os marcadores sobrevivem a limpar o histórico.
 - Menu ⋯ na barra com todas essas ações e seus atalhos.
 - Página de cada tema (Configurações → Aparência), sempre coerente com ele:
   escuro tem Noturno, Noturno quente e Preto profundo; claro tem Original,
@@ -31,6 +35,8 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 
 ### Corrigido
 
+- Rolar as miniaturas ou o sumário também virava a página do documento (e
+  Ctrl+roda dava zoom) mesmo com o mouse fora do leitor.
 - Sumário automático escondia os primeiros itens sob o cabeçalho do painel.
 - Azul padrão do egui (seleção de texto, foco, cursor, links e botões
   nativos) trocado por vinho.
