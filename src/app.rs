@@ -215,6 +215,12 @@ impl MariApp {
         reload: bool,
     ) -> bool {
         tracing::info!("Abrindo: {}", path.display());
+        if !reload {
+            // Abertura manual (com ou sem senha) vence uma recarga em
+            // andamento: o resultado dela não pode instalar outro documento
+            // nem fechar um pedido de senha do arquivo que o usuário pediu.
+            self.pending_reload = None;
+        }
         let open_started = std::time::Instant::now();
         let opened =
             get_pdfium().and_then(|p| PdfEngine::open_with_password(&path, p, password.as_deref()));
@@ -265,7 +271,15 @@ impl MariApp {
                 self.engine = Some(Arc::clone(&engine));
                 self.document_worker = Some(document_worker);
                 self.current_file = Some(path.clone());
+                // Recarga com a busca aberta: refaz a mesma busca no documento
+                // novo em vez de mostrar "sem resultados" de uma busca que não
+                // rodou.
+                let rerun_query = (reload && self.search_open && !self.search.query.is_empty())
+                    .then(|| self.search.query.clone());
                 self.search.attach_document(scheduler.clone(), page_count);
+                if let Some(query) = rerun_query {
+                    self.search.start(&query);
+                }
                 self.render_error = None;
                 self.page_links.clear();
                 self.links_page = usize::MAX;

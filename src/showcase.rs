@@ -125,6 +125,8 @@ impl MariApp {
             || shot == Shot::Home;
         match shot {
             Shot::Home => true,
+            // Propriedades são lidas em segundo plano: espera o diálogo.
+            Shot::Properties => self.properties.is_some(),
             Shot::Search => !self.search.hits.is_empty() && page_ready,
             _ => page_ready && self.engine.is_some(),
         }
@@ -195,6 +197,9 @@ impl MariApp {
             }
             Shot::Properties => {
                 self.properties = None;
+                // As páginas abaixo são do tema escuro: força o tema para elas
+                // aparecerem de fato, qualquer que seja o tema inicial.
+                self.color_mode = crate::app_color_mode::ColorMode::Dark;
                 self.set_page(ctx, PageChoice::Dark(DarkPage::WarmNight));
                 Shot::PageWarm
             }

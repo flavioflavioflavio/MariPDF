@@ -617,18 +617,16 @@ impl MariApp {
         .collect();
 
         let mut close = false;
-        egui::Window::new("document_properties")
-            .title_bar(false)
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-            .fixed_size([440.0, 0.0])
+        // Modal de verdade: o fundo bloqueia barra, painéis e página até o
+        // diálogo fechar (navegar por baixo dele deixaria o conteúdo velho).
+        egui::Modal::new(egui::Id::new("document_properties"))
             .frame(
                 egui::Frame::window(&ctx.style())
                     .fill(BG_SURFACE)
                     .inner_margin(egui::Margin::symmetric(22, 18)),
             )
             .show(ctx, |ui| {
+                ui.set_width(440.0);
                 ui.horizontal(|ui| {
                     ui.label(icons::ph(icons::INFO, 18.0, TEXT_PRIMARY));
                     ui.label(
@@ -697,18 +695,16 @@ impl MariApp {
             .unwrap_or_default();
         let mut submit = false;
         let mut cancel = false;
-        egui::Window::new("password_prompt")
-            .title_bar(false)
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-            .fixed_size([380.0, 0.0])
+        // Modal de verdade: o fundo bloqueia barra, painéis e página até o
+        // diálogo fechar (navegar por baixo dele deixaria o conteúdo velho).
+        egui::Modal::new(egui::Id::new("password_prompt"))
             .frame(
                 egui::Frame::window(&ctx.style())
                     .fill(BG_SURFACE)
                     .inner_margin(egui::Margin::symmetric(22, 18)),
             )
             .show(ctx, |ui| {
+                ui.set_width(380.0);
                 ui.horizontal(|ui| {
                     ui.label(icons::ph(icons::LOCK_KEY, 18.0, TEXT_PRIMARY));
                     ui.label(
