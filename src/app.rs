@@ -17,8 +17,8 @@ use std::{path::PathBuf, sync::Arc};
 
 pub use crate::app_color_mode::ColorMode;
 pub use crate::app_constants::{
-    Toast, ACCENT_LIGHT, ACCENT_PRIMARY, BG_BASE, BG_SURFACE, BORDER_SUBTLE, MAX_ZOOM, MIN_ZOOM,
-    TEXT_MUTED, TEXT_PRIMARY, TEXT_SUBTLE, WINE, WINE_DEEP, WINE_LIGHT,
+    Toast, ACCENT_LIGHT, ACCENT_PRIMARY, BG_SURFACE, BORDER_SUBTLE, MAX_ZOOM, MIN_ZOOM, TEXT_MUTED,
+    TEXT_PRIMARY, TEXT_SUBTLE, WINE, WINE_DEEP, WINE_LIGHT,
 };
 pub use crate::app_reader::SidePanelKind;
 
@@ -407,7 +407,7 @@ impl eframe::App for MariApp {
         let scripted = self.bench.is_some() || self.soak.is_some() || self.showcase.is_some();
         let track = self.tracks_window() && !scripted;
         self.window.on_frame(ctx, frame, track);
-        configure_visuals(ctx);
+        configure_visuals(ctx, self.color_mode, self.settings.palette.0);
         crate::app_update::run(self, ctx);
         if self.bench.is_some() {
             let frame_ms = started.elapsed().as_secs_f64() * 1000.0;
@@ -431,9 +431,12 @@ impl MariApp {
 
 // ── Helpers globais ───────────────────────────────────────────────────────────
 
-pub(crate) fn configure_visuals(ctx: &egui::Context) {
+pub(crate) fn configure_visuals(ctx: &egui::Context, mode: ColorMode, palette: u8) {
     let mut v = egui::Visuals::dark();
-    v.panel_fill = BG_BASE;
+    // Fundo global segue o tema: nenhuma área descoberta (atrás de barras
+    // semitransparentes, bordas de painéis) aparece preta no claro/sépia.
+    v.panel_fill = mode.bg_for(palette);
+    v.extreme_bg_color = mode.bg_for(palette);
     v.window_fill = BG_SURFACE;
     v.window_corner_radius = egui::CornerRadius::same(12);
     v.window_stroke = egui::Stroke::new(1.0_f32, BORDER_SUBTLE);

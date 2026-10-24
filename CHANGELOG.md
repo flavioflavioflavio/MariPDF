@@ -7,6 +7,18 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- O executável (portátil e instalado) abria junto uma janela de console
+  (cmd); agora é um app gráfico do Windows.
+- Barra superior ficava preta com texto escuro no tema claro quando o mouse
+  saía do topo; o desbotamento agora vai para a cor do tema.
+
+### Alterado
+
+- Configurações com borda mais escura e sombra, destacando do PDF por trás.
+- Botão "Doar com PayPal" no Sobre e link oficial de doação no README.
+
 ## [1.0.0-rc.2] — 2026-10-20
 
 Segunda release candidate: nova identidade visual, Home redesenhada e as

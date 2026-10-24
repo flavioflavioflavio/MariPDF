@@ -4,7 +4,6 @@
 use eframe::egui;
 
 // ── Paleta base (Dark) ────────────────────────────────────────────────────────
-pub const BG_BASE: egui::Color32 = egui::Color32::from_rgb(14, 14, 16);
 pub const BG_SURFACE: egui::Color32 = egui::Color32::from_rgb(22, 22, 26);
 /// Vermelho da marca (#AF0C0C) para preenchimentos: botões, chips, seleção.
 /// Texto branco sobre ele tem contraste 7.2:1.

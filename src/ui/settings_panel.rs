@@ -69,9 +69,17 @@ pub fn show_settings_panel(
     let cm = *color_mode;
     let tok = Tokens::from(cm);
 
+    // Borda derivada da cor do texto (escura no claro/sépia, clara no escuro)
+    // e sombra: a janela se destaca do PDF por trás em qualquer tema.
     let outer_frame = egui::Frame::new()
         .fill(tok.surf)
-        .stroke(egui::Stroke::new(tok.dw * 1.5, tok.bord))
+        .stroke(egui::Stroke::new(1.5_f32, tok.text.gamma_multiply(0.30)))
+        .shadow(egui::Shadow {
+            offset: [0, 10],
+            blur: 28,
+            spread: 0,
+            color: egui::Color32::from_black_alpha(90),
+        })
         .corner_radius(egui::CornerRadius::same(16))
         .inner_margin(egui::Margin::same(0));
 

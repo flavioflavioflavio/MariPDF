@@ -194,7 +194,9 @@ storage-what-window = the window position
 settings-assoc-failed = Could not change the .pdf association: { $error }
 
 ## Atualização
-about-donate = ♥ Support MariPDF
+about-donate = ♥ Donate with PayPal
+about-support-title = SUPPORT THE PROJECT
+about-support-desc = MariPDF is free, with no ads and no paid version. If it helps you, consider supporting it.
 update-check = Check for updates
 update-check-again = Check again
 update-checking = Checking…

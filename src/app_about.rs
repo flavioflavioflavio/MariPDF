@@ -10,9 +10,8 @@ use eframe::egui;
 const REPO_URL: &str = "https://github.com/flavioflavioflavio/MariPDF";
 const LINKEDIN_URL: &str = "https://www.linkedin.com/in/takemotoflavio/";
 const EVOMIND_URL: &str = "https://evomind.app/investors";
-/// Canal de doação (BF-610). Enquanto não houver um canal oficial configurado,
-/// o link não aparece — o README pede para não enviar valores a links antigos.
-const DONATION_URL: Option<&str> = None;
+/// Canal oficial de doação (BF-610): botão hospedado do PayPal do autor.
+const DONATION_URL: &str = "https://www.paypal.com/donate/?hosted_button_id=VF4HWVKJTLJ7E";
 
 const LOGO_HEIGHT: f32 = 30.0;
 
@@ -92,20 +91,33 @@ impl AboutState {
                     let _ = open::that(url);
                 }
             }
-            if let Some(url) = DONATION_URL {
-                ui.label(egui::RichText::new("·").color(tok.subtle));
-                if ui
-                    .link(
-                        egui::RichText::new(t!("about-donate"))
-                            .size(12.5)
-                            .color(tok.ink),
-                    )
-                    .clicked()
-                {
-                    let _ = open::that(url);
-                }
-            }
         });
+
+        // ── Apoio ───────────────────────────────────────────────────────────
+        ui.add_space(10.0);
+        sec(ui, t!("about-support-title"), tok.subtle);
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(t!("about-support-desc"))
+                    .size(12.0)
+                    .color(tok.muted),
+            )
+            .wrap(),
+        );
+        ui.add_space(2.0);
+        let donate = crate::ui::settings_widgets::action_btn(
+            ui,
+            &format!("  {}  ", t!("about-donate")),
+            tok.accent,
+            tok.on_acc,
+            tok,
+        )
+        .on_hover_text(DONATION_URL);
+        if donate.clicked() {
+            if let Err(error) = open::that(DONATION_URL) {
+                tracing::warn!("doação: {error}");
+            }
+        }
 
         // ── Atualizações ────────────────────────────────────────────────────
         ui.add_space(10.0);

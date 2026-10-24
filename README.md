@@ -141,6 +141,6 @@ produtos digitais, fundador da [EvoMind](https://evomind.app/investors) ·
 GPL-3.0-or-later. O PDFium e as demais dependências mantêm suas licenças (SBOM
 publicado em cada release).
 
-O MariPDF seguirá gratuito e sem recursos pagos. Um canal oficial de doação
-será anunciado aqui e no *Sobre* quando existir. Não envie valores para links
-encontrados em documentos antigos.
+O MariPDF seguirá gratuito e sem recursos pagos. Para apoiar, use o canal
+oficial de doação pelo PayPal: <https://www.paypal.com/donate/?hosted_button_id=VF4HWVKJTLJ7E>
+(também em *Configurações → Sobre*). Não envie valores para outros links.
