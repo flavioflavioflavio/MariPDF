@@ -198,7 +198,9 @@ impl MariApp {
             Shot::Properties => {
                 self.properties = None;
                 // As páginas abaixo são do tema escuro: força o tema para elas
-                // aparecerem de fato, qualquer que seja o tema inicial.
+                // aparecerem de fato, qualquer que seja o tema inicial. O tema
+                // original volta depois delas (GIF e demais fotos).
+                ctx.data_mut(|d| d.insert_temp(egui::Id::new("showcase_theme"), self.color_mode));
                 self.color_mode = crate::app_color_mode::ColorMode::Dark;
                 self.set_page(ctx, PageChoice::Dark(DarkPage::WarmNight));
                 Shot::PageWarm
@@ -218,6 +220,12 @@ impl MariApp {
             }
             Shot::Appearance => {
                 self.settings_open = false;
+                if let Some(mode) = ctx.data(|d| {
+                    d.get_temp::<crate::app_color_mode::ColorMode>(egui::Id::new("showcase_theme"))
+                }) {
+                    self.color_mode = mode;
+                    self.invalidate_render(ctx);
+                }
                 // PDF com senha opcional: MARIPDF_SHOWCASE_LOCKED=<pdf>.
                 match std::env::var_os("MARIPDF_SHOWCASE_LOCKED") {
                     Some(locked) => {
