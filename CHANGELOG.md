@@ -7,6 +7,11 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0-rc.3] — 2026-10-24
+
+Correções da rc.2: o app não abre mais a janela de console e a barra superior
+fica legível no tema claro.
+
 ### Corrigido
 
 - O executável (portátil e instalado) abria junto uma janela de console
