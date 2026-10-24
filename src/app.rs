@@ -436,7 +436,9 @@ pub(crate) fn configure_visuals(ctx: &egui::Context, mode: ColorMode, palette: u
     // Fundo global segue o tema: nenhuma área descoberta (atrás de barras
     // semitransparentes, bordas de painéis) aparece preta no claro/sépia.
     v.panel_fill = mode.bg_for(palette);
-    v.extreme_bg_color = mode.bg_for(palette);
+    // Campos de texto ficam escuros em qualquer tema: os overlays (busca,
+    // senha) são escuros e o texto global é claro. Seguir o tema aqui deixava
+    // o campo claro com texto claro, ilegível no claro e no sépia.
     v.window_fill = BG_SURFACE;
     v.window_corner_radius = egui::CornerRadius::same(12);
     v.window_stroke = egui::Stroke::new(1.0_f32, BORDER_SUBTLE);
