@@ -110,7 +110,12 @@ impl MariApp {
         let palette = self.settings.palette.0;
         let tok = Tok::new(color_mode, palette);
         let surface = color_mode.surface_for(palette);
-        let fill = surface.gamma_multiply(self.toolbar_opacity.max(0.0));
+        // O desbotamento vai em direção ao fundo do tema, sempre opaco: com
+        // transparência aparecia o fundo escuro global e, no tema claro, a
+        // barra ficava preta com texto escuro.
+        let fill = color_mode
+            .bg_for(palette)
+            .lerp_to_gamma(surface, self.toolbar_opacity.clamp(0.0, 1.0));
         let border = color_mode.border().gamma_multiply(tb_alpha as f32 / 255.0);
         let side_panel = self.side_panel;
         let more = MoreState {

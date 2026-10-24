@@ -194,7 +194,9 @@ storage-what-window = a posição da janela
 settings-assoc-failed = Não foi possível alterar a associação .pdf: { $error }
 
 ## Atualização
-about-donate = ♥ Apoiar o MariPDF
+about-donate = ♥ Doar com PayPal
+about-support-title = APOIE O PROJETO
+about-support-desc = O MariPDF é gratuito, sem anúncios e sem versão paga. Se ele te ajuda, considere apoiar.
 update-check = Verificar atualizações
 update-check-again = Verificar de novo
 update-checking = Verificando…

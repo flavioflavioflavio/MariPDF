@@ -1,6 +1,11 @@
 // main.rs — Entry point do MariPDF
 // Responsabilidade: inicializar logging, parsear args CLI, lançar UI
 
+// Release (portátil e instalado) é um app gráfico: sem janela de console ao
+// abrir. Em debug o console fica, para ver os logs durante o desenvolvimento;
+// em release eles vão para o arquivo de log.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use crate::settings::FontChoice;
 use std::path::PathBuf;
 
