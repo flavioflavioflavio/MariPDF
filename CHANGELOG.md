@@ -7,6 +7,18 @@ versionamento segue [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Corrigido
+
+- Campo de busca e de senha ficavam ilegíveis (fundo claro com texto claro)
+  nos temas claro e sépia desde a rc.3.
+- Rótulo da fonte Outfit mostrava um quadrado no lugar de um símbolo.
+
+### Documentação
+
+- README novo: prints da identidade atual, recursos completos, atalhos,
+  instalação, compilação e doação; `FUNDING.yml` com o PayPal oficial.
+- `tools/make_demo_pdfs.py` gera os PDFs de demonstração usados nos prints.
+
 ## [1.0.0-rc.3] — 2026-10-24
 
 Correções da rc.2: o app não abre mais a janela de console e a barra superior

@@ -70,7 +70,7 @@ pub enum FontChoice {
 impl FontChoice {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Outfit => "Outfit  ✦",
+            Self::Outfit => "Outfit",
             Self::Inter => "Inter",
             Self::Lora => "Lora",
             Self::Quicksand => "Quicksand",
