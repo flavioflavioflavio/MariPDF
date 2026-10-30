@@ -66,6 +66,11 @@ sha2 = "0.10"
 serde_json = "1"
 base64 = "0.22"
 
+[features]
+# Versão da Microsoft Store (MSIX): atualizações e associação .pdf ficam com
+# a Store e o manifesto do pacote. Ver tools/package_msix.ps1.
+store = []
+
 [build-dependencies]
 # Embute ícone .ico e metadados no executável Windows
 winres        = "0.1"

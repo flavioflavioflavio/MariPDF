@@ -202,6 +202,14 @@ pub(super) fn tab_privacy(
 
     clear_history_row(ui, persistence, tok);
 
+    // Na versão da Microsoft Store a associação .pdf vem do manifesto do
+    // pacote (o registro do usuário é virtualizado dentro do MSIX).
+    if !cfg!(feature = "store") {
+        windows_integration(ui, tok);
+    }
+}
+
+fn windows_integration(ui: &mut egui::Ui, tok: &Tokens) {
     // ── Integração Windows ─────────────────────────────────────────────────
     ui.add_space(20.0);
     divider(ui, tok.bord, tok.dw);

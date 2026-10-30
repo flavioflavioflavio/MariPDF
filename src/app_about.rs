@@ -122,7 +122,16 @@ impl AboutState {
         // ── Atualizações ────────────────────────────────────────────────────
         ui.add_space(10.0);
         sec(ui, t!("about-updates-title"), tok.subtle);
-        self.update_section(ui, tok);
+        if cfg!(feature = "store") {
+            // A Microsoft Store entrega as atualizações sozinha.
+            ui.label(
+                egui::RichText::new(t!("update-by-store"))
+                    .size(12.0)
+                    .color(tok.muted),
+            );
+        } else {
+            self.update_section(ui, tok);
+        }
 
         ui.add_space(10.0);
         ui.label(
