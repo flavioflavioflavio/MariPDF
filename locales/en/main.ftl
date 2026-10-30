@@ -277,3 +277,4 @@ ribbon-remove-hint = Remove bookmark
 toolbar-marks-hint = Bookmarks
 marks-empty = No bookmarked pages. Click the ribbon on the page corner or press Ctrl+D.
 marks-nav-hint = F2 next bookmark  ·  Shift+F2 previous
+update-by-store = Updates are delivered automatically by the Microsoft Store.

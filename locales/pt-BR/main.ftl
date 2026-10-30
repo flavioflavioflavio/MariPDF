@@ -277,3 +277,4 @@ ribbon-remove-hint = Desmarcar página
 toolbar-marks-hint = Marcadores
 marks-empty = Nenhuma página marcada. Clique na fita no canto da página ou use Ctrl+D.
 marks-nav-hint = F2 próxima marca  ·  Shift+F2 anterior
+update-by-store = As atualizações chegam automaticamente pela Microsoft Store.
