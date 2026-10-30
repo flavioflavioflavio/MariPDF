@@ -67,8 +67,11 @@ $manifest = $manifest.Replace("{{IDENTITY_NAME}}", $IdentityName).
 # escala e tamanho (.scale-200, .targetsize-48 etc.).
 $makepri = Join-Path $sdk.DirectoryName "makepri.exe"
 $priConfig = Join-Path $env:TEMP "maripdf-priconfig.xml"
-& $makepri createconfig /cf $priConfig /dq pt-BR_en-US /pv 10.0.0 /o | Out-Null
+& $makepri createconfig /cf $priConfig /dq pt-BR /pv 10.0.0 /o | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "makepri createconfig falhou" }
+# Sem <packaging>: tudo num resources.pri só (o MSIX não é dividido em pacotes de recursos).
+$config = Get-Content $priConfig -Raw
+[IO.File]::WriteAllText($priConfig, ($config -replace '(?s)\s*<packaging>.*?</packaging>', ''))
 & $makepri new /pr $stage /cf $priConfig /mn "$stage\AppxManifest.xml" /of "$stage\resources.pri" /o | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "makepri new falhou" }
 
